@@ -231,7 +231,7 @@ export function App() {
       payload_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
       before_state: { status: 'NOT_STARTED', progress: 0 },
       after_state: { status: 'COMPLETED', progress: 100, finish_date: '2026-08-24' },
-      created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
+      created_at: '2026-08-29T12:00:00.000Z',
     }
   ]);
 

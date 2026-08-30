@@ -13,6 +13,10 @@ interface DocumentUploadProps {
   onNavigateTab: (tab: string) => void;
 }
 
+function generateObsId(): string {
+  return `obs-${Math.random().toString(36).substring(2, 11)}`;
+}
+
 export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onAddObservations, onNavigateTab }) => {
   const [inputText, setInputText] = useState('');
   const [sourceType, setSourceType] = useState('DAILY_REPORT');
@@ -90,7 +94,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onAddObservation
 
     // Execute Observation Generation
     const newObs: WorkObservation = {
-      id: `obs-${Date.now()}`,
+      id: generateObsId(),
       project_id: 'a0000000-0000-0000-0000-000000000001',
       raw_text: text,
       normalized_text: text.includes('P-101') ? text.replace('P-101', 'Line P-101') : text,

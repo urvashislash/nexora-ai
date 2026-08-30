@@ -143,3 +143,161 @@ def test_excel_extraction():
         assert len(obs.normalized_text) > 0
         assert obs.project_id == project_id
 
+
+# =============================================================================
+# Additional Comprehensive Hybrid Matcher Tests
+# =============================================================================
+
+class TestHybridMatcherScenarios:
+    """Tests covering various matching algorithms and boundary conditions."""
+
+    @pytest.fixture
+    def sample_schedule(self):
+        project_id = uuid4()
+        return [
+            ScheduleActivity(
+                id=uuid4(),
+                project_id=project_id,
+                code="PIP-2400",
+                name="Spool Erection - Pipe Rack B",
+                description="Erection and bolt-up of prefabricated spools",
+                discipline=DisciplineEnum.PIPING,
+                location="Pipe Rack B",
+                zone="Zone 2",
+                equipment_tag="RACK-B",
+                planned_start_date=date(2026, 8, 10),
+                planned_finish_date=date(2026, 8, 25),
+            ),
+            ScheduleActivity(
+                id=uuid4(),
+                project_id=project_id,
+                code="CIV-1100",
+                name="Rebar Tying - Compressor Foundation",
+                description="Rebar binding for foundation C-101",
+                discipline=DisciplineEnum.CIVIL,
+                location="Compressor House",
+                zone="Zone 1",
+                equipment_tag="FND-C-101",
+                planned_start_date=date(2026, 8, 15),
+                planned_finish_date=date(2026, 8, 24),
+            ),
+            ScheduleActivity(
+                id=uuid4(),
+                project_id=project_id,
+                code="ELE-3100",
+                name="Cable Tray Installation - Area 100",
+                description="Perforated cable tray routing",
+                discipline=DisciplineEnum.ELECTRICAL,
+                location="CDU Area 100",
+                zone="Zone 1",
+                equipment_tag="TRAY-100",
+                planned_start_date=date(2026, 8, 20),
+                planned_finish_date=date(2026, 8, 30),
+            ),
+            ScheduleActivity(
+                id=uuid4(),
+                project_id=project_id,
+                code="INS-4100",
+                name="Transmitter Calibration - PT-101",
+                description="Pressure transmitter hookup and loop test",
+                discipline=DisciplineEnum.INSTRUMENTATION,
+                location="CDU Area 100",
+                zone="Zone 1",
+                equipment_tag="PT-101",
+                planned_start_date=date(2026, 8, 22),
+                planned_finish_date=date(2026, 8, 28),
+            ),
+        ]
+
+    def test_exact_code_match_boost(self, sample_schedule):
+        project_id = sample_schedule[0].project_id
+        obs = NormalizedObservation(
+            project_id=project_id,
+            raw_text="PIP-2400 spool erection completed",
+            normalized_text="PIP-2400 Spool Erection and Alignment completed",
+            discipline=DisciplineEnum.PIPING,
+            event_type=EventTypeEnum.FINISH,
+        )
+        proposal = HybridMatcher.match_observation(obs, sample_schedule)
+        assert proposal.top_match is not None
+        assert proposal.top_match.activity_code == "PIP-2400"
+        assert proposal.top_match.confidence_score >= 0.85
+        assert proposal.top_match.match_tier in (MatchTierEnum.HIGH, MatchTierEnum.MEDIUM)
+
+    def test_equipment_tag_matching(self, sample_schedule):
+        project_id = sample_schedule[0].project_id
+        obs = NormalizedObservation(
+            project_id=project_id,
+            raw_text="Calibrated PT-101 today",
+            normalized_text="Calibrated Transmitter PT-101 today",
+            discipline=DisciplineEnum.INSTRUMENTATION,
+            equipment_tag="PT-101",
+            event_type=EventTypeEnum.FINISH,
+        )
+        proposal = HybridMatcher.match_observation(obs, sample_schedule)
+        assert proposal.top_match is not None
+        assert proposal.top_match.activity_code == "INS-4100"
+        assert proposal.top_match.match_tier == MatchTierEnum.HIGH
+
+    def test_location_and_discipline_boost(self, sample_schedule):
+        project_id = sample_schedule[0].project_id
+        obs = NormalizedObservation(
+            project_id=project_id,
+            raw_text="Rebar binding at Compressor House",
+            normalized_text="Rebar Tying and Shuttering at Compressor House",
+            discipline=DisciplineEnum.CIVIL,
+            location="Compressor House",
+            event_type=EventTypeEnum.PROGRESS,
+        )
+        proposal = HybridMatcher.match_observation(obs, sample_schedule)
+        assert proposal.top_match is not None
+        assert proposal.top_match.activity_code == "CIV-1100"
+
+    def test_empty_activity_list(self):
+        project_id = uuid4()
+        obs = NormalizedObservation(
+            project_id=project_id,
+            raw_text="Any text",
+            normalized_text="Any text",
+        )
+        proposal = HybridMatcher.match_observation(obs, [])
+        assert proposal.candidates == []
+        assert proposal.top_match is None
+        assert proposal.auto_link_eligible is False
+
+    def test_all_candidates_ranked_descending(self, sample_schedule):
+        project_id = sample_schedule[0].project_id
+        obs = NormalizedObservation(
+            project_id=project_id,
+            raw_text="Cable tray work",
+            normalized_text="Cable Tray Installation work",
+            discipline=DisciplineEnum.ELECTRICAL,
+        )
+        proposal = HybridMatcher.match_observation(obs, sample_schedule)
+        assert len(proposal.candidates) > 0
+        scores = [c.confidence_score for c in proposal.candidates]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_candidate_rank_indices(self, sample_schedule):
+        project_id = sample_schedule[0].project_id
+        obs = NormalizedObservation(
+            project_id=project_id,
+            raw_text="General work",
+            normalized_text="General work",
+        )
+        proposal = HybridMatcher.match_observation(obs, sample_schedule)
+        for i, candidate in enumerate(proposal.candidates):
+            assert candidate.candidate_rank == i + 1
+
+    def test_unmatched_when_completely_irrelevant(self, sample_schedule):
+        project_id = sample_schedule[0].project_id
+        obs = NormalizedObservation(
+            project_id=project_id,
+            raw_text="Catering service delivered 200 lunch packets to camp 3",
+            normalized_text="Catering service delivered 200 lunch packets to camp 3",
+            discipline=DisciplineEnum.GENERAL,
+        )
+        proposal = HybridMatcher.match_observation(obs, sample_schedule)
+        if proposal.top_match:
+            assert proposal.top_match.confidence_score < 0.65
+            assert proposal.auto_link_eligible is False

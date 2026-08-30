@@ -97,12 +97,13 @@ class DocumentExtractor:
                 progress = DocumentExtractor._detect_progress(raw_line)
                 normalized_text = default_normalizer.normalize(raw_line, discipline)
 
+                from datetime import timezone
                 obs = NormalizedObservation(
                     project_id=project_id,
                     document_id=document_id,
                     raw_text=raw_line,
                     normalized_text=normalized_text,
-                    observed_at=datetime.utcnow(),
+                    observed_at=datetime.now(timezone.utc),
                     discipline=discipline,
                     event_type=event_type,
                     reported_progress=progress,
