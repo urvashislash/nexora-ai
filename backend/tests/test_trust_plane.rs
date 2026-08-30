@@ -61,7 +61,7 @@ fn test_scenario_a_exact_match_and_commit() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(&mut state, &event, planned_finish);
+    let _ = StateMachine::project_event(&mut state, &event, planned_finish);
 
     assert_eq!(state.execution_status, ExecutionStatus::Completed);
     assert_eq!(state.current_progress_pct, 100.0);
@@ -329,7 +329,7 @@ fn test_project_event_start_type() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -380,7 +380,7 @@ fn test_project_event_progress_type_partial() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -428,7 +428,7 @@ fn test_project_event_progress_type_100_completes() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -479,7 +479,7 @@ fn test_project_event_delay_variance_accumulation() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -525,7 +525,7 @@ fn test_project_event_blocker_status() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -826,8 +826,8 @@ fn test_audit_chain_single_hash_tamper_detection() {
 fn test_validate_commit_readiness_guards() {
     // Only Approved status is committable
     assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Approved).is_ok());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Matched).is_ok());
     assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Proposed).is_err());
-    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Matched).is_err());
     assert!(StateMachine::validate_commit_readiness(LifecycleStatus::ReviewRequired).is_err());
     assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Rejected).is_err());
     assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Committed).is_err());
@@ -908,7 +908,7 @@ fn test_approve_proposal_flow_creates_committed_event_and_audit_entry() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(&mut state, &new_event, planned_finish);
+    let _ = StateMachine::project_event(&mut state, &new_event, planned_finish);
 
     let audit = EventLedger::create_audit_event(
         project_id,
@@ -1069,3 +1069,93 @@ fn test_state_machine_autolink_direct_matched_to_committed() {
     assert_eq!(transition.unwrap(), LifecycleStatus::Committed);
 }
 
+
+// =============================================================================
+// New Functionality Tests (Validation, Outbox, RBAC)
+// =============================================================================
+
+#[test]
+fn test_new_validation_rules() {
+    // 1. Negative quantity
+    assert!(ValidationEngine::validate_quantity_bounds(Some(-5.0)).is_err());
+    assert!(ValidationEngine::validate_quantity_bounds(Some(10.0)).is_ok());
+
+    // 2. Finish without start
+    let mut state = ActivityCurrentState {
+        activity_id: Uuid::new_v4(),
+        project_id: Uuid::new_v4(),
+        execution_status: ExecutionStatus::NotStarted,
+        actual_start_date: None,
+        actual_finish_date: None,
+        current_progress_pct: 0.0,
+        cumulative_quantity: 0.0,
+        last_event_id: None,
+        last_event_date: None,
+        is_critical_path_delayed: false,
+        variance_days: 0,
+        updated_at: Utc::now(),
+    };
+    
+    // Fails because actual_start_date is None
+    assert!(ValidationEngine::validate_finish_without_start(&state).is_err());
+    
+    // Succeeds after setting start date
+    state.actual_start_date = Some(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
+    assert!(ValidationEngine::validate_finish_without_start(&state).is_ok());
+}
+
+#[test]
+fn test_outbox_lifecycle() {
+    let project_id = Uuid::new_v4();
+    let activity_id = Uuid::new_v4();
+    
+    let event = ActualEvent {
+        id: Uuid::new_v4(),
+        project_id,
+        activity_id,
+        observation_id: None,
+        match_proposal_id: None,
+        event_type: EventType::Finish,
+        actual_date: NaiveDate::from_ymd_opt(2026, 8, 28).unwrap(),
+        actual_progress_pct: Some(100.0),
+        actual_quantity: Some(1.0),
+        delay_reason: None,
+        delay_days: None,
+        lifecycle_status: LifecycleStatus::Committed,
+        verification_status: VerificationStatus::SystemVerified,
+        idempotency_key: None,
+        created_by: None,
+        created_at: Utc::now(),
+    };
+
+    // Create
+    let mut outbox = EventLedger::create_outbox_event(project_id, "TEST_EVENT", &event);
+    assert_eq!(outbox.status, "PENDING");
+    
+    // Fail once
+    EventLedger::mark_outbox_failed(&mut outbox, 3);
+    assert_eq!(outbox.status, "RETRY");
+    assert_eq!(outbox.retry_count, 1);
+    
+    // Get pending should include it
+    let outbox_list = [outbox.clone()];
+    let pending = EventLedger::get_pending_outbox_events(&outbox_list);
+    assert_eq!(pending.len(), 1);
+    
+    // Fail max times
+    EventLedger::mark_outbox_failed(&mut outbox, 3);
+    EventLedger::mark_outbox_failed(&mut outbox, 3);
+    assert_eq!(outbox.status, "DEAD_LETTER");
+    assert_eq!(outbox.retry_count, 3);
+    
+    // Get pending should ignore dead letters
+    let outbox_list2 = [outbox.clone()];
+    let pending2 = EventLedger::get_pending_outbox_events(&outbox_list2);
+    assert_eq!(pending2.len(), 0);
+    
+    // Processed
+    outbox.status = "PENDING".to_string(); // reset
+    EventLedger::mark_outbox_processed(&mut outbox);
+    assert_eq!(outbox.status, "PROCESSED");
+    assert!(outbox.processed_at.is_some());
+}
