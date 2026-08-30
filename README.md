@@ -215,6 +215,7 @@ nexora-ai/
 
 ## 📚 Technical Documentation Index
 
+- **[100% Free-Tier Deployment Guide](docs/free_tier_deployment_guide.md)**: Zero-cost deployment blueprint (Vercel, Render, HF Spaces, Supabase, CloudAMQP, Upstash).
 - **[Developer Onboarding Guide](docs/developer_onboarding.md)**: Local setup, environment configuration, and troubleshooting.
 - **[Product Overview & Demo Guide](docs/product_overview_and_demo.md)**: End-to-end user flows and SIH demo walkthrough.
 - **[Production Readiness Checklist](docs/project_readiness_checklist.md)**: Formal audit and release gate sign-off.
