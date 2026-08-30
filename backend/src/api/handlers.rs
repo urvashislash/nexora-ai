@@ -25,6 +25,7 @@ pub struct AppState {
     pub proposals: Arc<RwLock<Vec<MatchProposal>>>,
     pub events: Arc<RwLock<Vec<ActualEvent>>>,
     pub audit_trail: Arc<RwLock<Vec<AuditEvent>>>,
+    pub approvals: Arc<RwLock<Vec<Approval>>>,
 }
 
 impl AppState {
@@ -161,74 +162,7 @@ impl AppState {
                 weightage: 1.4,
                 critical_path: false,
             },
-            Activity {
-                id: Uuid::parse_str("d0000000-0000-0000-0000-000000000006").unwrap(),
-                project_id,
-                schedule_version_id,
-                wbs_id,
-                code: "MEC-3200".to_string(),
-                name: "Pump Alignment and Baseplate Grouting - Crude Charge Pump P-101A".to_string(),
-                description: Some(
-                    "Mechanical alignment, dial indicator runout check and epoxy grouting".to_string(),
-                ),
-                discipline: Discipline::Mechanical,
-                planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 20).unwrap(),
-                planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
-                planned_duration_days: 5,
-                planned_quantity: Some(1.0),
-                unit_of_measure: Some("Units".to_string()),
-                location: Some("Pump House 1".to_string()),
-                zone: Some("Zone 1".to_string()),
-                equipment_tag: Some("P-101A".to_string()),
-                weightage: 1.6,
-                critical_path: false,
-            },
-            Activity {
-                id: Uuid::parse_str("d0000000-0000-0000-0000-000000000007").unwrap(),
-                project_id,
-                schedule_version_id,
-                wbs_id,
-                code: "ELE-4100".to_string(),
-                name: "Cable Tray Bracket Mounting and Ladder Traying - Rack B Tier 3".to_string(),
-                description: Some(
-                    "Electrical cable tray bracket welding and ladder tray installation".to_string(),
-                ),
-                discipline: Discipline::Electrical,
-                planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 22).unwrap(),
-                planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 28).unwrap(),
-                planned_duration_days: 6,
-                planned_quantity: Some(120.0),
-                unit_of_measure: Some("M".to_string()),
-                location: Some("Pipe Rack B".to_string()),
-                zone: Some("Zone 2".to_string()),
-                equipment_tag: Some("RACK-B-T3".to_string()),
-                weightage: 1.3,
-                critical_path: false,
-            },
-            Activity {
-                id: Uuid::parse_str("d0000000-0000-0000-0000-000000000008").unwrap(),
-                project_id,
-                schedule_version_id,
-                wbs_id,
-                code: "INS-5100".to_string(),
-                name: "Bench Calibration and Impulse Tubing Hookup - Pressure Transmitter PT-101".to_string(),
-                description: Some(
-                    "5-point calibration and stainless steel 1/2 inch impulse tubing hookup".to_string(),
-                ),
-                discipline: Discipline::Instrumentation,
-                planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
-                planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 29).unwrap(),
-                planned_duration_days: 4,
-                planned_quantity: Some(4.0),
-                unit_of_measure: Some("Tags".to_string()),
-                location: Some("CDU Area 100".to_string()),
-                zone: Some("Zone 1".to_string()),
-                equipment_tag: Some("PT-101".to_string()),
-                weightage: 1.1,
-                critical_path: false,
-            },
         ];
-
 
         let states = activities
             .iter()
@@ -256,6 +190,7 @@ impl AppState {
             proposals: Arc::new(RwLock::new(Vec::new())),
             events: Arc::new(RwLock::new(Vec::new())),
             audit_trail: Arc::new(RwLock::new(Vec::new())),
+            approvals: Arc::new(RwLock::new(Vec::new())),
         }
     }
 }
@@ -405,6 +340,7 @@ pub async fn approve_proposal(
     let mut events = state.events.write().await;
     let mut act_states = state.activity_states.write().await;
     let mut audit_trail = state.audit_trail.write().await;
+    let mut approvals_store = state.approvals.write().await;
     let acts = state.activities.read().await;
 
     let proposal = proposals
@@ -455,6 +391,21 @@ pub async fn approve_proposal(
         StateMachine::project_event(state_entry, &new_event, act.planned_finish_date);
     }
 
+    // Create Approval record
+    let approval = Approval {
+        id: Uuid::new_v4(),
+        project_id: proposal.project_id,
+        event_id: Some(new_event.id),
+        proposal_id: Some(proposal.id),
+        action: "APPROVE".to_string(),
+        reviewed_by: payload.reviewer_id,
+        reviewed_at: Utc::now(),
+        selected_activity_id: payload.selected_activity_id,
+        comments: payload.comments.clone(),
+        confidence_override: None,
+    };
+    approvals_store.push(approval);
+
     // Add to audit trail
     let audit = EventLedger::create_audit_event(
         proposal.project_id,
@@ -464,7 +415,7 @@ pub async fn approve_proposal(
         Some(payload.reviewer_id),
         Some("PLANNER"),
         Some(serde_json::json!({"status": "PENDING_REVIEW"})),
-        Some(serde_json::json!({"status": "COMMITTED", "event_id": new_event.id})),
+        Some(serde_json::json!({"status": "COMMITTED", "event_id": new_event.id, "comments": payload.comments})),
         None,
     );
 
@@ -489,6 +440,7 @@ pub async fn reject_proposal(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut proposals = state.proposals.write().await;
     let mut audit_trail = state.audit_trail.write().await;
+    let mut approvals_store = state.approvals.write().await;
 
     let proposal = proposals
         .iter_mut()
@@ -496,6 +448,21 @@ pub async fn reject_proposal(
         .ok_or((StatusCode::NOT_FOUND, "Proposal not found".to_string()))?;
 
     proposal.status = "REJECTED".to_string();
+
+    // Create Approval record for the rejection
+    let approval = Approval {
+        id: Uuid::new_v4(),
+        project_id: proposal.project_id,
+        event_id: None,
+        proposal_id: Some(proposal.id),
+        action: "REJECT".to_string(),
+        reviewed_by: payload.reviewer_id,
+        reviewed_at: Utc::now(),
+        selected_activity_id: None,
+        comments: payload.comments.clone(),
+        confidence_override: None,
+    };
+    approvals_store.push(approval);
 
     let audit = EventLedger::create_audit_event(
         proposal.project_id,
@@ -515,25 +482,22 @@ pub async fn reject_proposal(
     ))
 }
 
-#[derive(Deserialize)]
-#[allow(dead_code)]
-pub struct OverridePayload {
-    pub reviewer_id: Uuid,
-    pub selected_activity_id: Uuid,
-    pub actual_date: Option<NaiveDate>,
-    pub actual_progress_pct: Option<f64>,
-    pub comments: Option<String>,
-}
-
+/// Override a proposal — planner selects a different target activity
 pub async fn override_proposal(
     State(state): State<AppState>,
     Path(proposal_id): Path<Uuid>,
-    Json(payload): Json<OverridePayload>,
+    Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let selected_activity_id = payload.selected_activity_id.ok_or((
+        StatusCode::BAD_REQUEST,
+        "selected_activity_id is required for override".to_string(),
+    ))?;
+
     let mut proposals = state.proposals.write().await;
     let mut events = state.events.write().await;
     let mut act_states = state.activity_states.write().await;
     let mut audit_trail = state.audit_trail.write().await;
+    let mut approvals_store = state.approvals.write().await;
     let acts = state.activities.read().await;
 
     let proposal = proposals
@@ -543,57 +507,64 @@ pub async fn override_proposal(
 
     let original_activity_id = proposal.activity_id;
     proposal.status = "OVERRIDDEN".to_string();
-    proposal.activity_id = payload.selected_activity_id;
 
+    // Validate that the override target activity exists and belongs to the same project
     let act = acts
         .iter()
-        .find(|a| a.id == payload.selected_activity_id)
+        .find(|a| a.id == selected_activity_id && a.project_id == proposal.project_id)
         .ok_or((
             StatusCode::NOT_FOUND,
-            "Target activity not found".to_string(),
+            "Override target activity not found in this project".to_string(),
         ))?;
 
-    let actual_date = payload.actual_date.unwrap_or_else(|| Utc::now().date_naive());
-    let progress_pct = payload.actual_progress_pct.unwrap_or(100.0);
-
+    let actual_date = Utc::now().date_naive();
     ValidationEngine::validate_event_date(actual_date)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-    ValidationEngine::validate_progress(Some(progress_pct))
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
+    // Create ActualEvent linked to the overridden activity
     let new_event = ActualEvent {
         id: Uuid::new_v4(),
         project_id: proposal.project_id,
-        activity_id: payload.selected_activity_id,
+        activity_id: selected_activity_id,
         observation_id: Some(proposal.observation_id),
         match_proposal_id: Some(proposal.id),
-        event_type: if progress_pct >= 100.0 {
-            EventType::Finish
-        } else {
-            EventType::Progress
-        },
+        event_type: EventType::Finish,
         actual_date,
-        actual_progress_pct: Some(progress_pct),
+        actual_progress_pct: Some(100.0),
         actual_quantity: act.planned_quantity,
         delay_reason: None,
         delay_days: None,
         lifecycle_status: LifecycleStatus::Committed,
         verification_status: VerificationStatus::HumanVerified,
-        idempotency_key: Some(format!(
-            "event-override-{}-{}",
-            payload.selected_activity_id, actual_date
-        )),
+        idempotency_key: Some(format!("override-{}-{}", selected_activity_id, actual_date)),
         created_by: Some(payload.reviewer_id),
         created_at: Utc::now(),
     };
 
+    // Project to current state
     if let Some(state_entry) = act_states
         .iter_mut()
-        .find(|s| s.activity_id == payload.selected_activity_id)
+        .find(|s| s.activity_id == selected_activity_id)
     {
         StateMachine::project_event(state_entry, &new_event, act.planned_finish_date);
     }
 
+    // Create Approval record with OVERRIDE action
+    let approval = Approval {
+        id: Uuid::new_v4(),
+        project_id: proposal.project_id,
+        event_id: Some(new_event.id),
+        proposal_id: Some(proposal.id),
+        action: "OVERRIDE".to_string(),
+        reviewed_by: payload.reviewer_id,
+        reviewed_at: Utc::now(),
+        selected_activity_id: Some(selected_activity_id),
+        comments: payload.comments.clone(),
+        confidence_override: None,
+    };
+    approvals_store.push(approval);
+
+    // Audit trail
     let audit = EventLedger::create_audit_event(
         proposal.project_id,
         "PROPOSAL_OVERRIDE",
@@ -606,13 +577,16 @@ pub async fn override_proposal(
             "original_activity_id": original_activity_id
         })),
         Some(serde_json::json!({
-            "status": "COMMITTED",
+            "status": "OVERRIDDEN",
+            "selected_activity_id": selected_activity_id,
             "event_id": new_event.id,
-            "selected_activity_id": payload.selected_activity_id,
             "comments": payload.comments
         })),
         None,
     );
+
+    let _outbox =
+        EventLedger::create_outbox_event(proposal.project_id, "PROPOSAL_OVERRIDDEN", &new_event);
 
     events.push(new_event.clone());
     audit_trail.push(audit);
@@ -620,12 +594,179 @@ pub async fn override_proposal(
     Ok(Json(serde_json::json!({
         "status": "OVERRIDDEN",
         "event_id": new_event.id,
-        "activity_code": act.code
+        "activity_code": act.code,
+        "original_activity_id": original_activity_id,
+        "selected_activity_id": selected_activity_id
     })))
 }
 
-#[derive(Deserialize, Clone)]
+/// Add a comment to a proposal without changing its status
+#[derive(Deserialize)]
 #[allow(dead_code)]
+pub struct CommentPayload {
+    pub reviewer_id: Uuid,
+    pub comments: String,
+}
+
+pub async fn add_proposal_comment(
+    State(state): State<AppState>,
+    Path(proposal_id): Path<Uuid>,
+    Json(payload): Json<CommentPayload>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let proposals = state.proposals.read().await;
+    let mut audit_trail = state.audit_trail.write().await;
+
+    let proposal = proposals
+        .iter()
+        .find(|p| p.id == proposal_id)
+        .ok_or((StatusCode::NOT_FOUND, "Proposal not found".to_string()))?;
+
+    let audit = EventLedger::create_audit_event(
+        proposal.project_id,
+        "PROPOSAL_COMMENT",
+        proposal.id,
+        "COMMENT",
+        Some(payload.reviewer_id),
+        Some("PLANNER"),
+        None,
+        Some(serde_json::json!({"comments": payload.comments})),
+        None,
+    );
+    audit_trail.push(audit);
+
+    Ok(Json(
+        serde_json::json!({"status": "COMMENT_ADDED", "proposal_id": proposal_id}),
+    ))
+}
+
+/// Batch approve multiple proposals
+#[derive(Deserialize)]
+#[allow(dead_code)]
+pub struct BatchApprovePayload {
+    pub reviewer_id: Uuid,
+    pub proposal_ids: Vec<Uuid>,
+    pub comments: Option<String>,
+}
+
+pub async fn batch_approve_proposals(
+    State(state): State<AppState>,
+    Json(payload): Json<BatchApprovePayload>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let mut proposals = state.proposals.write().await;
+    let mut events = state.events.write().await;
+    let mut act_states = state.activity_states.write().await;
+    let mut audit_trail = state.audit_trail.write().await;
+    let mut approvals_store = state.approvals.write().await;
+    let acts = state.activities.read().await;
+
+    let mut results = Vec::new();
+    let actual_date = Utc::now().date_naive();
+
+    for pid in &payload.proposal_ids {
+        let proposal = match proposals.iter_mut().find(|p| p.id == *pid) {
+            Some(p) => p,
+            None => {
+                results.push(serde_json::json!({
+                    "proposal_id": pid,
+                    "status": "NOT_FOUND"
+                }));
+                continue;
+            }
+        };
+
+        if proposal.status != "PENDING_REVIEW" && proposal.status != "PROPOSED" {
+            results.push(serde_json::json!({
+                "proposal_id": pid,
+                "status": "SKIPPED",
+                "reason": format!("Proposal status is '{}', not reviewable", proposal.status)
+            }));
+            continue;
+        }
+
+        proposal.status = "ACCEPTED".to_string();
+
+        let act = match acts.iter().find(|a| a.id == proposal.activity_id) {
+            Some(a) => a,
+            None => {
+                results.push(serde_json::json!({
+                    "proposal_id": pid,
+                    "status": "ERROR",
+                    "reason": "Target activity not found"
+                }));
+                continue;
+            }
+        };
+
+        let new_event = ActualEvent {
+            id: Uuid::new_v4(),
+            project_id: proposal.project_id,
+            activity_id: proposal.activity_id,
+            observation_id: Some(proposal.observation_id),
+            match_proposal_id: Some(proposal.id),
+            event_type: EventType::Finish,
+            actual_date,
+            actual_progress_pct: Some(100.0),
+            actual_quantity: act.planned_quantity,
+            delay_reason: None,
+            delay_days: None,
+            lifecycle_status: LifecycleStatus::Committed,
+            verification_status: VerificationStatus::HumanVerified,
+            idempotency_key: Some(format!("batch-{}-{}", proposal.activity_id, actual_date)),
+            created_by: Some(payload.reviewer_id),
+            created_at: Utc::now(),
+        };
+
+        if let Some(state_entry) = act_states
+            .iter_mut()
+            .find(|s| s.activity_id == proposal.activity_id)
+        {
+            StateMachine::project_event(state_entry, &new_event, act.planned_finish_date);
+        }
+
+        let approval = Approval {
+            id: Uuid::new_v4(),
+            project_id: proposal.project_id,
+            event_id: Some(new_event.id),
+            proposal_id: Some(proposal.id),
+            action: "APPROVE".to_string(),
+            reviewed_by: payload.reviewer_id,
+            reviewed_at: Utc::now(),
+            selected_activity_id: None,
+            comments: payload.comments.clone(),
+            confidence_override: None,
+        };
+        approvals_store.push(approval);
+
+        let audit = EventLedger::create_audit_event(
+            proposal.project_id,
+            "BATCH_PROPOSAL_APPROVAL",
+            proposal.id,
+            "BATCH_APPROVE_AND_COMMIT",
+            Some(payload.reviewer_id),
+            Some("PLANNER"),
+            Some(serde_json::json!({"status": "PENDING_REVIEW"})),
+            Some(serde_json::json!({"status": "COMMITTED", "event_id": new_event.id})),
+            None,
+        );
+
+        results.push(serde_json::json!({
+            "proposal_id": pid,
+            "status": "APPROVED",
+            "event_id": new_event.id,
+            "activity_code": act.code
+        }));
+
+        events.push(new_event);
+        audit_trail.push(audit);
+    }
+
+    Ok(Json(serde_json::json!({
+        "batch_size": payload.proposal_ids.len(),
+        "results": results
+    })))
+}
+
+
 pub struct IngestObservationPayload {
     pub raw_text: String,
     pub normalized_text: Option<String>,
@@ -870,3 +1011,52 @@ pub async fn export_schedule_p6(
         xml,
     )
 }
+
+pub async fn get_audit_trail(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let trail = state.audit_trail.read().await;
+    let filtered: Vec<AuditEvent> = trail
+        .iter()
+        .filter(|a| a.project_id == project_id)
+        .cloned()
+        .collect();
+    Json(filtered)
+}
+
+pub async fn export_schedule_p6(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let acts = state.activities.read().await;
+    let states = state.activity_states.read().await;
+
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<APBO:Project xmlns:APBO=\"http://xmlns.oracle.com/Primavera/P6/V24\">\n");
+    xml.push_str("  <ProjectObjectId>PRD-HYD-PKG04</ProjectObjectId>\n  <Activities>\n");
+
+    for a in acts.iter().filter(|a| a.project_id == project_id) {
+        let st = states.iter().find(|s| s.activity_id == a.id);
+        let progress = st.map(|s| s.current_progress_pct).unwrap_or(0.0);
+        let status_str = st
+            .map(|s| format!("{:?}", s.execution_status))
+            .unwrap_or("NotStarted".to_string());
+        xml.push_str(&format!(
+            "    <Activity Id=\"{}\" Name=\"{}\" PlannedStart=\"{}\" PlannedFinish=\"{}\" ProgressPct=\"{}\" Status=\"{}\" />\n",
+            a.code, a.name, a.planned_start_date, a.planned_finish_date, progress, status_str
+        ));
+    }
+
+    xml.push_str("  </Activities>\n</APBO:Project>");
+    (
+        [
+            ("Content-Type", "application/xml"),
+            (
+                "Content-Disposition",
+                "attachment; filename=\"schedule_p6.xml\"",
+            ),
+        ],
+        xml,
+    )
+}
+
