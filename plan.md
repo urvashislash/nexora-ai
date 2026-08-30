@@ -174,9 +174,9 @@ Implementation and verification details are documented in `ai_service/README.md`
 - [x] Test from dashboard through approval and event output generation.
 
 ### 7.5 Regression testing
-- Add automated checks for API contracts and database schema changes.
-- Run regression validation whenever schema or queue logic changes.
-- Keep a reproducible CI process for protected production branches.
+- [x] Add automated checks for API contracts and database schema changes.
+- [x] Run regression validation whenever schema or queue logic changes.
+- [x] Keep a reproducible CI process for protected production branches.
 
 ## 8. Deployment and Operations
 
