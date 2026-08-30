@@ -370,7 +370,7 @@ export function App() {
   };
 
   // Handle Planner Review Approval
-  const handleApproveProposal = (proposalId: string, selectedActivityId?: string) => {
+  const handleApproveProposal = (proposalId: string, selectedActivityId?: string, comment?: string) => {
     const item = reviewQueue.find(i => i.proposal.id === proposalId);
     if (!item) return;
 
@@ -404,7 +404,7 @@ export function App() {
       actor_role: 'PLANNER (Rajesh Sharma)',
       payload_hash: Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join(''),
       before_state: { status: 'PENDING_REVIEW' },
-      after_state: { status: 'COMMITTED', verification: 'HUMAN_VERIFIED', activity_id: targetActivityId },
+      after_state: { status: 'COMMITTED', verification: 'HUMAN_VERIFIED', activity_id: targetActivityId, comments: comment },
       created_at: new Date().toISOString(),
     };
     setAuditEvents(prev => [newAudit, ...prev]);
@@ -413,7 +413,71 @@ export function App() {
     setReviewQueue(prev => prev.filter(i => i.proposal.id !== proposalId));
   };
 
-  const handleRejectProposal = (proposalId: string, _reason?: string) => {
+  // Handle Planner Review Rejection (with audit trail — previously missing)
+  const handleRejectProposal = (proposalId: string, reason?: string) => {
+    const item = reviewQueue.find(i => i.proposal.id === proposalId);
+    if (!item) return;
+
+    // Add Audit Record for rejection
+    const newAudit: AuditEvent = {
+      id: `audit-${Date.now()}`,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
+      entity_type: 'PLANNER_REJECTION',
+      entity_id: item.proposal.activity_id,
+      action: 'HUMAN_REJECTED',
+      actor_role: 'PLANNER (Rajesh Sharma)',
+      payload_hash: Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join(''),
+      before_state: { status: 'PENDING_REVIEW' },
+      after_state: { status: 'REJECTED', reason: reason || 'No reason provided' },
+      created_at: new Date().toISOString(),
+    };
+    setAuditEvents(prev => [newAudit, ...prev]);
+
+    // Remove from Review Queue
+    setReviewQueue(prev => prev.filter(i => i.proposal.id !== proposalId));
+  };
+
+  // Handle Planner Override — reassign match to a different activity
+  const handleOverrideProposal = (proposalId: string, newActivityId: string, comment?: string) => {
+    const item = reviewQueue.find(i => i.proposal.id === proposalId);
+    if (!item) return;
+
+    const originalActivityId = item.proposal.activity_id;
+
+    // Update the override target activity state
+    setActivities(prev => prev.map(a => {
+      if (a.activity.id === newActivityId) {
+        return {
+          ...a,
+          state: {
+            ...a.state!,
+            execution_status: 'COMPLETED',
+            actual_start_date: a.state?.actual_start_date || '2026-08-28',
+            actual_finish_date: '2026-08-30',
+            current_progress_pct: 100,
+            updated_at: new Date().toISOString(),
+          }
+        };
+      }
+      return a;
+    }));
+
+    // Add Audit Record for override
+    const newAudit: AuditEvent = {
+      id: `audit-${Date.now()}`,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
+      entity_type: 'PLANNER_OVERRIDE',
+      entity_id: newActivityId,
+      action: 'HUMAN_OVERRIDE_COMMIT',
+      actor_role: 'PLANNER (Rajesh Sharma)',
+      payload_hash: Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join(''),
+      before_state: { status: 'PENDING_REVIEW', original_activity_id: originalActivityId },
+      after_state: { status: 'OVERRIDDEN', selected_activity_id: newActivityId, verification: 'HUMAN_VERIFIED', comments: comment },
+      created_at: new Date().toISOString(),
+    };
+    setAuditEvents(prev => [newAudit, ...prev]);
+
+    // Remove from Review Queue
     setReviewQueue(prev => prev.filter(i => i.proposal.id !== proposalId));
   };
 
@@ -466,9 +530,11 @@ export function App() {
 
         {activeTab === 'review' && (
           <ReviewQueue 
-            items={reviewQueue} 
+            items={reviewQueue}
+            activities={activities.map(a => a.activity)}
             onApprove={handleApproveProposal} 
-            onReject={handleRejectProposal} 
+            onReject={handleRejectProposal}
+            onOverride={handleOverrideProposal}
           />
         )}
 
