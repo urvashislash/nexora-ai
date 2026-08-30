@@ -6,9 +6,9 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use super::handlers::{
-    add_proposal_comment, approve_proposal, batch_approve_proposals, export_schedule_p6,
-    get_activities, get_audit_trail, get_dashboard, get_review_queue, ingest_observations,
-    override_proposal, reject_proposal, AppState,
+    add_proposal_comment, approve_proposal, batch_approve_proposals, create_observation,
+    export_schedule_p6, get_activities, get_audit_trail, get_dashboard, get_review_queue,
+    ingest_observations, override_proposal, reject_proposal, verify_audit_chain, AppState,
 };
 
 pub fn create_router(state: AppState) -> Router {
@@ -20,6 +20,7 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/projects/:id/dashboard", get(get_dashboard))
         .route("/api/v1/projects/:id/activities", get(get_activities))
+        .route("/api/v1/projects/:id/observations", post(create_observation))
         .route("/api/v1/projects/:id/review-queue", get(get_review_queue))
         .route("/api/v1/projects/:id/ingest", post(ingest_observations))
         .route("/api/v1/proposals/:id/approve", post(approve_proposal))
@@ -32,6 +33,10 @@ pub fn create_router(state: AppState) -> Router {
             post(batch_approve_proposals),
         )
         .route("/api/v1/projects/:id/audit-trail", get(get_audit_trail))
+        .route(
+            "/api/v1/projects/:id/audit-trail/verify",
+            get(verify_audit_chain),
+        )
         .route("/api/v1/projects/:id/export/p6", get(export_schedule_p6))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
