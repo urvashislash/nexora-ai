@@ -151,3 +151,32 @@ class ProcessDocumentMessage(BaseModel):
     source_type: str
     filename: str
     text_content: str | None = None
+
+
+# -----------------------------------------------------------------------------
+# End-to-End Pipeline Schemas
+# -----------------------------------------------------------------------------
+class PipelineStageStatus(BaseModel):
+    stage: str
+    status: str
+    items_processed: int
+    duration_ms: float = 0.0
+
+
+class PipelineProcessRequest(BaseModel):
+    project_id: UUID
+    document_id: UUID | None = None
+    text_content: str | None = None
+    activities: list[ScheduleActivity] = Field(default_factory=list)
+
+
+class PipelineProcessResult(BaseModel):
+    project_id: UUID
+    document_id: UUID | None = None
+    observations: list[NormalizedObservation]
+    proposals: list[MatchProposalPayload]
+    stages: list[PipelineStageStatus]
+    auto_link_count: int
+    review_required_count: int
+    unmatched_count: int
+

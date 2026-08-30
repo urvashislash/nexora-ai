@@ -34,12 +34,14 @@ impl StateMachine {
                 | (LifecycleStatus::Proposed, LifecycleStatus::Rejected)
                 | (LifecycleStatus::Matched, LifecycleStatus::Approved)
                 | (LifecycleStatus::Matched, LifecycleStatus::ReviewRequired)
+                | (LifecycleStatus::Matched, LifecycleStatus::Committed)
                 | (LifecycleStatus::Matched, LifecycleStatus::Rejected)
                 | (LifecycleStatus::ReviewRequired, LifecycleStatus::Approved)
                 | (LifecycleStatus::ReviewRequired, LifecycleStatus::Rejected)
                 | (LifecycleStatus::Approved, LifecycleStatus::Committed)
                 | (LifecycleStatus::Approved, LifecycleStatus::Rejected)
         );
+
 
         if is_valid {
             Ok(target)

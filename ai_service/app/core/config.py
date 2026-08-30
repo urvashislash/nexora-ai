@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     EMBEDDING_DIM: int = 384
 
     # Matching Policy Thresholds
-    MATCH_HIGH_CONFIDENCE_THRESHOLD: float = 0.88
+    MATCH_HIGH_CONFIDENCE_THRESHOLD: float = 0.85
     MATCH_REVIEW_THRESHOLD: float = 0.60
+
 
     # Scoring Weights
     WEIGHT_LEXICAL: float = 0.40

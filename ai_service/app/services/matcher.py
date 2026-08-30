@@ -1,6 +1,8 @@
 import logging
+import re
 
 from rapidfuzz import fuzz
+
 
 from app.core.config import settings
 from app.models.schemas import (
@@ -47,7 +49,7 @@ class HybridMatcher:
             )
             lex_score_code = fuzz.partial_ratio(observation.normalized_text.lower(), act.code.lower()) / 100.0
 
-            # Check exact code or equipment tag mention
+            # Check exact code or equipment tag mention with word boundaries
             raw_lower = observation.raw_text.lower()
             norm_lower = observation.normalized_text.lower()
             act_tag_clean = (
@@ -57,20 +59,24 @@ class HybridMatcher:
                 (observation.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
             )
 
-            has_code_match = act.code.lower() in raw_lower or act.code.lower() in norm_lower
-            has_tag_match = bool(
-                act_tag_clean
-                and (
-                    act_tag_clean in raw_lower
-                    or act_tag_clean in norm_lower
+            has_code_match = bool(
+                re.search(r"\b" + re.escape(act.code.lower()) + r"\b", raw_lower)
+                or re.search(r"\b" + re.escape(act.code.lower()) + r"\b", norm_lower)
+            )
+            has_tag_match = False
+            if act_tag_clean:
+                has_tag_match = bool(
+                    re.search(r"\b" + re.escape(act_tag_clean) + r"\b", raw_lower)
+                    or re.search(r"\b" + re.escape(act_tag_clean) + r"\b", norm_lower)
                     or (obs_tag_clean and act_tag_clean == obs_tag_clean)
                 )
-            )
 
             if has_code_match or has_tag_match:
                 lexical_score = 1.0
             else:
-                lexical_score = max(lex_score_set, lex_score_sort, lex_score_desc * 0.9, lex_score_code * 0.85)
+                lexical_score = max(lex_score_set, lex_score_sort, lex_score_desc, lex_score_code * 0.85)
+
+
 
             # 3. Semantic vector scoring
             if act.embedding:
@@ -101,13 +107,18 @@ class HybridMatcher:
             w_sem = settings.WEIGHT_SEMANTIC
             w_ctx = settings.WEIGHT_CONTEXT
 
-            # If lexical match is very strong (>= 0.95), weight it higher
-            if lexical_score >= 0.95:
-                combined_score = 0.70 * lexical_score + 0.20 * semantic_score + 0.10 * (context_boost / 0.30)
+            if lexical_score >= 0.80 and context_boost >= 0.10:
+                combined_score = 0.55 * lexical_score + 0.25 * semantic_score + 0.20 * min(1.0, context_boost / 0.15)
+            elif lexical_score >= 0.65 and context_boost >= 0.10:
+                combined_score = 0.50 * lexical_score + 0.35 * semantic_score + 0.15 * min(1.0, context_boost / 0.15)
             else:
-                combined_score = (w_lex * lexical_score) + (w_sem * semantic_score) + (w_ctx * (context_boost / 0.30))
+                combined_score = (w_lex * lexical_score) + (w_sem * semantic_score) + (w_ctx * min(1.0, context_boost / 0.15))
 
             combined_score = min(1.0, max(0.0, combined_score))
+
+
+
+
 
             # 6. Determine Match Tier
             if combined_score >= settings.MATCH_HIGH_CONFIDENCE_THRESHOLD:

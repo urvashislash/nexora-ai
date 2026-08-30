@@ -898,3 +898,14 @@ fn test_serde_event_type_serialization() {
     let deserialized: EventType = serde_json::from_str(&json_str).unwrap();
     assert_eq!(deserialized, EventType::Finish);
 }
+
+#[test]
+fn test_state_machine_autolink_direct_matched_to_committed() {
+    let transition = StateMachine::transition_lifecycle(
+        LifecycleStatus::Matched,
+        LifecycleStatus::Committed,
+    );
+    assert!(transition.is_ok());
+    assert_eq!(transition.unwrap(), LifecycleStatus::Committed);
+}
+

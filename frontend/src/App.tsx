@@ -417,6 +417,43 @@ export function App() {
     setReviewQueue(prev => prev.filter(i => i.proposal.id !== proposalId));
   };
 
+  const handleOverrideProposal = (proposalId: string, newActivityId: string, comments?: string) => {
+    const item = reviewQueue.find(i => i.proposal.id === proposalId);
+    if (!item) return;
+
+    setActivities(prev => prev.map(a => {
+      if (a.activity.id === newActivityId) {
+        return {
+          ...a,
+          state: {
+            ...a.state!,
+            execution_status: 'COMPLETED',
+            actual_start_date: a.state?.actual_start_date || '2026-08-28',
+            actual_finish_date: '2026-08-30',
+            current_progress_pct: 100,
+            updated_at: new Date().toISOString(),
+          }
+        };
+      }
+      return a;
+    }));
+
+    const newAudit: AuditEvent = {
+      id: `audit-${Date.now()}`,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
+      entity_type: 'PLANNER_OVERRIDE',
+      entity_id: newActivityId,
+      action: 'HUMAN_VERIFIED_OVERRIDE',
+      actor_role: 'PLANNER (Rajesh Sharma)',
+      payload_hash: Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join(''),
+      before_state: { status: 'PENDING_REVIEW', original_activity_id: item.proposal.activity_id },
+      after_state: { status: 'COMMITTED', verification: 'HUMAN_VERIFIED', activity_id: newActivityId, comments: comments || 'Planner override' },
+      created_at: new Date().toISOString(),
+    };
+    setAuditEvents(prev => [newAudit, ...prev]);
+    setReviewQueue(prev => prev.filter(i => i.proposal.id !== proposalId));
+  };
+
   // Calculate live KPIs
   const completedCount = activities.filter(a => a.state?.execution_status === 'COMPLETED').length;
   const inProgressCount = activities.filter(a => a.state?.execution_status === 'IN_PROGRESS').length;
@@ -467,10 +504,13 @@ export function App() {
         {activeTab === 'review' && (
           <ReviewQueue 
             items={reviewQueue} 
+            allActivities={activities}
             onApprove={handleApproveProposal} 
             onReject={handleRejectProposal} 
+            onOverride={handleOverrideProposal}
           />
         )}
+
 
         {activeTab === 'schedule' && (
           <ScheduleExplorer 
