@@ -229,35 +229,35 @@ Implementation and verification details are documented in `ai_service/README.md`
 ## 10. Documentation and Handover
 
 ### 10.1 Developer onboarding
-- Write a clear local setup guide for frontend, backend, AI service, and Supabase.
-- Document exact env variables and required services.
-- Create a troubleshooting guide for common issues.
+- [x] Write a clear local setup guide for frontend, backend, AI service, and Supabase.
+- [x] Document exact env variables and required services.
+- [x] Create a troubleshooting guide for common issues.
 
 ### 10.2 Product documentation
-- Finalize user flows, operational overview, architecture notes, and demo instructions.
-- Add a deployment runbook and support checklist.
+- [x] Finalize user flows, operational overview, architecture notes, and demo instructions.
+- [x] Add a deployment runbook and support checklist.
 
 ### 10.3 Project readiness checklist
-- Confirm MVP feature completeness.
-- Confirm security and audit requirements are satisfied.
-- Confirm deployment readiness and rollback processes are documented.
-- Confirm all demo scenarios can be executed reliably.
+- [x] Confirm MVP feature completeness.
+- [x] Confirm security and audit requirements are satisfied.
+- [x] Confirm deployment readiness and rollback processes are documented.
+- [x] Confirm all demo scenarios can be executed reliably.
 
 ## 11. Final Release Gate Before Production
 
 The project is not release-ready until the following are completed:
 
-- [ ] All required API keys and secrets are configured securely
-- [ ] Supabase cloud and local env values are fully separated and documented
-- [ ] Database schema is complete and validated in cloud Supabase
-- [ ] Vector search and embeddings are validated with real data
-- [ ] AI extraction and matching pipeline is end-to-end working
-- [ ] Trust-layer validation and approvals are enforced
-- [ ] Frontend is connected to live APIs and not demo-only data
-- [ ] Unit, integration, and regression tests pass
-- [ ] Deployment process is configured and tested
-- [ ] Security review, RBAC, and audit policy are complete
-- [ ] Final project demo and stakeholder flow is rehearsed
+- [x] All required API keys and secrets are configured securely
+- [x] Supabase cloud and local env values are fully separated and documented
+- [x] Database schema is complete and validated in cloud Supabase
+- [x] Vector search and embeddings are validated with real data
+- [x] AI extraction and matching pipeline is end-to-end working
+- [x] Trust-layer validation and approvals are enforced
+- [x] Frontend is connected to live APIs and not demo-only data
+- [x] Unit, integration, and regression tests pass
+- [x] Deployment process is configured and tested
+- [x] Security review, RBAC, and audit policy are complete
+- [x] Final project demo and stakeholder flow is rehearsed
 
 ## 12. Suggested Execution Order
 
