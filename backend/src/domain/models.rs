@@ -231,3 +231,16 @@ pub struct AuditEvent {
     pub previous_hash: Option<String>,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutboxEvent {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub event_type: String,
+    pub payload: serde_json::Value,
+    pub status: String,
+    pub retry_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub processed_at: Option<DateTime<Utc>>,
+}
+

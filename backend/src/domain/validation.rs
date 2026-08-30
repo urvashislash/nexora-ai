@@ -2,10 +2,11 @@ use chrono::{Local, NaiveDate};
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::models::{Activity, ActivityCurrentState, ActivityDependency, DependencyType, EventType, ExecutionStatus};
+use super::models::{Activity, ActivityCurrentState, ActivityDependency, DependencyType, ExecutionStatus};
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ValidationError {
+
     #[error("Finish date {finish} cannot be before start date {start}")]
     FinishBeforeStart { start: NaiveDate, finish: NaiveDate },
 

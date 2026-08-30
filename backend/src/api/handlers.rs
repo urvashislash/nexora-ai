@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 use crate::domain::models::*;
 use crate::domain::state_machine::StateMachine;
-use crate::domain::validation::ValidationEngine;
 use crate::domain::ledger::EventLedger;
+
 
 #[derive(Clone)]
 pub struct AppState {
@@ -200,7 +200,7 @@ pub struct DashboardKPIs {
 
 pub async fn get_dashboard(
     State(state): State<AppState>,
-    Path(project_id): Path<Uuid>,
+    Path(_project_id): Path<Uuid>,
 ) -> impl IntoResponse {
     let obs = state.observations.read().await;
     let proposals = state.proposals.read().await;

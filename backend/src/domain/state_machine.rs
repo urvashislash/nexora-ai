@@ -3,8 +3,8 @@ use thiserror::Error;
 
 use super::models::{
     ActualEvent, ActivityCurrentState, EventType, ExecutionStatus, LifecycleStatus,
-    VerificationStatus,
 };
+
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum StateMachineError {
