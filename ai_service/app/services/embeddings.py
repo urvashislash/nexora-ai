@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import math
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from app.core.config import settings
 
@@ -19,16 +19,18 @@ _model: EmbeddingModel | FallbackEmbeddingModel | None = None
 
 def get_embedding_model() -> EmbeddingModel | FallbackEmbeddingModel:
     global _model
-    if _model is None:
+    model = _model
+    if model is None:
         try:
             from sentence_transformers import SentenceTransformer
 
             logger.info(f"Loading embedding model: {settings.EMBEDDING_MODEL}")
-            _model = SentenceTransformer(settings.EMBEDDING_MODEL)
+            model = cast(EmbeddingModel, SentenceTransformer(settings.EMBEDDING_MODEL))
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not load SentenceTransformer ({e}). Falling back to fast hash-vector projection.")
-            _model = "FALLBACK"
-    return _model
+            model = "FALLBACK"
+        _model = model
+    return model
 
 
 def generate_fallback_embedding(text: str, dim: int = 384) -> list[float]:
