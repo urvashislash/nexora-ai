@@ -182,6 +182,7 @@ class TestScheduleActivity:
             planned_finish_date=date(2026, 8, 25),
             embedding=[0.1] * 384,
         )
+        assert act.embedding is not None
         assert len(act.embedding) == 384
 
 
@@ -290,5 +291,6 @@ class TestMatchProposalPayload:
         payload = MatchProposalPayload(
             observation=obs, candidates=[mc], top_match=mc, auto_link_eligible=True
         )
+        assert payload.top_match is not None
         assert payload.top_match.confidence_score == 0.95
         assert payload.auto_link_eligible is True

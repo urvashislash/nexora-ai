@@ -89,6 +89,11 @@ jobs:
           pip install ruff
           ruff check app/ tests/ --ignore E501
 
+      - name: Run type checking (mypy)
+        run: |
+          pip install mypy
+          mypy app/ tests/ --check-untyped-defs --ignore-missing-imports
+
       - name: Run all tests with verbose output
         run: python -m pytest tests/ -v --tb=short -q
 

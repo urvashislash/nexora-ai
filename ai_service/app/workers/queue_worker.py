@@ -95,7 +95,7 @@ class AIQueueWorker:
             }
 
             # Publish result to ai_result_queue
-            self.channel.basic_publish(
+            ch.basic_publish(
                 exchange=settings.RABBITMQ_EXCHANGE,
                 routing_key="document.result",
                 body=json.dumps(result_payload).encode("utf-8"),

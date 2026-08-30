@@ -220,11 +220,13 @@ class TestQuantityDetection:
     def test_inch_dia(self):
         qty, unit = DocumentExtractor._detect_quantity("Erected 450 Inch-Dia of piping")
         assert qty == 450.0
+        assert unit is not None
         assert unit.lower() == "inch-dia"
 
     def test_metric_tons(self):
         qty, unit = DocumentExtractor._detect_quantity("35.5 MT of rebar tied")
         assert qty == 35.5
+        assert unit is not None
         assert unit.upper() == "MT"
 
     def test_cubic_meters(self):

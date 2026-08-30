@@ -176,7 +176,7 @@ class TestEmbedEndpoint:
         assert len(data["embeddings"][0]) == 384
 
     def test_embed_empty_list(self, client):
-        payload = {"texts": []}
+        payload: dict[str, list[str]] = {"texts": []}
         response = client.post("/api/v1/embed", json=payload)
         assert response.status_code == 200
         data = response.json()

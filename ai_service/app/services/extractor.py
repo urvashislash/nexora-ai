@@ -1,7 +1,7 @@
 import io
 import re
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from app.models.schemas import (
@@ -70,7 +70,7 @@ class DocumentExtractor:
             wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
             sheet = wb.active
 
-            headers = []
+            headers: List[str] = []
             for row in sheet.iter_rows(values_only=True):
                 if not headers:
                     headers = [str(cell).strip().lower() if cell is not None else "" for cell in row]
@@ -159,7 +159,7 @@ class DocumentExtractor:
         return None
 
     @staticmethod
-    def _detect_quantity(text: str) -> (Optional[float], Optional[str]):
+    def _detect_quantity(text: str) -> Tuple[Optional[float], Optional[str]]:
         m = re.search(r'(\d+(?:\.\d+)?)\s*(inch-dia|mt|cu\.m|cum|meters|m|units?|tags?)', text, re.IGNORECASE)
         if m:
             return float(m.group(1)), m.group(2)
