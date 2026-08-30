@@ -50,6 +50,7 @@ web_modules/
 # Optional npm cache directory
 .npm
 
+
 # Optional eslint cache
 .eslintcache
 
@@ -141,3 +142,23 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local DB / RabbitMQ
+.data/
+

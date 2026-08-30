@@ -1,0 +1,27 @@
+{
+  "name": "nexora-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Intelligent Data Capture & Schedule-Linking Layer for Infrastructure Project Management",
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && cargo run",
+    "dev:ai": "cd ai_service && uvicorn app.main:app --reload --port 8000",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && cargo build --release",
+    "test:backend": "cd backend && cargo test",
+    "test:ai": "cd ai_service && pytest",
+    "test:e2e": "pytest tests/e2e",
+    "test": "npm run test:backend && npm run test:ai"
+  },
+  "keywords": [
+    "infrastructure",
+    "project-management",
+    "schedule-linking",
+    "wbs",
+    "construction-ai",
+    "smart-india-hackathon"
+  ],
+  "author": "NEXORA AI Team",
+  "license": "UNLICENSED"
+}
