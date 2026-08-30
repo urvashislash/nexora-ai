@@ -151,7 +151,33 @@ impl EventLedger {
             processed_at: None,
         }
     }
+
+    /// Marks an outbox event as successfully processed
+    pub fn mark_outbox_processed(event: &mut OutboxEvent) {
+        event.status = "PROCESSED".to_string();
+        event.processed_at = Some(Utc::now());
+    }
+
+    /// Marks an outbox event as failed; increments retry_count.
+    /// Sets status to `DEAD_LETTER` if retry_count exceeds `max_retries`.
+    pub fn mark_outbox_failed(event: &mut OutboxEvent, max_retries: i32) {
+        event.retry_count += 1;
+        if event.retry_count >= max_retries {
+            event.status = "DEAD_LETTER".to_string();
+        } else {
+            event.status = "RETRY".to_string();
+        }
+    }
+
+    /// Returns references to all pending outbox events that are eligible for processing
+    pub fn get_pending_outbox_events(events: &[OutboxEvent]) -> Vec<&OutboxEvent> {
+        events
+            .iter()
+            .filter(|e| e.status == "PENDING" || e.status == "RETRY")
+            .collect()
+    }
 }
+
 
 #[cfg(test)]
 mod tests {

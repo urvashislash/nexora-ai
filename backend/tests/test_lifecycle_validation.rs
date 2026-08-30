@@ -10,7 +10,7 @@ mod validation;
 
 use models::{
     Activity, ActivityCurrentState, ActivityDependency, DependencyType, EventType,
-    ExecutionStatus, LifecycleStatus, ActualEvent, VerificationStatus,
+    ExecutionStatus, LifecycleStatus, ActualEvent, VerificationStatus, Discipline,
 };
 use state_machine::StateMachine;
 use validation::{ValidationEngine, ValidationError};
@@ -29,7 +29,7 @@ fn test_lifecycle_validation_fs_dependency() {
         code: "PRED-1".to_string(),
         name: "Predecessor".to_string(),
         description: None,
-        discipline: "CIVIL".to_string(),
+        discipline: Discipline::Civil,
         planned_start_date: NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
         planned_finish_date: NaiveDate::from_ymd_opt(2026, 1, 10).unwrap(),
         planned_duration_days: 10,
@@ -40,9 +40,6 @@ fn test_lifecycle_validation_fs_dependency() {
         equipment_tag: None,
         weightage: 1.0,
         critical_path: false,
-        embedding: None,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     let mut pred_state = ActivityCurrentState {
@@ -52,7 +49,7 @@ fn test_lifecycle_validation_fs_dependency() {
         actual_start_date: Some(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()),
         actual_finish_date: None,
         current_progress_pct: 50.0,
-        cumulative_quantity: None,
+        cumulative_quantity: 0.0,
         last_event_id: None,
         last_event_date: None,
         is_critical_path_delayed: false,
@@ -68,7 +65,7 @@ fn test_lifecycle_validation_fs_dependency() {
         code: "SUCC-1".to_string(),
         name: "Successor".to_string(),
         description: None,
-        discipline: "CIVIL".to_string(),
+        discipline: Discipline::Civil,
         planned_start_date: NaiveDate::from_ymd_opt(2026, 1, 11).unwrap(),
         planned_finish_date: NaiveDate::from_ymd_opt(2026, 1, 20).unwrap(),
         planned_duration_days: 10,
@@ -79,9 +76,6 @@ fn test_lifecycle_validation_fs_dependency() {
         equipment_tag: None,
         weightage: 1.0,
         critical_path: false,
-        embedding: None,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     let dep = ActivityDependency {
@@ -91,7 +85,6 @@ fn test_lifecycle_validation_fs_dependency() {
         successor_id: succ_id,
         dependency_type: DependencyType::Fs,
         lag_days: 0,
-        created_at: Utc::now(),
     };
 
     // Test: Successor cannot start because Predecessor is not finished
@@ -132,7 +125,7 @@ fn test_state_machine_progress_projection() {
         actual_start_date: None,
         actual_finish_date: None,
         current_progress_pct: 0.0,
-        cumulative_quantity: None,
+        cumulative_quantity: 0.0,
         last_event_id: None,
         last_event_date: None,
         is_critical_path_delayed: false,
@@ -160,7 +153,7 @@ fn test_state_machine_progress_projection() {
     };
 
     // Apply start event
-    StateMachine::project_event(&mut state, &start_event, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
+    let _ = StateMachine::project_event(&mut state, &start_event, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
     assert_eq!(state.execution_status, ExecutionStatus::InProgress);
     assert_eq!(state.actual_start_date, Some(NaiveDate::from_ymd_opt(2026, 2, 1).unwrap()));
 
@@ -184,7 +177,7 @@ fn test_state_machine_progress_projection() {
     };
 
     // Apply progress event
-    StateMachine::project_event(&mut state, &progress_event, NaiveDate::from_ymd_opt(2026, 2, 10).unwrap());
+    let _ = StateMachine::project_event(&mut state, &progress_event, NaiveDate::from_ymd_opt(2026, 2, 10).unwrap());
     assert_eq!(state.execution_status, ExecutionStatus::InProgress);
     assert_eq!(state.current_progress_pct, 50.0);
 
@@ -208,7 +201,7 @@ fn test_state_machine_progress_projection() {
     };
 
     // Apply finish event
-    StateMachine::project_event(&mut state, &finish_event, NaiveDate::from_ymd_opt(2026, 2, 10).unwrap());
+    let _ = StateMachine::project_event(&mut state, &finish_event, NaiveDate::from_ymd_opt(2026, 2, 10).unwrap());
     assert_eq!(state.execution_status, ExecutionStatus::Completed);
     assert_eq!(state.current_progress_pct, 100.0);
     assert_eq!(state.actual_finish_date, Some(NaiveDate::from_ymd_opt(2026, 2, 10).unwrap()));
