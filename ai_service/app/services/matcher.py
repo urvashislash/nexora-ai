@@ -51,12 +51,18 @@ class HybridMatcher:
             lex_score_code = fuzz.partial_ratio(observation.normalized_text.lower(), act.code.lower()) / 100.0
             
             # Check exact code or equipment tag mention
-            has_code_match = act.code.lower() in observation.raw_text.lower() or act.code.lower() in observation.normalized_text.lower()
+            raw_lower = observation.raw_text.lower()
+            norm_lower = observation.normalized_text.lower()
+            act_tag_clean = (act.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
+            obs_tag_clean = (observation.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
+            
+            has_code_match = act.code.lower() in raw_lower or act.code.lower() in norm_lower
             has_tag_match = bool(
-                act.equipment_tag and observation.equipment_tag and 
-                act.equipment_tag.upper() == observation.equipment_tag.upper()
-            ) or bool(
-                act.equipment_tag and act.equipment_tag.lower() in observation.raw_text.lower()
+                act_tag_clean and (
+                    act_tag_clean in raw_lower or 
+                    act_tag_clean in norm_lower or 
+                    (obs_tag_clean and act_tag_clean == obs_tag_clean)
+                )
             )
 
             if has_code_match or has_tag_match:
@@ -80,7 +86,7 @@ class HybridMatcher:
             if observation.discipline and observation.discipline == act.discipline:
                 context_boost += 0.10
             # Equipment tag match (+0.15)
-            if observation.equipment_tag and act.equipment_tag and observation.equipment_tag.upper() == act.equipment_tag.upper():
+            if has_tag_match:
                 context_boost += 0.15
             # Location/zone match (+0.05)
             if observation.location and act.location and observation.location.lower() in act.location.lower():
@@ -93,9 +99,9 @@ class HybridMatcher:
             w_sem = settings.WEIGHT_SEMANTIC
             w_ctx = settings.WEIGHT_CONTEXT
 
-            # If lexical score is very high (exact tag/code match), bias towards lexical
-            if lexical_score > 0.92:
-                combined_score = 0.60 * lexical_score + 0.30 * semantic_score + 0.10 * (context_boost / 0.30)
+            # If lexical match is very strong (>= 0.95), weight it higher
+            if lexical_score >= 0.95:
+                combined_score = 0.70 * lexical_score + 0.20 * semantic_score + 0.10 * (context_boost / 0.30)
             else:
                 combined_score = (w_lex * lexical_score) + (w_sem * semantic_score) + (w_ctx * (context_boost / 0.30))
 

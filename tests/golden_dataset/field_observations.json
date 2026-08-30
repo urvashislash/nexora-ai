@@ -1,0 +1,106 @@
+{
+  "benchmark_name": "NEXORA AI SIH Golden Benchmark Dataset",
+  "version": "1.0.0",
+  "project_code": "PRD-HYD-PKG04",
+  "total_statements": 25,
+  "scenarios": [
+    {
+      "id": "SCENARIO_A_01",
+      "raw_text": "P-101 completed successfully with 42.5 bar hydro test pressure holding.",
+      "discipline": "PIPING",
+      "expected_activity_code": "PIP-2401",
+      "expected_match_tier": "HIGH",
+      "expected_auto_link": true,
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "SCENARIO_A_02",
+      "raw_text": "Line P-102 hydrostatic testing complete, holding time 4 hours witnessed.",
+      "discipline": "PIPING",
+      "expected_activity_code": "PIP-2402",
+      "expected_match_tier": "HIGH",
+      "expected_auto_link": true,
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "SCENARIO_B_01",
+      "raw_text": "spool erection complete on Pipe Rack B Tier 2 along grid B1-B8.",
+      "discipline": "PIPING",
+      "expected_activity_code": "PIP-2400",
+      "expected_match_tier": "HIGH",
+      "expected_auto_link": true,
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "SCENARIO_B_02",
+      "raw_text": "concreting finished for heavy column footings C1-C12 in CDU area, 180 cu.m poured.",
+      "discipline": "CIVIL",
+      "expected_activity_code": "CIV-1101",
+      "expected_match_tier": "HIGH",
+      "expected_auto_link": true,
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "SCENARIO_C_01",
+      "raw_text": "Hydrostatic pressure testing completed along Interconnecting Pipe Rack B headers yesterday.",
+      "discipline": "PIPING",
+      "expected_activity_code": "PIP-2401",
+      "expected_match_tier": "MEDIUM",
+      "expected_auto_link": false,
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "SCENARIO_D_01",
+      "raw_text": "Emergency dewatering and deep foundation pit excavation carried out near Substation 4 due to heavy rain.",
+      "discipline": "CIVIL",
+      "expected_activity_code": null,
+      "expected_match_tier": "UNMATCHED",
+      "expected_auto_link": false,
+      "expected_event_type": "PROGRESS"
+    },
+    {
+      "id": "SCENARIO_E_01",
+      "raw_text": "Line P-101 testing finished on 20-Aug-2026, work started on 28-Aug-2026.",
+      "discipline": "PIPING",
+      "expected_activity_code": "PIP-2401",
+      "expected_validation_error": "FinishBeforeStart",
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "BENCHMARK_08",
+      "raw_text": "Rebar cutting, bending and shuttering for Main Gas Compressor C-101 foundation completed 100%.",
+      "discipline": "CIVIL",
+      "expected_activity_code": "CIV-1100",
+      "expected_match_tier": "HIGH",
+      "expected_auto_link": true,
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "BENCHMARK_09",
+      "raw_text": "Pump alignment and baseplate grouting for Crude Charge Pump P-101A completed.",
+      "discipline": "MECHANICAL",
+      "expected_activity_code": "MEC-3200",
+      "expected_match_tier": "HIGH",
+      "expected_auto_link": true,
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "BENCHMARK_10",
+      "raw_text": "Cable tray bracket mounting and ladder tray installation along Rack B Tier 3 complete.",
+      "discipline": "ELECTRICAL",
+      "expected_activity_code": "ELE-4100",
+      "expected_match_tier": "HIGH",
+      "expected_auto_link": true,
+      "expected_event_type": "FINISH"
+    },
+    {
+      "id": "BENCHMARK_11",
+      "raw_text": "Bench calibration and impulse tubing hookup for Pressure Transmitter PT-101 complete.",
+      "discipline": "INSTRUMENTATION",
+      "expected_activity_code": "INS-5100",
+      "expected_match_tier": "HIGH",
+      "expected_auto_link": true,
+      "expected_event_type": "FINISH"
+    }
+  ]
+}
