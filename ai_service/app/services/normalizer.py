@@ -381,27 +381,38 @@ DISCIPLINE_ALIASES: dict[str, DisciplineEnum] = {
 # Matches common Indian/EPC date formats:
 #   20-Aug-2026, 20/08/2026, 20.08.26, 20-08-2026, Aug 20 2026
 _MONTH_MAP = {
-    "jan": "01", "feb": "02", "mar": "03", "apr": "04",
-    "may": "05", "jun": "06", "jul": "07", "aug": "08",
-    "sep": "09", "oct": "10", "nov": "11", "dec": "12",
-    "january": "01", "february": "02", "march": "03", "april": "04",
-    "june": "06", "july": "07", "august": "08", "september": "09",
-    "october": "10", "november": "11", "december": "12",
+    "jan": "01",
+    "feb": "02",
+    "mar": "03",
+    "apr": "04",
+    "may": "05",
+    "jun": "06",
+    "jul": "07",
+    "aug": "08",
+    "sep": "09",
+    "oct": "10",
+    "nov": "11",
+    "dec": "12",
+    "january": "01",
+    "february": "02",
+    "march": "03",
+    "april": "04",
+    "june": "06",
+    "july": "07",
+    "august": "08",
+    "september": "09",
+    "october": "10",
+    "november": "11",
+    "december": "12",
 }
 
 _DATE_PATTERNS = [
     # 20-Aug-2026 or 20 Aug 2026
-    re.compile(
-        r"\b(\d{1,2})[\s\-./]([A-Za-z]{3,9})[\s\-./](\d{2,4})\b"
-    ),
+    re.compile(r"\b(\d{1,2})[\s\-./]([A-Za-z]{3,9})[\s\-./](\d{2,4})\b"),
     # Aug-20-2026 or Aug 20, 2026
-    re.compile(
-        r"\b([A-Za-z]{3,9})[\s\-./](\d{1,2})[,]?\s*[\s\-./]?(\d{2,4})\b"
-    ),
+    re.compile(r"\b([A-Za-z]{3,9})[\s\-./](\d{1,2})[,]?\s*[\s\-./]?(\d{2,4})\b"),
     # 20/08/2026, 20-08-2026, 20.08.2026
-    re.compile(
-        r"\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b"
-    ),
+    re.compile(r"\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b"),
 ]
 
 

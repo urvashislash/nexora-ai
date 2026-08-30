@@ -16,6 +16,7 @@ app = FastAPI(
     docs_url=f"{settings.API_V1_STR}/docs",
 )
 
+
 # -----------------------------------------------------------------------------
 # Security Headers Middleware
 # -----------------------------------------------------------------------------
@@ -29,6 +30,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';"
         return response
+
 
 app.add_middleware(SecurityHeadersMiddleware)
 
@@ -55,11 +57,7 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {
-        "status": "healthy",
-        "service": "ai_service",
-        "version": "1.1.0"
-    }
+    return {"status": "healthy", "service": "ai_service", "version": "1.1.0"}
 
 
 if __name__ == "__main__":

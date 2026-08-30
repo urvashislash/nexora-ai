@@ -5,12 +5,20 @@ from uuid import uuid4
 import hashlib
 from datetime import datetime, timezone
 
-from ai_service.app.main import app
-from ai_service.app.core.security import (
-    sanitize_filename,
-    validate_file_content,
-    RateLimiter,
-)
+try:
+    from app.core.security import (
+        RateLimiter,
+        sanitize_filename,
+        validate_file_content,
+    )
+    from app.main import app
+except ImportError:
+    from ai_service.app.core.security import (
+        RateLimiter,
+        sanitize_filename,
+        validate_file_content,
+    )
+    from ai_service.app.main import app
 
 
 @pytest.fixture

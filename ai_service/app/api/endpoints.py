@@ -104,11 +104,7 @@ async def extract_observations_from_file(
 
 
 @router.post("/schedule/import-file", response_model=ScheduleImportResult)
-async def import_schedule_file(
-    request: Request,
-    project_id: UUID = Form(...),
-    file: UploadFile = File(...)
-):
+async def import_schedule_file(request: Request, project_id: UUID = Form(...), file: UploadFile = File(...)):
     """Parse P6/MS Project-style CSV, XLS, or XLSX exports into normalized schedule activities."""
     pipeline_rate_limiter.check(_get_client_ip(request))
     safe_filename = sanitize_filename(file.filename or "schedule.xlsx")
@@ -291,8 +287,6 @@ async def process_file_pipeline(
             ),
         ],
         auto_link_count=sum(proposal.decision == MatchDecisionEnum.AUTO_LINK for proposal in proposals),
-        review_required_count=sum(
-            proposal.decision == MatchDecisionEnum.REVIEW_REQUIRED for proposal in proposals
-        ),
+        review_required_count=sum(proposal.decision == MatchDecisionEnum.REVIEW_REQUIRED for proposal in proposals),
         unmatched_count=sum(proposal.decision == MatchDecisionEnum.REJECTED for proposal in proposals),
     )

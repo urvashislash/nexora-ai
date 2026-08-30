@@ -83,8 +83,13 @@ impl EventLedger {
             "after": after_state,
         });
 
-        let payload_hash =
-            Self::compute_hash(&entity_id, action, &payload_for_hash, previous_hash, &created_at);
+        let payload_hash = Self::compute_hash(
+            &entity_id,
+            action,
+            &payload_for_hash,
+            previous_hash,
+            &created_at,
+        );
 
         AuditEvent {
             id: Uuid::new_v4(),
@@ -166,6 +171,7 @@ impl EventLedger {
     /// Evaluates audit events for archival under the retention policy.
     ///
     /// Ensures that the chain is 100% verified prior to producing an archive batch.
+    #[allow(clippy::type_complexity)]
     pub fn prepare_audit_archive(
         project_id: Uuid,
         chain: &[AuditEvent],
@@ -173,7 +179,9 @@ impl EventLedger {
         has_legal_hold: bool,
     ) -> Result<Option<(AuditArchiveBatch, Vec<AuditEvent>, Vec<AuditEvent>)>, String> {
         if has_legal_hold && policy.enforce_legal_hold {
-            return Err("Cannot archive audit events while project is under active legal hold".to_string());
+            return Err(
+                "Cannot archive audit events while project is under active legal hold".to_string(),
+            );
         }
 
         if let Err(broken_idx) = Self::verify_chain_integrity(chain) {
@@ -200,9 +208,18 @@ impl EventLedger {
             return Ok(None);
         }
 
-        let oldest = to_archive.first().map(|e| e.created_at).unwrap_or_else(Utc::now);
-        let newest = to_archive.last().map(|e| e.created_at).unwrap_or_else(Utc::now);
-        let root_hash = to_archive.last().map(|e| e.payload_hash.clone()).unwrap_or_default();
+        let oldest = to_archive
+            .first()
+            .map(|e| e.created_at)
+            .unwrap_or_else(Utc::now);
+        let newest = to_archive
+            .last()
+            .map(|e| e.created_at)
+            .unwrap_or_else(Utc::now);
+        let root_hash = to_archive
+            .last()
+            .map(|e| e.payload_hash.clone())
+            .unwrap_or_default();
 
         let batch = AuditArchiveBatch {
             batch_id: Uuid::new_v4(),

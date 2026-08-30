@@ -2,8 +2,9 @@ import os
 import re
 import time
 from collections import defaultdict
-from typing import Callable, Optional
-from fastapi import HTTPException, Request, UploadFile, status
+from typing import Optional
+
+from fastapi import HTTPException, status
 
 # -----------------------------------------------------------------------------
 # File Upload Security & Magic Byte Validation
@@ -59,7 +60,7 @@ def validate_file_content(content: bytes, filename: str, content_type: Optional[
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds maximum allowed size of {MAX_UPLOAD_SIZE // (1024*1024)}MB",
+            detail=f"File exceeds maximum allowed size of {MAX_UPLOAD_SIZE // (1024 * 1024)}MB",
         )
 
     # Basic MIME validation
@@ -91,14 +92,16 @@ def validate_file_content(content: bytes, filename: str, content_type: Optional[
 # In-Memory Rate Limiter for FastAPI
 # -----------------------------------------------------------------------------
 
+
 class RateLimiter:
     """
     Thread-safe in-memory sliding window rate limiter per client IP.
     """
+
     def __init__(self, requests_per_minute: int = 60):
         self.requests_per_minute = requests_per_minute
         self.window_seconds = 60.0
-        self.clients = defaultdict(list)
+        self.clients: dict[str, list[float]] = defaultdict(list)
 
     def check(self, client_key: str) -> None:
         now = time.time()

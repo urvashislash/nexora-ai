@@ -9,8 +9,8 @@ mod state_machine;
 mod validation;
 
 use models::{
-    Activity, ActivityCurrentState, ActivityDependency, DependencyType, EventType,
-    ExecutionStatus, LifecycleStatus, ActualEvent, VerificationStatus, Discipline,
+    Activity, ActivityCurrentState, ActivityDependency, ActualEvent, DependencyType, Discipline,
+    EventType, ExecutionStatus, LifecycleStatus, VerificationStatus,
 };
 use state_machine::StateMachine;
 use validation::{ValidationEngine, ValidationError};
@@ -90,7 +90,7 @@ fn test_lifecycle_validation_fs_dependency() {
     // Test: Successor cannot start because Predecessor is not finished
     let validation_result = ValidationEngine::validate_dependencies(
         &succ_act,
-        &[dep.clone()],
+        std::slice::from_ref(&dep),
         &[(pred_act.clone(), pred_state.clone())],
     );
 
@@ -104,11 +104,8 @@ fn test_lifecycle_validation_fs_dependency() {
     pred_state.current_progress_pct = 100.0;
 
     // Test: Successor can now start
-    let validation_result_ok = ValidationEngine::validate_dependencies(
-        &succ_act,
-        &[dep],
-        &[(pred_act, pred_state)],
-    );
+    let validation_result_ok =
+        ValidationEngine::validate_dependencies(&succ_act, &[dep], &[(pred_act, pred_state)]);
 
     assert!(validation_result_ok.is_ok());
 }
@@ -153,9 +150,16 @@ fn test_state_machine_progress_projection() {
     };
 
     // Apply start event
-    let _ = StateMachine::project_event(&mut state, &start_event, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
+    let _ = StateMachine::project_event(
+        &mut state,
+        &start_event,
+        NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+    );
     assert_eq!(state.execution_status, ExecutionStatus::InProgress);
-    assert_eq!(state.actual_start_date, Some(NaiveDate::from_ymd_opt(2026, 2, 1).unwrap()));
+    assert_eq!(
+        state.actual_start_date,
+        Some(NaiveDate::from_ymd_opt(2026, 2, 1).unwrap())
+    );
 
     let progress_event = ActualEvent {
         id: Uuid::new_v4(),
@@ -177,7 +181,11 @@ fn test_state_machine_progress_projection() {
     };
 
     // Apply progress event
-    let _ = StateMachine::project_event(&mut state, &progress_event, NaiveDate::from_ymd_opt(2026, 2, 10).unwrap());
+    let _ = StateMachine::project_event(
+        &mut state,
+        &progress_event,
+        NaiveDate::from_ymd_opt(2026, 2, 10).unwrap(),
+    );
     assert_eq!(state.execution_status, ExecutionStatus::InProgress);
     assert_eq!(state.current_progress_pct, 50.0);
 
@@ -201,8 +209,15 @@ fn test_state_machine_progress_projection() {
     };
 
     // Apply finish event
-    let _ = StateMachine::project_event(&mut state, &finish_event, NaiveDate::from_ymd_opt(2026, 2, 10).unwrap());
+    let _ = StateMachine::project_event(
+        &mut state,
+        &finish_event,
+        NaiveDate::from_ymd_opt(2026, 2, 10).unwrap(),
+    );
     assert_eq!(state.execution_status, ExecutionStatus::Completed);
     assert_eq!(state.current_progress_pct, 100.0);
-    assert_eq!(state.actual_finish_date, Some(NaiveDate::from_ymd_opt(2026, 2, 10).unwrap()));
+    assert_eq!(
+        state.actual_finish_date,
+        Some(NaiveDate::from_ymd_opt(2026, 2, 10).unwrap())
+    );
 }

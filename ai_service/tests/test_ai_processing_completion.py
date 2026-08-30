@@ -66,23 +66,19 @@ def test_csv_tabular_fields_are_normalized():
     assert len(observations) == 1
     assert observations[0].reported_progress == 75.0
     assert observations[0].unit_of_measure == "Inch-Dia"
-    assert observations[0].observed_at.date() == date(2026, 8, 20)
+    assert observations[0].observed_at is not None and observations[0].observed_at.date() == date(2026, 8, 20)
 
 
 def test_schedule_spreadsheet_import_and_row_validation():
     workbook = openpyxl.Workbook()
     sheet = workbook.active
-    sheet.append(
-        ["Activity Code", "Activity Name", "Discipline", "Planned Start", "Planned Finish", "Equipment Tag"]
-    )
+    sheet.append(["Activity Code", "Activity Name", "Discipline", "Planned Start", "Planned Finish", "Equipment Tag"])
     sheet.append(["ELE-3100", "Cable Tray Installation", "Elec", "20-Aug-2026", "30-Aug-2026", "TRAY 100"])
     sheet.append(["BAD-1", "Invalid dates", "Civil", "30-Aug-2026", "20-Aug-2026", ""])
     buffer = io.BytesIO()
     workbook.save(buffer)
 
-    result = DocumentExtractor.extract_schedule_from_tabular_bytes(
-        buffer.getvalue(), uuid4(), filename="schedule.xlsx"
-    )
+    result = DocumentExtractor.extract_schedule_from_tabular_bytes(buffer.getvalue(), uuid4(), filename="schedule.xlsx")
     assert result.rows_processed == 2
     assert len(result.activities) == 1
     assert result.activities[0].code == "ELE-3100"

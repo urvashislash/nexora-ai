@@ -60,9 +60,7 @@ def ocr_image_bytes(content: bytes, *, language: str | None = None) -> Extracted
     block_numbers = data.get("block_num", [])
     paragraph_numbers = data.get("par_num", [])
     line_numbers = data.get("line_num", [])
-    for index, (word, raw_confidence) in enumerate(
-        zip(data.get("text", []), data.get("conf", []), strict=False)
-    ):
+    for index, (word, raw_confidence) in enumerate(zip(data.get("text", []), data.get("conf", []), strict=False)):
         token = str(word).strip()
         if not token:
             continue

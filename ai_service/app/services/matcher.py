@@ -100,9 +100,7 @@ class HybridMatcher:
         score_gap = None
         if raw_top is not None:
             score_gap = (
-                raw_top.confidence_score - top_candidates[1].confidence_score
-                if len(top_candidates) > 1
-                else 1.0
+                raw_top.confidence_score - top_candidates[1].confidence_score if len(top_candidates) > 1 else 1.0
             )
         decision = policy.decide(raw_top, observation, score_gap)
         top_match = raw_top if raw_top and raw_top.confidence_score >= policy.rejection else None
@@ -120,6 +118,24 @@ class HybridMatcher:
         )
 
     @classmethod
+    def match(
+        cls,
+        observation: NormalizedObservation,
+        activities: list[ScheduleActivity],
+        top_k: int = 3,
+    ) -> MatchProposalPayload:
+        return cls.match_observation(observation, activities, top_k)
+
+    @classmethod
+    def build_proposal(
+        cls,
+        observation: NormalizedObservation,
+        activities: list[ScheduleActivity],
+        top_k: int = 3,
+    ) -> MatchProposalPayload:
+        return cls.match_observation(observation, activities, top_k)
+
+    @classmethod
     def retrieve_activities(
         cls,
         observation: NormalizedObservation,
@@ -131,9 +147,9 @@ class HybridMatcher:
         if not activities:
             return []
         cls._ensure_activity_embeddings(activities)
-        observation_embedding = observation_embedding or compute_embeddings(
-            [build_observation_embedding_text(observation)]
-        )[0]
+        observation_embedding = (
+            observation_embedding or compute_embeddings([build_observation_embedding_text(observation)])[0]
+        )
         retrieval_limit = min(limit or settings.VECTOR_RETRIEVAL_LIMIT, len(activities))
         semantic_rank = sorted(
             activities,
@@ -160,9 +176,8 @@ class HybridMatcher:
                 selected_ids.add(activity.id)
         for activity in activities:
             activity_tag = normalize_equipment_tag(activity.equipment_tag)
-            exact_context = (
-                bool(re.search(rf"(?<!\w){re.escape(activity.code.lower())}(?!\w)", raw_lower))
-                or bool(observation_tag and activity_tag and observation_tag == activity_tag)
+            exact_context = bool(re.search(rf"(?<!\w){re.escape(activity.code.lower())}(?!\w)", raw_lower)) or bool(
+                observation_tag and activity_tag and observation_tag == activity_tag
             )
             if exact_context and activity.id not in selected_ids:
                 selected.append(activity)
@@ -307,9 +322,9 @@ class HybridMatcher:
                 if other_index in merged:
                     continue
                 other = observations[other_index]
-                similarity = fuzz.token_sort_ratio(
-                    observation.normalized_text.lower(), other.normalized_text.lower()
-                ) / 100.0
+                similarity = (
+                    fuzz.token_sort_ratio(observation.normalized_text.lower(), other.normalized_text.lower()) / 100.0
+                )
                 if similarity >= threshold:
                     merged.add(other_index)
                     if other.extraction_confidence > best.extraction_confidence:

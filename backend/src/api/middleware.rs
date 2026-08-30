@@ -61,31 +61,21 @@ pub fn role_permissions(role: &UserRole) -> Vec<Permission> {
             Permission::ViewAudit,
             Permission::ExportSchedule,
         ],
-        UserRole::Engineer | UserRole::Supervisor => vec![
-            Permission::ViewProject,
-            Permission::CreateObservation,
-        ],
-        UserRole::Auditor => vec![
-            Permission::ViewProject,
-            Permission::ViewAudit,
-        ],
-        UserRole::Viewer => vec![
-            Permission::ViewProject,
-        ],
+        UserRole::Engineer | UserRole::Supervisor => {
+            vec![Permission::ViewProject, Permission::CreateObservation]
+        }
+        UserRole::Auditor => vec![Permission::ViewProject, Permission::ViewAudit],
+        UserRole::Viewer => vec![Permission::ViewProject],
     }
 }
 
 /// Extracts authentication context from request headers.
 /// Returns `None` if headers are missing or invalid.
 pub fn extract_auth_context(headers: &HeaderMap) -> Option<AuthContext> {
-    let user_id_str = headers
-        .get("x-user-id")
-        .and_then(|v| v.to_str().ok())?;
+    let user_id_str = headers.get("x-user-id").and_then(|v| v.to_str().ok())?;
     let user_id = Uuid::parse_str(user_id_str).ok()?;
 
-    let role_str = headers
-        .get("x-user-role")
-        .and_then(|v| v.to_str().ok())?;
+    let role_str = headers.get("x-user-role").and_then(|v| v.to_str().ok())?;
 
     let role = match role_str.to_uppercase().as_str() {
         "ADMIN" => UserRole::Admin,
@@ -117,7 +107,8 @@ pub async fn require_permission(
     match extract_auth_context(&headers) {
         None => {
             let body = SecurityErrorResponse {
-                error: "Missing or invalid authentication headers (X-User-Id, X-User-Role)".to_string(),
+                error: "Missing or invalid authentication headers (X-User-Id, X-User-Role)"
+                    .to_string(),
                 code: "AUTH_REQUIRED".to_string(),
             };
             (StatusCode::UNAUTHORIZED, Json(body)).into_response()
@@ -153,14 +144,8 @@ pub async fn security_headers_middleware(request: Request<Body>, next: Next) -> 
         "x-content-type-options",
         HeaderValue::from_static("nosniff"),
     );
-    headers.insert(
-        "x-frame-options",
-        HeaderValue::from_static("DENY"),
-    );
-    headers.insert(
-        "x-xss-protection",
-        HeaderValue::from_static("0"),
-    );
+    headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
+    headers.insert("x-xss-protection", HeaderValue::from_static("0"));
     headers.insert(
         "referrer-policy",
         HeaderValue::from_static("strict-origin-when-cross-origin"),
@@ -282,7 +267,10 @@ mod tests {
     #[test]
     fn test_extract_auth_context_valid() {
         let mut headers = HeaderMap::new();
-        headers.insert("x-user-id", "a0000000-0000-0000-0000-000000000001".parse().unwrap());
+        headers.insert(
+            "x-user-id",
+            "a0000000-0000-0000-0000-000000000001".parse().unwrap(),
+        );
         headers.insert("x-user-role", "PLANNER".parse().unwrap());
         let ctx = extract_auth_context(&headers).unwrap();
         assert_eq!(ctx.role, UserRole::Planner);
@@ -297,7 +285,10 @@ mod tests {
     #[test]
     fn test_extract_auth_context_invalid_role() {
         let mut headers = HeaderMap::new();
-        headers.insert("x-user-id", "a0000000-0000-0000-0000-000000000001".parse().unwrap());
+        headers.insert(
+            "x-user-id",
+            "a0000000-0000-0000-0000-000000000001".parse().unwrap(),
+        );
         headers.insert("x-user-role", "INVALID_ROLE".parse().unwrap());
         assert!(extract_auth_context(&headers).is_none());
     }
@@ -325,14 +316,23 @@ mod tests {
     #[test]
     fn test_extract_client_key_with_user_id() {
         let mut headers = HeaderMap::new();
-        headers.insert("x-user-id", "123e4567-e89b-12d3-a456-426614174000".parse().unwrap());
-        assert_eq!(extract_client_key(&headers), "user:123e4567-e89b-12d3-a456-426614174000");
+        headers.insert(
+            "x-user-id",
+            "123e4567-e89b-12d3-a456-426614174000".parse().unwrap(),
+        );
+        assert_eq!(
+            extract_client_key(&headers),
+            "user:123e4567-e89b-12d3-a456-426614174000"
+        );
     }
 
     #[test]
     fn test_extract_client_key_with_forwarded_for() {
         let mut headers = HeaderMap::new();
-        headers.insert("x-forwarded-for", "203.0.113.195, 70.41.3.18".parse().unwrap());
+        headers.insert(
+            "x-forwarded-for",
+            "203.0.113.195, 70.41.3.18".parse().unwrap(),
+        );
         assert_eq!(extract_client_key(&headers), "ip:203.0.113.195");
     }
 }

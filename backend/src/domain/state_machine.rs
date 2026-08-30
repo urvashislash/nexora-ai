@@ -51,7 +51,6 @@ impl StateMachine {
                 | (LifecycleStatus::Approved, LifecycleStatus::Rejected)
         );
 
-
         if is_valid {
             Ok(target)
         } else {
@@ -194,8 +193,10 @@ impl StateMachine {
 
 #[cfg(test)]
 mod tests {
+    use super::super::models::{
+        ActivityCurrentState, ActualEvent, ExecutionStatus, VerificationStatus,
+    };
     use super::*;
-    use super::super::models::{VerificationStatus, ActivityCurrentState, ActualEvent, ExecutionStatus};
 
     #[test]
     fn test_valid_transitions() {
@@ -337,10 +338,11 @@ mod tests {
         let res = StateMachine::project_event(&mut state, &event, planned_finish);
         assert!(matches!(
             res,
-            Err(StateMachineError::EventNotCommitted(LifecycleStatus::Proposed))
+            Err(StateMachineError::EventNotCommitted(
+                LifecycleStatus::Proposed
+            ))
         ));
         // State should remain unchanged
         assert_eq!(state.execution_status, ExecutionStatus::NotStarted);
     }
 }
-

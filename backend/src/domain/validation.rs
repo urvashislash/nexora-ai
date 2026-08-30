@@ -6,7 +6,6 @@ use super::models::{
     Activity, ActivityCurrentState, ActivityDependency, DependencyType, ExecutionStatus,
 };
 
-
 #[allow(dead_code)]
 #[derive(Debug, Error, PartialEq)]
 pub enum ValidationError {
@@ -122,13 +121,11 @@ impl ValidationEngine {
         existing_keys: &[Option<String>],
     ) -> Result<(), ValidationError> {
         if let Some(key) = proposed_key {
-            for existing in existing_keys {
-                if let Some(e) = existing {
-                    if e == key {
-                        return Err(ValidationError::DuplicateEventKey {
-                            idempotency_key: key.to_string(),
-                        });
-                    }
+            for e in existing_keys.iter().flatten() {
+                if e == key {
+                    return Err(ValidationError::DuplicateEventKey {
+                        idempotency_key: key.to_string(),
+                    });
                 }
             }
         }
@@ -205,7 +202,6 @@ impl ValidationEngine {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {

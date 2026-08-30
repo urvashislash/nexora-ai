@@ -790,7 +790,8 @@ fn test_audit_chain_integrity_tamper_detection() {
     );
 
     // Tamper with previous_hash pointer
-    e2.previous_hash = Some("tampered_hash_00000000000000000000000000000000000000000000000000000000".to_string());
+    e2.previous_hash =
+        Some("tampered_hash_00000000000000000000000000000000000000000000000000000000".to_string());
 
     let chain = vec![e1, e2];
     let res = EventLedger::verify_chain_integrity(&chain);
@@ -844,13 +845,12 @@ fn test_idempotency_key_duplicate_detection() {
     assert!(ValidationEngine::validate_idempotency_key(
         Some("event-act-003-2026-08-28"),
         &existing
-    ).is_ok());
+    )
+    .is_ok());
 
     // Duplicate key fails
-    let dup_res = ValidationEngine::validate_idempotency_key(
-        Some("event-act-001-2026-08-28"),
-        &existing
-    );
+    let dup_res =
+        ValidationEngine::validate_idempotency_key(Some("event-act-001-2026-08-28"), &existing);
     assert!(dup_res.is_err());
     assert!(matches!(
         dup_res.unwrap_err(),
@@ -1061,14 +1061,11 @@ fn test_serde_event_type_serialization() {
 
 #[test]
 fn test_state_machine_autolink_direct_matched_to_committed() {
-    let transition = StateMachine::transition_lifecycle(
-        LifecycleStatus::Matched,
-        LifecycleStatus::Committed,
-    );
+    let transition =
+        StateMachine::transition_lifecycle(LifecycleStatus::Matched, LifecycleStatus::Committed);
     assert!(transition.is_ok());
     assert_eq!(transition.unwrap(), LifecycleStatus::Committed);
 }
-
 
 // =============================================================================
 // New Functionality Tests (Validation, Outbox, RBAC)
@@ -1095,10 +1092,10 @@ fn test_new_validation_rules() {
         variance_days: 0,
         updated_at: Utc::now(),
     };
-    
+
     // Fails because actual_start_date is None
     assert!(ValidationEngine::validate_finish_without_start(&state).is_err());
-    
+
     // Succeeds after setting start date
     state.actual_start_date = Some(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
     assert!(ValidationEngine::validate_finish_without_start(&state).is_ok());
@@ -1108,7 +1105,7 @@ fn test_new_validation_rules() {
 fn test_outbox_lifecycle() {
     let project_id = Uuid::new_v4();
     let activity_id = Uuid::new_v4();
-    
+
     let event = ActualEvent {
         id: Uuid::new_v4(),
         project_id,
@@ -1131,28 +1128,28 @@ fn test_outbox_lifecycle() {
     // Create
     let mut outbox = EventLedger::create_outbox_event(project_id, "TEST_EVENT", &event);
     assert_eq!(outbox.status, "PENDING");
-    
+
     // Fail once
     EventLedger::mark_outbox_failed(&mut outbox, 3);
     assert_eq!(outbox.status, "RETRY");
     assert_eq!(outbox.retry_count, 1);
-    
+
     // Get pending should include it
     let outbox_list = [outbox.clone()];
     let pending = EventLedger::get_pending_outbox_events(&outbox_list);
     assert_eq!(pending.len(), 1);
-    
+
     // Fail max times
     EventLedger::mark_outbox_failed(&mut outbox, 3);
     EventLedger::mark_outbox_failed(&mut outbox, 3);
     assert_eq!(outbox.status, "DEAD_LETTER");
     assert_eq!(outbox.retry_count, 3);
-    
+
     // Get pending should ignore dead letters
     let outbox_list2 = [outbox.clone()];
     let pending2 = EventLedger::get_pending_outbox_events(&outbox_list2);
     assert_eq!(pending2.len(), 0);
-    
+
     // Processed
     outbox.status = "PENDING".to_string(); // reset
     EventLedger::mark_outbox_processed(&mut outbox);

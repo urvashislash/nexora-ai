@@ -76,9 +76,7 @@ def evaluate_matching_dataset(
         observations = DocumentExtractor.extract_from_text(case["text"], project_id)
         if len(observations) != 1:
             raise ValueError(f"Benchmark case {case['id']} must extract exactly one observation")
-        proposal = HybridMatcher.match_observation(
-            observations[0], activities, thresholds=thresholds
-        )
+        proposal = HybridMatcher.match_observation(observations[0], activities, thresholds=thresholds)
         expected_code = case.get("expected_activity_code")
         predicted_code = proposal.top_match.activity_code if proposal.top_match else None
         top_correct = predicted_code == expected_code
@@ -98,11 +96,7 @@ def evaluate_matching_dataset(
         else:
             rejected += 1
 
-        route_correct = (
-            top_correct
-            if expected_code is not None
-            else proposal.decision == MatchDecisionEnum.REJECTED
-        )
+        route_correct = top_correct if expected_code is not None else proposal.decision == MatchDecisionEnum.REJECTED
         routed_correct += int(route_correct)
         raw_top = proposal.candidates[0] if proposal.candidates else None
         records.append(
@@ -138,9 +132,7 @@ def recommend_thresholds(
         raise ValueError("At least one calibration record is required")
     high = 0.95
     for candidate in (0.85, 0.88, 0.90, 0.92, 0.95):
-        auto_records = [
-            record for record in records if record.confidence >= candidate and record.score_gap >= min_gap
-        ]
+        auto_records = [record for record in records if record.confidence >= candidate and record.score_gap >= min_gap]
         if auto_records and sum(record.correct for record in auto_records) / len(auto_records) >= target_auto_precision:
             high = candidate
             break

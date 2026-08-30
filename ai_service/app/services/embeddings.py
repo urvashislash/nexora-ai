@@ -111,9 +111,7 @@ def compute_embeddings(texts: list[str]) -> list[list[float]]:
             )
             embeddings = [list(map(float, embedding.tolist())) for embedding in raw_embeddings]
             if any(len(embedding) != settings.EMBEDDING_DIM for embedding in embeddings):
-                raise ValueError(
-                    f"Embedding model returned a dimension other than {settings.EMBEDDING_DIM}"
-                )
+                raise ValueError(f"Embedding model returned a dimension other than {settings.EMBEDDING_DIM}")
             return embeddings
         except Exception as exc:  # noqa: BLE001
             logger.error("Embedding inference failed (%s); using deterministic fallback", exc)

@@ -31,19 +31,48 @@ logger = logging.getLogger(__name__)
 
 _HEADER_ALIASES: dict[str, list[str]] = {
     "activity_code": [
-        "activity id", "activity code", "act code", "code", "activity_code", "wbs code", "task id", "id",
+        "activity id",
+        "activity code",
+        "act code",
+        "code",
+        "activity_code",
+        "wbs code",
+        "task id",
+        "id",
     ],
     "description": [
-        "description", "activity", "activity description", "work description", "activity name", "task",
-        "task description", "work item", "scope", "scope of work",
+        "description",
+        "activity",
+        "activity description",
+        "work description",
+        "activity name",
+        "task",
+        "task description",
+        "work item",
+        "scope",
+        "scope of work",
     ],
     "status": [
-        "status", "progress", "% complete", "percent complete", "completion", "progress %", "pct",
-        "actual progress", "physical progress",
+        "status",
+        "progress",
+        "% complete",
+        "percent complete",
+        "completion",
+        "progress %",
+        "pct",
+        "actual progress",
+        "physical progress",
     ],
     "discipline": ["discipline", "disc", "trade", "department", "dept"],
     "equipment_tag": [
-        "equipment tag", "equipment", "tag", "tag no", "tag number", "tag_no", "equip tag", "asset tag",
+        "equipment tag",
+        "equipment",
+        "tag",
+        "tag no",
+        "tag number",
+        "tag_no",
+        "equip tag",
+        "asset tag",
     ],
     "location": ["location", "area", "section", "block", "workfront", "work front"],
     "zone": ["zone", "work zone"],
@@ -96,9 +125,7 @@ class DocumentExtractor:
                 base_metadata={"filename": filename, "extraction_method": "text"},
             )
         if len(content) > settings.MAX_UPLOAD_BYTES:
-            raise MediaProcessingError(
-                f"File exceeds the configured {settings.MAX_UPLOAD_BYTES}-byte processing limit"
-            )
+            raise MediaProcessingError(f"File exceeds the configured {settings.MAX_UPLOAD_BYTES}-byte processing limit")
 
         extension = Path(filename.lower()).suffix
         media_type = (mime_type or "").lower()
@@ -200,9 +227,9 @@ class DocumentExtractor:
         source_type: str = "DAILY_REPORT",
     ) -> list[NormalizedObservation]:
         try:
-            import pymupdf
+            import pymupdf  # type: ignore[import-untyped,import-not-found]
         except ImportError:
-            pymupdf = None
+            pymupdf = None  # type: ignore[assignment]
 
         if pymupdf is None:
             try:
@@ -224,7 +251,7 @@ class DocumentExtractor:
         observations: list[NormalizedObservation] = []
         ocr_errors: list[str] = []
         try:
-            document = pymupdf.open(stream=content, filetype="pdf")
+            document: Any = pymupdf.open(stream=content, filetype="pdf")  # type: ignore[union-attr]
             for page_index, page in enumerate(document):
                 page_number = page_index + 1
                 page_text = (page.get_text("text") or "").strip()
@@ -343,7 +370,11 @@ class DocumentExtractor:
                     continue
 
                 explicit_discipline = normalize_discipline(row_data.get("discipline"))
-                discipline = explicit_discipline if explicit_discipline != DisciplineEnum.GENERAL else cls._detect_discipline(raw_line)
+                discipline = (
+                    explicit_discipline
+                    if explicit_discipline != DisciplineEnum.GENERAL
+                    else cls._detect_discipline(raw_line)
+                )
                 quantity = normalize_quantity_value(row_data.get("quantity"))
                 unit = normalize_unit_name(row_data.get("unit"))
                 if quantity is None:
@@ -409,16 +440,34 @@ class DocumentExtractor:
                 start = parse_date_value(row_data.get("planned_start"))
                 finish = parse_date_value(row_data.get("planned_finish"))
                 if not code or not name:
-                    issues.append(ScheduleImportIssue(row_number=row_number, field="code/name", message="Activity code and name are required"))
+                    issues.append(
+                        ScheduleImportIssue(
+                            row_number=row_number, field="code/name", message="Activity code and name are required"
+                        )
+                    )
                     continue
                 if code in seen_codes:
-                    issues.append(ScheduleImportIssue(row_number=row_number, field="activity_code", message=f"Duplicate activity code {code}"))
+                    issues.append(
+                        ScheduleImportIssue(
+                            row_number=row_number, field="activity_code", message=f"Duplicate activity code {code}"
+                        )
+                    )
                     continue
                 if not start or not finish:
-                    issues.append(ScheduleImportIssue(row_number=row_number, field="dates", message=f"Valid planned start and finish are required for {code}"))
+                    issues.append(
+                        ScheduleImportIssue(
+                            row_number=row_number,
+                            field="dates",
+                            message=f"Valid planned start and finish are required for {code}",
+                        )
+                    )
                     continue
                 if finish < start:
-                    issues.append(ScheduleImportIssue(row_number=row_number, field="planned_finish", message=f"Finish precedes start for {code}"))
+                    issues.append(
+                        ScheduleImportIssue(
+                            row_number=row_number, field="planned_finish", message=f"Finish precedes start for {code}"
+                        )
+                    )
                     continue
 
                 discipline = normalize_discipline(row_data.get("discipline"))
@@ -476,7 +525,9 @@ class DocumentExtractor:
                 delimiter = dialect.delimiter
             except csv.Error:
                 delimiter = "\t" if extension == ".tsv" else ","
-            rows = [(index, tuple(row)) for index, row in enumerate(csv.reader(io.StringIO(text), delimiter=delimiter), 1)]
+            rows = [
+                (index, tuple(row)) for index, row in enumerate(csv.reader(io.StringIO(text), delimiter=delimiter), 1)
+            ]
             return [(Path(filename).stem or "data", rows)]
 
         if extension == ".xls" or content.startswith(b"\xd0\xcf\x11\xe0"):
@@ -521,8 +572,10 @@ class DocumentExtractor:
     def _map_row(headers: list[str | None], row: tuple[Any, ...]) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for index, value in enumerate(row):
-            if index < len(headers) and headers[index] and headers[index] not in result:
-                result[headers[index]] = value
+            if index < len(headers):
+                header = headers[index]
+                if header and header not in result:
+                    result[header] = value
         return result
 
     @staticmethod
@@ -552,21 +605,84 @@ class DocumentExtractor:
     def _detect_discipline(text: str) -> DisciplineEnum:
         lower = text.lower()
         keyword_groups = (
-            (DisciplineEnum.PIPING, ("piping", "spool", "hydro", "flange", "valve", "pipeline", "pipe support", "pip-", "p-101", "p-102", "pressure test")),
-            (DisciplineEnum.CIVIL, ("civil", "concrete", "pour", "rebar", "shuttering", "formwork", "excavation", "civ-", "footing", "foundation", "dewatering")),
-            (DisciplineEnum.MECHANICAL, ("mechanical", "pump", "compressor", "motor", "shaft alignment", "grouting", "mec-", "vessel", "exchanger")),
-            (DisciplineEnum.ELECTRICAL, ("electrical", "cable", "tray", "glanding", "ele-", "transformer", "switchgear", "substation", "earthing")),
-            (DisciplineEnum.INSTRUMENTATION, ("instrumentation", "transmitter", "ins-", "calibration", "scada", "plc", "impulse", "loop check")),
+            (
+                DisciplineEnum.PIPING,
+                (
+                    "piping",
+                    "spool",
+                    "hydro",
+                    "flange",
+                    "valve",
+                    "pipeline",
+                    "pipe support",
+                    "pip-",
+                    "p-101",
+                    "p-102",
+                    "pressure test",
+                ),
+            ),
+            (
+                DisciplineEnum.CIVIL,
+                (
+                    "civil",
+                    "concrete",
+                    "pour",
+                    "rebar",
+                    "shuttering",
+                    "formwork",
+                    "excavation",
+                    "civ-",
+                    "footing",
+                    "foundation",
+                    "dewatering",
+                ),
+            ),
+            (
+                DisciplineEnum.MECHANICAL,
+                (
+                    "mechanical",
+                    "pump",
+                    "compressor",
+                    "motor",
+                    "shaft alignment",
+                    "grouting",
+                    "mec-",
+                    "vessel",
+                    "exchanger",
+                ),
+            ),
+            (
+                DisciplineEnum.ELECTRICAL,
+                (
+                    "electrical",
+                    "cable",
+                    "tray",
+                    "glanding",
+                    "ele-",
+                    "transformer",
+                    "switchgear",
+                    "substation",
+                    "earthing",
+                ),
+            ),
+            (
+                DisciplineEnum.INSTRUMENTATION,
+                ("instrumentation", "transmitter", "ins-", "calibration", "scada", "plc", "impulse", "loop check"),
+            ),
             (DisciplineEnum.HSE, ("hse", "ehs", "safety", "incident", "permit", "toolbox", "spill", "near miss")),
         )
-        scores = [(discipline, sum(keyword in lower for keyword in keywords)) for discipline, keywords in keyword_groups]
+        scores = [
+            (discipline, sum(keyword in lower for keyword in keywords)) for discipline, keywords in keyword_groups
+        ]
         discipline, score = max(scores, key=lambda item: item[1])
         return discipline if score else DisciplineEnum.GENERAL
 
     @staticmethod
     def _detect_event_type(text: str) -> EventTypeEnum:
         lower = text.lower()
-        if any(phrase in lower for phrase in ("blocked", "blocker", "material shortage", "permit denied", "cannot proceed")):
+        if any(
+            phrase in lower for phrase in ("blocked", "blocker", "material shortage", "permit denied", "cannot proceed")
+        ):
             return EventTypeEnum.BLOCKER
         if any(word in lower for word in ("delay", "delayed", "weather", "waiting for", "held up")):
             return EventTypeEnum.DELAY

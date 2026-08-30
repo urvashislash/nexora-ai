@@ -644,7 +644,8 @@ pub async fn approve_proposal(
 
     // --- Idempotency gate ---
     let idempotency_key = format!("event-{}-{}", target_activity_id, actual_date);
-    let existing_keys: Vec<Option<String>> = events.iter().map(|e| e.idempotency_key.clone()).collect();
+    let existing_keys: Vec<Option<String>> =
+        events.iter().map(|e| e.idempotency_key.clone()).collect();
     ValidationEngine::validate_idempotency_key(Some(&idempotency_key), &existing_keys)
         .map_err(|e| ApiError::conflict(e.to_string()))?;
 
@@ -781,9 +782,9 @@ pub async fn override_proposal(
     Path(proposal_id): Path<Uuid>,
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let selected_activity_id = payload
-        .selected_activity_id
-        .ok_or(ApiError::bad_request("selected_activity_id is required for override"))?;
+    let selected_activity_id = payload.selected_activity_id.ok_or(ApiError::bad_request(
+        "selected_activity_id is required for override",
+    ))?;
 
     let mut proposals = state.proposals.write().await;
     let mut events = state.events.write().await;
@@ -806,7 +807,9 @@ pub async fn override_proposal(
     let act = acts
         .iter()
         .find(|a| a.id == selected_activity_id && a.project_id == proposal.project_id)
-        .ok_or(ApiError::not_found("Override target activity not found in this project"))?;
+        .ok_or(ApiError::not_found(
+            "Override target activity not found in this project",
+        ))?;
 
     let actual_date = Utc::now().date_naive();
     ValidationEngine::validate_event_date(actual_date)
@@ -1245,8 +1248,7 @@ pub async fn ingest_observations(
             let prop_id = Uuid::new_v4();
             let act_opt = acts.iter().find(|a| a.id == prop_data.activity_id);
 
-            if prop_data.auto_link_eligible && act_opt.is_some() {
-                let act = act_opt.unwrap();
+            if let (true, Some(act)) = (prop_data.auto_link_eligible, act_opt) {
                 let actual_date = Utc::now().date_naive();
                 let progress = item.observation.reported_progress.unwrap_or(100.0);
 
@@ -1270,7 +1272,11 @@ pub async fn ingest_observations(
                 };
 
                 if let Some(state_entry) = act_states.iter_mut().find(|s| s.activity_id == act.id) {
-                    let _ = StateMachine::project_event(state_entry, &new_event, act.planned_finish_date);
+                    let _ = StateMachine::project_event(
+                        state_entry,
+                        &new_event,
+                        act.planned_finish_date,
+                    );
                 }
 
                 let proposal = MatchProposal {
@@ -1308,18 +1314,16 @@ pub async fn ingest_observations(
                 );
                 *last_hash_lock = Some(audit.payload_hash.clone());
 
-                let outbox = EventLedger::create_outbox_event(
-                    project_id,
-                    "AUTO_LINKED_EVENT",
-                    &new_event,
-                );
+                let outbox =
+                    EventLedger::create_outbox_event(project_id, "AUTO_LINKED_EVENT", &new_event);
                 outbox_store.push(outbox);
 
                 events.push(new_event);
                 audit_trail.push(audit);
                 auto_committed += 1;
-            } else if prop_data.match_tier != MatchTier::Unmatched && act_opt.is_some() {
-                let act = act_opt.unwrap();
+            } else if let (true, Some(act)) =
+                (prop_data.match_tier != MatchTier::Unmatched, act_opt)
+            {
                 let proposal = MatchProposal {
                     id: prop_id,
                     project_id,

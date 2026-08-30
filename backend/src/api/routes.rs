@@ -37,7 +37,10 @@ pub fn create_router(state: AppState) -> Router {
 
     // --- Observation creation routes (CreateObservation permission) ---
     let observation_routes = Router::new()
-        .route("/api/v1/projects/:id/observations", post(create_observation))
+        .route(
+            "/api/v1/projects/:id/observations",
+            post(create_observation),
+        )
         .route("/api/v1/projects/:id/ingest", post(ingest_observations))
         .layer(middleware::from_fn(move |req, next| {
             require_permission(req, next, Permission::CreateObservation)

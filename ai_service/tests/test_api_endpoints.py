@@ -162,7 +162,13 @@ class TestExtractFileEndpoint:
         response = client.post(
             "/api/v1/schedule/import-file",
             data={"project_id": str(uuid4())},
-            files={"file": ("schedule.xlsx", io.BytesIO(buffer.getvalue()), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "schedule.xlsx",
+                    io.BytesIO(buffer.getvalue()),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
         )
         assert response.status_code == 200
         result = response.json()

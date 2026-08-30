@@ -89,8 +89,7 @@ class MatchingThresholds:
                 auto_link_eligible=False,
                 review_required=True,
                 reason=(
-                    f"Top candidates are ambiguous: score gap {score_gap:.3f} is below "
-                    f"{self.min_auto_link_gap:.3f}"
+                    f"Top candidates are ambiguous: score gap {score_gap:.3f} is below {self.min_auto_link_gap:.3f}"
                 ),
             )
         return MatchDecision(
