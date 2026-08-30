@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navbar } from './components/Navbar';
+import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { DocumentUpload } from './pages/DocumentUpload';
 import { ReviewQueue } from './pages/ReviewQueue';
@@ -481,43 +481,6 @@ export function App() {
     setReviewQueue(prev => prev.filter(i => i.proposal.id !== proposalId));
   };
 
-  const handleOverrideProposal = (proposalId: string, newActivityId: string, comments?: string) => {
-    const item = reviewQueue.find(i => i.proposal.id === proposalId);
-    if (!item) return;
-
-    setActivities(prev => prev.map(a => {
-      if (a.activity.id === newActivityId) {
-        return {
-          ...a,
-          state: {
-            ...a.state!,
-            execution_status: 'COMPLETED',
-            actual_start_date: a.state?.actual_start_date || '2026-08-28',
-            actual_finish_date: '2026-08-30',
-            current_progress_pct: 100,
-            updated_at: new Date().toISOString(),
-          }
-        };
-      }
-      return a;
-    }));
-
-    const newAudit: AuditEvent = {
-      id: `audit-${Date.now()}`,
-      project_id: 'a0000000-0000-0000-0000-000000000001',
-      entity_type: 'PLANNER_OVERRIDE',
-      entity_id: newActivityId,
-      action: 'HUMAN_VERIFIED_OVERRIDE',
-      actor_role: 'PLANNER (Rajesh Sharma)',
-      payload_hash: Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join(''),
-      before_state: { status: 'PENDING_REVIEW', original_activity_id: item.proposal.activity_id },
-      after_state: { status: 'COMMITTED', verification: 'HUMAN_VERIFIED', activity_id: newActivityId, comments: comments || 'Planner override' },
-      created_at: new Date().toISOString(),
-    };
-    setAuditEvents(prev => [newAudit, ...prev]);
-    setReviewQueue(prev => prev.filter(i => i.proposal.id !== proposalId));
-  };
-
   // Calculate live KPIs
   const completedCount = activities.filter(a => a.state?.execution_status === 'COMPLETED').length;
   const inProgressCount = activities.filter(a => a.state?.execution_status === 'IN_PROGRESS').length;
@@ -536,68 +499,70 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <div className="border-b border-slate-800 bg-slate-900/80 px-4 py-2 text-xs text-slate-300 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <span>Supabase status: {supabaseConnected ? 'connected' : 'local fallback'}</span>
-          <span className="text-slate-400">{supabaseStatus.url}</span>
-        </div>
-      </div>
-      <Navbar 
+    <div className="flex h-screen bg-[var(--bg-base)] text-[var(--text-primary)] font-sans overflow-hidden">
+      <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         pendingReviewCount={reviewQueue.length} 
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 sm:px-6">
-        {activeTab === 'dashboard' && (
-          <Dashboard 
-            kpis={kpis} 
-            activities={activities} 
-            onNavigateTab={setActiveTab} 
-          />
-        )}
+      <div className="flex-1 flex flex-col h-full overflow-hidden ml-64">
+        <div className="border-b border-slate-200 bg-white px-6 py-2 text-[11px] font-mono text-slate-500 flex justify-between items-center">
+          <span>Supabase status: {supabaseConnected ? 'connected' : 'local fallback'}</span>
+          <span className="text-slate-400">{supabaseStatus.url}</span>
+        </div>
 
-        {activeTab === 'upload' && (
-          <DocumentUpload 
-            onAddObservations={handleAddObservations} 
-            onNavigateTab={setActiveTab} 
-          />
-        )}
+        <main className="flex-1 overflow-y-auto w-full px-6 py-8 md:px-10">
+          <div className="max-w-[1400px] mx-auto w-full">
+            {activeTab === 'dashboard' && (
+              <Dashboard 
+                kpis={kpis} 
+                activities={activities} 
+                onNavigateTab={setActiveTab} 
+              />
+            )}
 
-        {activeTab === 'review' && (
-          <ReviewQueue 
-            items={reviewQueue}
-            activities={activities.map(a => a.activity)}
-            onApprove={handleApproveProposal} 
-            onReject={handleRejectProposal}
-            onOverride={handleOverrideProposal}
-          />
-        )}
+            {activeTab === 'upload' && (
+              <DocumentUpload 
+                onAddObservations={handleAddObservations} 
+                onNavigateTab={setActiveTab} 
+              />
+            )}
 
+            {activeTab === 'review' && (
+              <ReviewQueue 
+                items={reviewQueue}
+                activities={activities.map(a => a.activity)}
+                onApprove={handleApproveProposal} 
+                onReject={handleRejectProposal}
+                onOverride={handleOverrideProposal}
+              />
+            )}
 
-        {activeTab === 'schedule' && (
-          <ScheduleExplorer 
-            activities={activities} 
-          />
-        )}
+            {activeTab === 'schedule' && (
+              <ScheduleExplorer 
+                activities={activities} 
+              />
+            )}
 
-        {activeTab === 'audit' && (
-          <AuditTrail 
-            events={auditEvents} 
-          />
-        )}
+            {activeTab === 'audit' && (
+              <AuditTrail 
+                events={auditEvents} 
+              />
+            )}
 
-        {activeTab === 'export' && (
-          <ScheduleExport 
-            activities={activities} 
-          />
-        )}
-      </main>
+            {activeTab === 'export' && (
+              <ScheduleExport 
+                activities={activities} 
+              />
+            )}
+          </div>
+        </main>
 
-      <footer className="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        NEXORA AI — Intelligent Data Capture & Schedule-Linking Layer for Infrastructure Projects · Smart India Hackathon Prototype
-      </footer>
+        <footer className="border-t border-slate-200 bg-white py-4 text-center text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+          NEXORA AI — Intelligent Data Capture & Schedule-Linking Layer · SIH MVP
+        </footer>
+      </div>
     </div>
   );
 }
