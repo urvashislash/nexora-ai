@@ -6,6 +6,7 @@ use super::models::{
 };
 
 
+#[allow(dead_code)]
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum StateMachineError {
     #[error("Invalid lifecycle transition from {from:?} to {to:?}")]
@@ -20,6 +21,7 @@ pub enum StateMachineError {
 
 pub struct StateMachine;
 
+#[allow(dead_code)]
 impl StateMachine {
     /// Validates and advances lifecycle status
     pub fn transition_lifecycle(
@@ -120,7 +122,6 @@ impl StateMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
 
     #[test]
     fn test_valid_transitions() {

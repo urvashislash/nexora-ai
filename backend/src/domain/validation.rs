@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use super::models::{Activity, ActivityCurrentState, ActivityDependency, DependencyType, ExecutionStatus};
 
+#[allow(dead_code)]
 #[derive(Debug, Error, PartialEq)]
 pub enum ValidationError {
 
@@ -32,6 +33,7 @@ pub enum ValidationError {
 
 pub struct ValidationEngine;
 
+#[allow(dead_code)]
 impl ValidationEngine {
     /// Validates date sequence: finish date must not precede start date
     pub fn validate_date_sequence(

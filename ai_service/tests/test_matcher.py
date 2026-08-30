@@ -92,3 +92,54 @@ def test_hybrid_matching_exact_scenario():
     assert proposal.top_match.activity_code == "PIP-2401"
     assert proposal.top_match.confidence_score >= 0.85
     assert proposal.top_match.match_tier in (MatchTierEnum.HIGH, MatchTierEnum.MEDIUM)
+
+
+def test_excel_extraction():
+    """Test extraction from an in-memory Excel file (.xlsx)."""
+    import io
+    import openpyxl
+
+    project_id = uuid4()
+
+    # Create an in-memory Excel workbook with construction log data
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Daily Log"
+
+    # Header row
+    ws.append(["Activity Code", "Description", "Status", "Discipline", "Remarks"])
+
+    # Data rows simulating real EPC daily progress entries
+    ws.append(["PIP-2400", "Spool erection on Pipe Rack B Tier 2", "100% Complete", "Piping", "All spools erected"])
+    ws.append(["CIV-1100", "Rebar tying for compressor foundation", "In Progress", "Civil", "15 MT tied"])
+    ws.append(["CIV-1101", "Concrete pour column footings", "Not Started", "Civil", "Awaiting rebar QC"])
+
+    # Save to bytes
+    buf = io.BytesIO()
+    wb.save(buf)
+    excel_bytes = buf.getvalue()
+
+    # Extract observations
+    observations = DocumentExtractor.extract_from_excel_bytes(excel_bytes, project_id)
+
+    assert len(observations) == 3
+
+    # First row: piping complete
+    obs1 = observations[0]
+    assert obs1.discipline == DisciplineEnum.PIPING
+    assert obs1.reported_progress == 100.0
+
+    # Second row: civil in-progress
+    obs2 = observations[1]
+    assert obs2.discipline == DisciplineEnum.CIVIL
+
+    # Third row: civil not started
+    obs3 = observations[2]
+    assert obs3.discipline == DisciplineEnum.CIVIL
+
+    # All should have valid normalized text
+    for obs in observations:
+        assert obs.normalized_text is not None
+        assert len(obs.normalized_text) > 0
+        assert obs.project_id == project_id
+

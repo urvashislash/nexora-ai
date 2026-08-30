@@ -13,9 +13,11 @@ use uuid::Uuid;
 use crate::domain::models::*;
 use crate::domain::state_machine::StateMachine;
 use crate::domain::ledger::EventLedger;
+use crate::domain::validation::ValidationEngine;
 
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct AppState {
     pub projects: Arc<RwLock<Vec<Project>>>,
     pub activities: Arc<RwLock<Vec<Activity>>>,
@@ -187,6 +189,7 @@ impl AppState {
 // -----------------------------------------------------------------------------
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 pub struct DashboardKPIs {
     pub total_observations: usize,
     pub extracted_events: usize,
@@ -295,6 +298,7 @@ pub async fn get_review_queue(
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct DecisionPayload {
     pub reviewer_id: Uuid,
     pub comments: Option<String>,
@@ -325,8 +329,14 @@ pub async fn approve_proposal(
         .find(|a| a.id == target_activity_id)
         .ok_or((StatusCode::NOT_FOUND, "Target activity not found".to_string()))?;
 
-    // Create official ActualEvent
+    // --- Validation gate: reject future dates and invalid progress ---
     let actual_date = Utc::now().date_naive();
+    ValidationEngine::validate_event_date(actual_date)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    ValidationEngine::validate_progress(Some(100.0))
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    // Create official ActualEvent
     let new_event = ActualEvent {
         id: Uuid::new_v4(),
         project_id: proposal.project_id,
@@ -362,6 +372,13 @@ pub async fn approve_proposal(
         Some(serde_json::json!({"status": "PENDING_REVIEW"})),
         Some(serde_json::json!({"status": "COMMITTED", "event_id": new_event.id})),
         None,
+    );
+
+    // Create outbox event for async delivery to external systems (PMIS / P6)
+    let _outbox = EventLedger::create_outbox_event(
+        proposal.project_id,
+        "PROPOSAL_APPROVED",
+        &new_event,
     );
 
     events.push(new_event.clone());
