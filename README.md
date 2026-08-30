@@ -548,6 +548,51 @@ The code review MCP helps catch architecture, validation, and operational risks 
 
 ---
 
+## Local Supabase quickstart
+
+To use the local Supabase instance for development, Docker Desktop or Podman must be installed and available on PATH.
+
+1. Install Docker Desktop or Podman.
+2. Start the local Supabase stack:
+
+```bash
+npm run supabase:start
+```
+
+3. Check the local instance status and capture the generated API URL and anon key:
+
+```bash
+npm run supabase:status
+```
+
+4. Reset or reapply the schema when needed:
+
+```bash
+npm run supabase:reset
+# or
+npm run supabase:migrate
+```
+
+5. Copy the local values into the frontend env and project secret config:
+
+```env
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_ANON_KEY=your-local-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-local-service-role-key
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=your-local-anon-key
+```
+
+6. Start the app:
+
+```bash
+npm run dev:frontend
+```
+
+This repo already includes the database migration, seed scripts, storage setup, and frontend client wiring. The remaining runtime requirement is simply a working local Docker/Podman environment so `supabase start` can boot the stack.
+
+---
+
 ## Current status
 
 This repository is best described as a strong prototype foundation and architecture blueprint rather than a fully completed application. The project includes the design documents, service skeletons, and deployment scaffolding needed for a realistic MVP, but real end-to-end working flows still need to be implemented, tested, and hardened.

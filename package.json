@@ -12,6 +12,11 @@
     "test:backend": "cd backend && cargo test",
     "test:ai": "cd ai_service && pytest",
     "test:e2e": "pytest tests/e2e",
+    "supabase:start": "bash ./scripts/supabase.sh start",
+    "supabase:stop": "bash ./scripts/supabase.sh stop",
+    "supabase:status": "bash ./scripts/supabase.sh status",
+    "supabase:reset": "bash ./scripts/supabase.sh reset",
+    "supabase:migrate": "bash ./scripts/supabase.sh migrate",
     "test": "npm run test:backend && npm run test:ai"
   },
   "keywords": [
