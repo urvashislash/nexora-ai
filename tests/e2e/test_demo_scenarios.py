@@ -273,9 +273,9 @@ def test_full_pdf_ingestion_end_to_end(demo_activities):
     """
     Tests end-to-end PDF report ingestion -> text extraction -> normalization -> hybrid matching.
     """
-    import fitz
+    import pymupdf
 
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     report_text = (
         "DAILY SITE PROGRESS REPORT\n"
