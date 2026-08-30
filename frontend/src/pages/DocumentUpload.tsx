@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   UploadCloud, 
   CheckCircle2, 
   Sparkles, 
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  FileText
 } from 'lucide-react';
 import type { WorkObservation } from '../types';
+import { uploadEvidenceFile } from '../lib/supabase';
 
 interface DocumentUploadProps {
   onAddObservations: (observations: WorkObservation[], rawText: string) => void;
@@ -23,6 +25,8 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onAddObservation
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(0);
   const [lastResult, setLastResult] = useState<any>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 5 Mandatory Demo Preset Scenarios
   const demoPresets = [
@@ -68,16 +72,28 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onAddObservation
     },
   ];
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
   const handleProcess = async (textToProcess?: string) => {
     const text = textToProcess || inputText;
-    if (!text.trim()) return;
+    if (!text.trim() && !selectedFile) return;
 
     setIsProcessing(true);
     setActiveStep(1);
     setLastResult(null);
 
-    // Step 1: Ingestion & Storage
-    await new Promise(r => setTimeout(r, 400));
+    // Step 1: Ingestion & Storage (Upload to Supabase if file exists)
+    let uploadedPath = null;
+    if (selectedFile) {
+      // Mock Project ID for now
+      uploadedPath = await uploadEvidenceFile('a0000000-0000-0000-0000-000000000001', selectedFile, 'reports');
+    } else {
+      await new Promise(r => setTimeout(r, 400));
+    }
     setActiveStep(2);
 
     // Step 2: Extraction & Normalization
@@ -96,7 +112,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onAddObservation
     const newObs: WorkObservation = {
       id: generateObsId(),
       project_id: 'a0000000-0000-0000-0000-000000000001',
-      raw_text: text,
+      raw_text: text || `(Extracted from ${selectedFile?.name})`,
       normalized_text: text.includes('P-101') ? text.replace('P-101', 'Line P-101') : text,
       discipline: text.toLowerCase().includes('pour') || text.toLowerCase().includes('civil') ? 'CIVIL' : 'PIPING',
       recorded_at: new Date().toISOString(),
@@ -106,10 +122,12 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onAddObservation
 
     onAddObservations([newObs], text);
     setIsProcessing(false);
+    setSelectedFile(null);
     setLastResult({
       text,
       status: 'PROCESSED',
       timestamp: new Date().toLocaleTimeString(),
+      storagePath: uploadedPath
     });
   };
 
@@ -192,6 +210,34 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onAddObservation
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+              Evidence Document (Optional)
+            </label>
+            <div className="flex items-center space-x-3 mb-4">
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                className="hidden" 
+                accept=".pdf,.xlsx,.csv,.png,.jpg,.jpeg"
+              />
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center space-x-2 px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-sm text-slate-300 hover:bg-slate-700 transition"
+              >
+                <FileText className="h-4 w-4 text-slate-400" />
+                <span>{selectedFile ? selectedFile.name : 'Select File'}</span>
+              </button>
+              {selectedFile && (
+                <button 
+                  onClick={() => setSelectedFile(null)}
+                  className="text-xs text-rose-400 hover:text-rose-300"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
               Field Execution Report / Log Text
             </label>
             <textarea
@@ -210,7 +256,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onAddObservation
             </div>
             <button
               onClick={() => handleProcess()}
-              disabled={isProcessing || !inputText.trim()}
+              disabled={isProcessing || (!inputText.trim() && !selectedFile)}
               className="flex items-center space-x-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-600/30 hover:bg-sky-500 disabled:opacity-50 transition"
             >
               {isProcessing && <RefreshCw className="h-4 w-4 animate-spin" />}
