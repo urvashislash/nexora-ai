@@ -154,9 +154,9 @@ Implementation and verification details are documented in `ai_service/README.md`
 ## 7. Testing and Validation
 
 ### 7.1 Unit tests
-- Add Rust unit tests for lifecycle validation, decision logic, and rule enforcement.
-- Add Python tests for extraction, normalization, and matching functions.
-- Add frontend tests for uploader, review, and dashboard states.
+- [x] Add Rust unit tests for lifecycle validation, decision logic, and rule enforcement.
+- [x] Add Python tests for extraction, normalization, and matching functions.
+- [ ] Add frontend tests for uploader, review, and dashboard states.
 
 ### 7.2 Integration tests
 - Test the full path: upload → parse → extract → normalize → match → review → commit.
