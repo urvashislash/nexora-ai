@@ -162,9 +162,9 @@ This document lists every major task still required to take the project from its
 - Cover edge cases such as duplicate files, malformed data, low-confidence matches, and retries.
 
 ### 7.3 Golden dataset testing
-- Create a benchmark dataset with known good observations and expected matches.
-- Test against discipline-specific and multi-discipline scenarios.
-- Track precision, recall, and false-positive rates for matching quality.
+- [x] Create a benchmark dataset with known good observations and expected matches.
+- [x] Test against discipline-specific and multi-discipline scenarios.
+- [x] Track precision, recall, and false-positive rates for matching quality.
 
 ### 7.4 End-to-end validation
 - Run end-to-end scenarios for a realistic project lifecycle.
