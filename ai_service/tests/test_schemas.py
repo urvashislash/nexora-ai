@@ -2,33 +2,32 @@
 Comprehensive tests for Pydantic schemas and model validation.
 Tests all model instantiation, field defaults, enum values, and validation rules.
 """
-from datetime import date, datetime
-from uuid import uuid4, UUID
-import pytest
-from pydantic import ValidationError
+
+from datetime import date
+from uuid import UUID, uuid4
 
 from app.models.schemas import (
     DisciplineEnum,
-    EventTypeEnum,
-    MatchTierEnum,
     DocumentJobType,
-    RawObservation,
-    NormalizedObservation,
-    ScheduleActivity,
-    MatchCandidate,
-    MatchProposalPayload,
-    ExtractRequest,
-    NormalizeRequest,
     EmbedRequest,
     EmbedResponse,
+    EventTypeEnum,
+    ExtractRequest,
+    MatchCandidate,
+    MatchProposalPayload,
     MatchRequest,
+    MatchTierEnum,
+    NormalizedObservation,
+    NormalizeRequest,
     ProcessDocumentMessage,
+    RawObservation,
+    ScheduleActivity,
 )
-
 
 # =============================================================================
 # Enum Tests
 # =============================================================================
+
 
 class TestEnums:
     def test_discipline_values(self):
@@ -73,6 +72,7 @@ class TestEnums:
 # RawObservation Tests
 # =============================================================================
 
+
 class TestRawObservation:
     def test_minimal_creation(self):
         obs = RawObservation(raw_text="Test observation")
@@ -105,6 +105,7 @@ class TestRawObservation:
 # =============================================================================
 # NormalizedObservation Tests
 # =============================================================================
+
 
 class TestNormalizedObservation:
     def test_creation_with_required_fields(self):
@@ -142,6 +143,7 @@ class TestNormalizedObservation:
 # =============================================================================
 # ScheduleActivity Tests
 # =============================================================================
+
 
 class TestScheduleActivity:
     def test_creation(self):
@@ -190,6 +192,7 @@ class TestScheduleActivity:
 # MatchCandidate Tests
 # =============================================================================
 
+
 class TestMatchCandidate:
     def test_creation(self):
         mc = MatchCandidate(
@@ -224,6 +227,7 @@ class TestMatchCandidate:
 # API Request/Response Schema Tests
 # =============================================================================
 
+
 class TestAPISchemas:
     def test_extract_request(self):
         req = ExtractRequest(project_id=uuid4())
@@ -247,9 +251,13 @@ class TestAPISchemas:
         pid = uuid4()
         obs = NormalizedObservation(raw_text="a", normalized_text="A", project_id=pid)
         act = ScheduleActivity(
-            id=uuid4(), project_id=pid, code="T-1", name="Test",
+            id=uuid4(),
+            project_id=pid,
+            code="T-1",
+            name="Test",
             discipline=DisciplineEnum.GENERAL,
-            planned_start_date=date(2026, 1, 1), planned_finish_date=date(2026, 1, 31)
+            planned_start_date=date(2026, 1, 1),
+            planned_finish_date=date(2026, 1, 31),
         )
         req = MatchRequest(project_id=pid, observations=[obs], activities=[act])
         assert len(req.observations) == 1
@@ -273,6 +281,7 @@ class TestAPISchemas:
 # MatchProposalPayload Tests
 # =============================================================================
 
+
 class TestMatchProposalPayload:
     def test_empty_candidates(self):
         obs = NormalizedObservation(raw_text="a", normalized_text="A", project_id=uuid4())
@@ -283,14 +292,15 @@ class TestMatchProposalPayload:
     def test_with_top_match(self):
         obs = NormalizedObservation(raw_text="a", normalized_text="A", project_id=uuid4())
         mc = MatchCandidate(
-            activity_id=uuid4(), activity_code="PIP-2401",
-            activity_name="Test", confidence_score=0.95,
-            match_tier=MatchTierEnum.HIGH, explanation="match",
-            evidence_snippet="evidence"
+            activity_id=uuid4(),
+            activity_code="PIP-2401",
+            activity_name="Test",
+            confidence_score=0.95,
+            match_tier=MatchTierEnum.HIGH,
+            explanation="match",
+            evidence_snippet="evidence",
         )
-        payload = MatchProposalPayload(
-            observation=obs, candidates=[mc], top_match=mc, auto_link_eligible=True
-        )
+        payload = MatchProposalPayload(observation=obs, candidates=[mc], top_match=mc, auto_link_eligible=True)
         assert payload.top_match is not None
         assert payload.top_match.confidence_score == 0.95
         assert payload.auto_link_eligible is True

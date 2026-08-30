@@ -2,9 +2,8 @@ use chrono::NaiveDate;
 use thiserror::Error;
 
 use super::models::{
-    ActualEvent, ActivityCurrentState, EventType, ExecutionStatus, LifecycleStatus,
+    ActivityCurrentState, ActualEvent, EventType, ExecutionStatus, LifecycleStatus,
 };
-
 
 #[allow(dead_code)]
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -28,19 +27,19 @@ impl StateMachine {
         current: LifecycleStatus,
         target: LifecycleStatus,
     ) -> Result<LifecycleStatus, StateMachineError> {
-        let is_valid = match (current, target) {
-            (LifecycleStatus::Proposed, LifecycleStatus::Matched) => true,
-            (LifecycleStatus::Proposed, LifecycleStatus::ReviewRequired) => true,
-            (LifecycleStatus::Proposed, LifecycleStatus::Rejected) => true,
-            (LifecycleStatus::Matched, LifecycleStatus::Approved) => true,
-            (LifecycleStatus::Matched, LifecycleStatus::ReviewRequired) => true,
-            (LifecycleStatus::Matched, LifecycleStatus::Rejected) => true,
-            (LifecycleStatus::ReviewRequired, LifecycleStatus::Approved) => true,
-            (LifecycleStatus::ReviewRequired, LifecycleStatus::Rejected) => true,
-            (LifecycleStatus::Approved, LifecycleStatus::Committed) => true,
-            (LifecycleStatus::Approved, LifecycleStatus::Rejected) => true,
-            _ => false,
-        };
+        let is_valid = matches!(
+            (current, target),
+            (LifecycleStatus::Proposed, LifecycleStatus::Matched)
+                | (LifecycleStatus::Proposed, LifecycleStatus::ReviewRequired)
+                | (LifecycleStatus::Proposed, LifecycleStatus::Rejected)
+                | (LifecycleStatus::Matched, LifecycleStatus::Approved)
+                | (LifecycleStatus::Matched, LifecycleStatus::ReviewRequired)
+                | (LifecycleStatus::Matched, LifecycleStatus::Rejected)
+                | (LifecycleStatus::ReviewRequired, LifecycleStatus::Approved)
+                | (LifecycleStatus::ReviewRequired, LifecycleStatus::Rejected)
+                | (LifecycleStatus::Approved, LifecycleStatus::Committed)
+                | (LifecycleStatus::Approved, LifecycleStatus::Rejected)
+        );
 
         if is_valid {
             Ok(target)
@@ -68,7 +67,8 @@ impl StateMachine {
                 }
                 current_state.execution_status = ExecutionStatus::InProgress;
                 if let Some(pct) = event.actual_progress_pct {
-                    current_state.current_progress_pct = pct.max(current_state.current_progress_pct);
+                    current_state.current_progress_pct =
+                        pct.max(current_state.current_progress_pct);
                 }
             }
             EventType::Progress => {
@@ -126,22 +126,31 @@ mod tests {
     #[test]
     fn test_valid_transitions() {
         assert_eq!(
-            StateMachine::transition_lifecycle(LifecycleStatus::Proposed, LifecycleStatus::Matched).unwrap(),
+            StateMachine::transition_lifecycle(LifecycleStatus::Proposed, LifecycleStatus::Matched)
+                .unwrap(),
             LifecycleStatus::Matched
         );
         assert_eq!(
-            StateMachine::transition_lifecycle(LifecycleStatus::Matched, LifecycleStatus::Approved).unwrap(),
+            StateMachine::transition_lifecycle(LifecycleStatus::Matched, LifecycleStatus::Approved)
+                .unwrap(),
             LifecycleStatus::Approved
         );
         assert_eq!(
-            StateMachine::transition_lifecycle(LifecycleStatus::Approved, LifecycleStatus::Committed).unwrap(),
+            StateMachine::transition_lifecycle(
+                LifecycleStatus::Approved,
+                LifecycleStatus::Committed
+            )
+            .unwrap(),
             LifecycleStatus::Committed
         );
     }
 
     #[test]
     fn test_invalid_transitions() {
-        let res = StateMachine::transition_lifecycle(LifecycleStatus::Committed, LifecycleStatus::Proposed);
+        let res = StateMachine::transition_lifecycle(
+            LifecycleStatus::Committed,
+            LifecycleStatus::Proposed,
+        );
         assert!(res.is_err());
     }
 }

@@ -1,12 +1,9 @@
 import re
-from typing import Dict, Optional
-from uuid import UUID
 
 from app.models.schemas import DisciplineEnum
 
-
 # Standard default infrastructure domain dictionary
-DEFAULT_TERMINOLOGY_MAP: Dict[str, str] = {
+DEFAULT_TERMINOLOGY_MAP: dict[str, str] = {
     # Piping
     "spool erection": "Spool Erection and Alignment",
     "spool alignment": "Spool Erection and Alignment",
@@ -25,7 +22,6 @@ DEFAULT_TERMINOLOGY_MAP: Dict[str, str] = {
     "p102": "Line P-102",
     "pip2401": "PIP-2401",
     "pip 2401": "PIP-2401",
-    
     # Civil
     "rebar": "Rebar Tying and Shuttering",
     "rebar tying": "Rebar Tying and Shuttering",
@@ -38,33 +34,30 @@ DEFAULT_TERMINOLOGY_MAP: Dict[str, str] = {
     "rcc casting": "Concrete Pour",
     "backfilling": "Trench Excavation and Backfilling",
     "excavation": "Trench Excavation and Backfilling",
-    
     # Mechanical
     "pump alignment": "Equipment Alignment - Crude Charge Pump P-101A",
     "shaft alignment": "Equipment Alignment - Crude Charge Pump P-101A",
     "grouting": "Equipment Alignment - Crude Charge Pump P-101A",
     "p-101a": "Pump P-101A",
     "p101a": "Pump P-101A",
-    
     # Electrical
     "traying": "Cable Tray Installation",
     "cable tray": "Cable Tray Installation",
     "cable laying": "Cable Tray Installation",
     "cable pulling": "Cable Tray Installation",
-    
     # Instrumentation
     "pt calibration": "Transmitter Calibration and Hookup - PT-101",
     "pt-101": "Transmitter PT-101",
     "loop check": "Transmitter Calibration and Hookup - PT-101",
-    "impulse line": "Transmitter Calibration and Hookup - PT-101"
+    "impulse line": "Transmitter Calibration and Hookup - PT-101",
 }
 
 
 class TerminologyNormalizer:
-    def __init__(self, project_overrides: Optional[Dict[str, str]] = None):
+    def __init__(self, project_overrides: dict[str, str] | None = None):
         self.term_map = {**DEFAULT_TERMINOLOGY_MAP, **(project_overrides or {})}
 
-    def normalize(self, text: str, discipline: Optional[DisciplineEnum] = None) -> str:
+    def normalize(self, text: str, discipline: DisciplineEnum | None = None) -> str:
         if not text:
             return ""
 
@@ -79,8 +72,8 @@ class TerminologyNormalizer:
                 lower = cleaned.lower()
 
         # Standardize dates and percentages
-        cleaned = re.sub(r'(\d+)\s*%', r'\1%', cleaned)
-        cleaned = re.sub(r'\s+', ' ', cleaned)
+        cleaned = re.sub(r"(\d+)\s*%", r"\1%", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned)
         return cleaned.strip()
 
 

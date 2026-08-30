@@ -10,11 +10,10 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use crate::domain::ledger::EventLedger;
 use crate::domain::models::*;
 use crate::domain::state_machine::StateMachine;
-use crate::domain::ledger::EventLedger;
 use crate::domain::validation::ValidationEngine;
-
 
 #[derive(Clone)]
 #[allow(dead_code)]
@@ -59,7 +58,9 @@ impl AppState {
                 wbs_id,
                 code: "PIP-2400".to_string(),
                 name: "Spool Erection and Alignment - Pipe Rack B".to_string(),
-                description: Some("Prefabricated carbon steel piping spool erection on Rack B".to_string()),
+                description: Some(
+                    "Prefabricated carbon steel piping spool erection on Rack B".to_string(),
+                ),
                 discipline: Discipline::Piping,
                 planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 10).unwrap(),
                 planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -79,7 +80,9 @@ impl AppState {
                 wbs_id,
                 code: "PIP-2401".to_string(),
                 name: "Hydrostatic Testing - Line P-101 (Crude Feed Header)".to_string(),
-                description: Some("Pressure testing of 24 inch crude feed header Line P-101".to_string()),
+                description: Some(
+                    "Pressure testing of 24 inch crude feed header Line P-101".to_string(),
+                ),
                 discipline: Discipline::Piping,
                 planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 26).unwrap(),
                 planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 28).unwrap(),
@@ -99,7 +102,9 @@ impl AppState {
                 wbs_id,
                 code: "PIP-2402".to_string(),
                 name: "Hydrostatic Testing - Line P-102 (Naphtha Return Header)".to_string(),
-                description: Some("Pressure testing of 16 inch naphtha return header Line P-102".to_string()),
+                description: Some(
+                    "Pressure testing of 16 inch naphtha return header Line P-102".to_string(),
+                ),
                 discipline: Discipline::Piping,
                 planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 28).unwrap(),
                 planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 30).unwrap(),
@@ -119,7 +124,9 @@ impl AppState {
                 wbs_id,
                 code: "CIV-1100".to_string(),
                 name: "Rebar Tying and Shuttering - Compressor Foundation".to_string(),
-                description: Some("Reinforcement steel bar cutting, bending and shuttering".to_string()),
+                description: Some(
+                    "Reinforcement steel bar cutting, bending and shuttering".to_string(),
+                ),
                 discipline: Discipline::Civil,
                 planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 15).unwrap(),
                 planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 24).unwrap(),
@@ -139,7 +146,9 @@ impl AppState {
                 wbs_id,
                 code: "CIV-1101".to_string(),
                 name: "Concrete Pour - Column Footings Area 100".to_string(),
-                description: Some("Ready-mix concrete pouring for heavy column footings".to_string()),
+                description: Some(
+                    "Ready-mix concrete pouring for heavy column footings".to_string(),
+                ),
                 discipline: Discipline::Civil,
                 planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
                 planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 29).unwrap(),
@@ -210,11 +219,26 @@ pub async fn get_dashboard(
     let events = state.events.read().await;
     let act_states = state.activity_states.read().await;
 
-    let auto_linked = proposals.iter().filter(|p| p.status == "AUTO_LINKED").count();
-    let review_queue = proposals.iter().filter(|p| p.status == "PENDING_REVIEW").count();
-    let unmatched = proposals.iter().filter(|p| p.match_tier == MatchTier::Unmatched).count();
-    let completed = act_states.iter().filter(|s| s.execution_status == ExecutionStatus::Completed).count();
-    let in_progress = act_states.iter().filter(|s| s.execution_status == ExecutionStatus::InProgress).count();
+    let auto_linked = proposals
+        .iter()
+        .filter(|p| p.status == "AUTO_LINKED")
+        .count();
+    let review_queue = proposals
+        .iter()
+        .filter(|p| p.status == "PENDING_REVIEW")
+        .count();
+    let unmatched = proposals
+        .iter()
+        .filter(|p| p.match_tier == MatchTier::Unmatched)
+        .count();
+    let completed = act_states
+        .iter()
+        .filter(|s| s.execution_status == ExecutionStatus::Completed)
+        .count();
+    let in_progress = act_states
+        .iter()
+        .filter(|s| s.execution_status == ExecutionStatus::InProgress)
+        .count();
 
     let total_progress: f64 = act_states.iter().map(|s| s.current_progress_pct).sum();
     let overall_pct = if !act_states.is_empty() {
@@ -324,10 +348,10 @@ pub async fn approve_proposal(
     proposal.status = "ACCEPTED".to_string();
 
     let target_activity_id = payload.selected_activity_id.unwrap_or(proposal.activity_id);
-    let act = acts
-        .iter()
-        .find(|a| a.id == target_activity_id)
-        .ok_or((StatusCode::NOT_FOUND, "Target activity not found".to_string()))?;
+    let act = acts.iter().find(|a| a.id == target_activity_id).ok_or((
+        StatusCode::NOT_FOUND,
+        "Target activity not found".to_string(),
+    ))?;
 
     // --- Validation gate: reject future dates and invalid progress ---
     let actual_date = Utc::now().date_naive();
@@ -357,7 +381,10 @@ pub async fn approve_proposal(
     };
 
     // Project to current state
-    if let Some(state_entry) = act_states.iter_mut().find(|s| s.activity_id == target_activity_id) {
+    if let Some(state_entry) = act_states
+        .iter_mut()
+        .find(|s| s.activity_id == target_activity_id)
+    {
         StateMachine::project_event(state_entry, &new_event, act.planned_finish_date);
     }
 
@@ -375,11 +402,8 @@ pub async fn approve_proposal(
     );
 
     // Create outbox event for async delivery to external systems (PMIS / P6)
-    let _outbox = EventLedger::create_outbox_event(
-        proposal.project_id,
-        "PROPOSAL_APPROVED",
-        &new_event,
-    );
+    let _outbox =
+        EventLedger::create_outbox_event(proposal.project_id, "PROPOSAL_APPROVED", &new_event);
 
     events.push(new_event.clone());
     audit_trail.push(audit);
@@ -419,7 +443,9 @@ pub async fn reject_proposal(
     );
     audit_trail.push(audit);
 
-    Ok(Json(serde_json::json!({"status": "REJECTED", "proposal_id": proposal_id})))
+    Ok(Json(
+        serde_json::json!({"status": "REJECTED", "proposal_id": proposal_id}),
+    ))
 }
 
 pub async fn get_audit_trail(
@@ -427,7 +453,11 @@ pub async fn get_audit_trail(
     Path(project_id): Path<Uuid>,
 ) -> impl IntoResponse {
     let trail = state.audit_trail.read().await;
-    let filtered: Vec<AuditEvent> = trail.iter().filter(|a| a.project_id == project_id).cloned().collect();
+    let filtered: Vec<AuditEvent> = trail
+        .iter()
+        .filter(|a| a.project_id == project_id)
+        .cloned()
+        .collect();
     Json(filtered)
 }
 
@@ -444,7 +474,9 @@ pub async fn export_schedule_p6(
     for a in acts.iter().filter(|a| a.project_id == project_id) {
         let st = states.iter().find(|s| s.activity_id == a.id);
         let progress = st.map(|s| s.current_progress_pct).unwrap_or(0.0);
-        let status_str = st.map(|s| format!("{:?}", s.execution_status)).unwrap_or("NotStarted".to_string());
+        let status_str = st
+            .map(|s| format!("{:?}", s.execution_status))
+            .unwrap_or("NotStarted".to_string());
         xml.push_str(&format!(
             "    <Activity Id=\"{}\" Name=\"{}\" PlannedStart=\"{}\" PlannedFinish=\"{}\" ProgressPct=\"{}\" Status=\"{}\" />\n",
             a.code, a.name, a.planned_start_date, a.planned_finish_date, progress, status_str
@@ -453,7 +485,13 @@ pub async fn export_schedule_p6(
 
     xml.push_str("  </Activities>\n</APBO:Project>");
     (
-        [("Content-Type", "application/xml"), ("Content-Disposition", "attachment; filename=\"schedule_p6.xml\"")],
-        xml
+        [
+            ("Content-Type", "application/xml"),
+            (
+                "Content-Disposition",
+                "attachment; filename=\"schedule_p6.xml\"",
+            ),
+        ],
+        xml,
     )
 }

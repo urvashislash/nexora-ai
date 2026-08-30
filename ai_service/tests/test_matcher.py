@@ -1,5 +1,6 @@
 from datetime import date
 from uuid import uuid4
+
 import pytest
 
 from app.models.schemas import (
@@ -31,7 +32,7 @@ def test_document_extraction():
     """
     observations = DocumentExtractor.extract_from_text(sample_text, project_id)
     assert len(observations) >= 3
-    
+
     # Check first observation
     obs1 = observations[0]
     assert obs1.discipline == DisciplineEnum.PIPING
@@ -58,7 +59,7 @@ def test_hybrid_matching_exact_scenario():
         zone="Zone 2",
         equipment_tag="LINE-P-101",
         planned_start_date=date(2026, 8, 26),
-        planned_finish_date=date(2026, 8, 28)
+        planned_finish_date=date(2026, 8, 28),
     )
 
     act_civ = ScheduleActivity(
@@ -72,7 +73,7 @@ def test_hybrid_matching_exact_scenario():
         zone="Zone 1",
         equipment_tag="COL-FTG-100",
         planned_start_date=date(2026, 8, 25),
-        planned_finish_date=date(2026, 8, 29)
+        planned_finish_date=date(2026, 8, 29),
     )
 
     # Observation: "P-101 completed"
@@ -83,11 +84,11 @@ def test_hybrid_matching_exact_scenario():
         discipline=DisciplineEnum.PIPING,
         equipment_tag="LINE-P-101",
         event_type=EventTypeEnum.FINISH,
-        reported_progress=100.0
+        reported_progress=100.0,
     )
 
     proposal = HybridMatcher.match_observation(obs, [act_pip, act_civ])
-    
+
     assert proposal.top_match is not None
     assert proposal.top_match.activity_code == "PIP-2401"
     assert proposal.top_match.confidence_score >= 0.85
@@ -97,6 +98,7 @@ def test_hybrid_matching_exact_scenario():
 def test_excel_extraction():
     """Test extraction from an in-memory Excel file (.xlsx)."""
     import io
+
     import openpyxl
 
     project_id = uuid4()
@@ -147,6 +149,7 @@ def test_excel_extraction():
 # =============================================================================
 # Additional Comprehensive Hybrid Matcher Tests
 # =============================================================================
+
 
 class TestHybridMatcherScenarios:
     """Tests covering various matching algorithms and boundary conditions."""

@@ -1,22 +1,23 @@
 """
 Comprehensive tests for the embeddings service.
-Tests model loading, fallback embedding generation, compute_embeddings, 
+Tests model loading, fallback embedding generation, compute_embeddings,
 and cosine similarity calculations.
 """
+
 import math
-import pytest
+
+from app.core.config import settings
 from app.services.embeddings import (
-    generate_fallback_embedding,
     compute_embeddings,
     cosine_similarity,
+    generate_fallback_embedding,
     get_embedding_model,
 )
-from app.core.config import settings
-
 
 # =============================================================================
 # Fallback Embedding Tests
 # =============================================================================
+
 
 class TestFallbackEmbedding:
     """Tests for the deterministic hash-projection fallback embeddings."""
@@ -83,6 +84,7 @@ class TestFallbackEmbedding:
 # Compute Embeddings Tests
 # =============================================================================
 
+
 class TestComputeEmbeddings:
     """Tests for compute_embeddings batch processing."""
 
@@ -111,6 +113,7 @@ class TestComputeEmbeddings:
 # =============================================================================
 # Cosine Similarity Tests
 # =============================================================================
+
 
 class TestCosineSimilarity:
     """Tests for cosine similarity computation."""
@@ -153,6 +156,7 @@ class TestCosineSimilarity:
         # Should always return [0, 1]
         for _ in range(20):
             import random
+
             a = [random.uniform(-1, 1) for _ in range(10)]
             b = [random.uniform(-1, 1) for _ in range(10)]
             sim = cosine_similarity(a, b)
@@ -167,6 +171,7 @@ class TestCosineSimilarity:
 # =============================================================================
 # Model Loading Tests
 # =============================================================================
+
 
 class TestModelLoading:
     def test_get_embedding_model_returns_something(self):

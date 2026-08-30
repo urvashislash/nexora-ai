@@ -25,6 +25,7 @@ impl EventLedger {
     }
 
     /// Creates an immutable audit trail entry
+    #[allow(clippy::too_many_arguments)]
     pub fn create_audit_event(
         project_id: Uuid,
         entity_type: &str,

@@ -1,13 +1,11 @@
 import io
 import re
 from datetime import datetime
-from typing import List, Optional, Tuple
 from uuid import UUID
 
 from app.models.schemas import (
     DisciplineEnum,
     EventTypeEnum,
-    RawObservation,
     NormalizedObservation,
 )
 from app.services.normalizer import default_normalizer
@@ -20,15 +18,28 @@ class DocumentExtractor:
     """
 
     @staticmethod
-    def extract_from_text(text: str, project_id: UUID, document_id: Optional[UUID] = None) -> List[NormalizedObservation]:
+    def extract_from_text(text: str, project_id: UUID, document_id: UUID | None = None) -> list[NormalizedObservation]:
         from datetime import timezone
+
         observations = []
         lines = [line.strip() for line in text.split("\n") if line.strip()]
 
         for line in lines:
             # Skip noise / header lines
             lower_line = line.lower()
-            if len(line) < 5 or any(lower_line.startswith(p) for p in ["page ", "project:", "date:", "contractor:", "report no", "daily construction report", "daily progress report", "title:"]):
+            if len(line) < 5 or any(
+                lower_line.startswith(p)
+                for p in [
+                    "page ",
+                    "project:",
+                    "date:",
+                    "contractor:",
+                    "report no",
+                    "daily construction report",
+                    "daily progress report",
+                    "title:",
+                ]
+            ):
                 continue
 
             discipline = DocumentExtractor._detect_discipline(line)
@@ -53,24 +64,27 @@ class DocumentExtractor:
                 reported_progress=progress,
                 reported_quantity=quantity,
                 unit_of_measure=unit,
-                extraction_confidence=0.95
+                extraction_confidence=0.95,
             )
             observations.append(obs)
 
         return observations
 
     @staticmethod
-    def extract_from_excel_bytes(content: bytes, project_id: UUID, document_id: Optional[UUID] = None) -> List[NormalizedObservation]:
+    def extract_from_excel_bytes(
+        content: bytes, project_id: UUID, document_id: UUID | None = None
+    ) -> list[NormalizedObservation]:
         """
         Extracts observations from an uploaded Excel or CSV file.
         """
         observations = []
         try:
             import openpyxl
+
             wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
             sheet = wb.active
 
-            headers: List[str] = []
+            headers: list[str] = []
             for row in sheet.iter_rows(values_only=True):
                 if not headers:
                     headers = [str(cell).strip().lower() if cell is not None else "" for cell in row]
@@ -79,15 +93,19 @@ class DocumentExtractor:
                 if not any(row):
                     continue
 
-                row_dict = dict(zip(headers, [str(c) if c is not None else "" for c in row]))
-                
+                row_dict = dict(zip(headers, [str(c) if c is not None else "" for c in row], strict=False))
+
                 # Combine row into a descriptive observation text
                 parts = [f"{k}: {v}" for k, v in row_dict.items() if v and k]
                 raw_text = " | ".join(parts)
 
                 # Extract specific fields if columns match aliases
-                activity_code = row_dict.get("activity_id") or row_dict.get("activity code") or row_dict.get("code") or ""
-                description = row_dict.get("description") or row_dict.get("activity") or row_dict.get("remarks") or raw_text
+                activity_code = (
+                    row_dict.get("activity_id") or row_dict.get("activity code") or row_dict.get("code") or ""
+                )
+                description = (
+                    row_dict.get("description") or row_dict.get("activity") or row_dict.get("remarks") or raw_text
+                )
                 status_str = row_dict.get("status") or row_dict.get("progress") or ""
                 discipline_str = row_dict.get("discipline") or ""
 
@@ -98,6 +116,7 @@ class DocumentExtractor:
                 normalized_text = default_normalizer.normalize(raw_line, discipline)
 
                 from datetime import timezone
+
                 obs = NormalizedObservation(
                     project_id=project_id,
                     document_id=document_id,
@@ -107,10 +126,10 @@ class DocumentExtractor:
                     discipline=discipline,
                     event_type=event_type,
                     reported_progress=progress,
-                    extraction_confidence=0.98
+                    extraction_confidence=0.98,
                 )
                 observations.append(obs)
-        except Exception as e:
+        except Exception:  # noqa: BLE001
             # Fallback to plain string extraction if not binary Excel
             text = content.decode("utf-8", errors="ignore")
             return DocumentExtractor.extract_from_text(text, project_id, document_id)
@@ -120,9 +139,14 @@ class DocumentExtractor:
     @staticmethod
     def _detect_discipline(text: str) -> DisciplineEnum:
         lower = text.lower()
-        if any(w in lower for w in ["piping", "spool", "hydro", "hydrotest", "flange", "valve", "p-101", "p-102", "pip-"]):
+        if any(
+            w in lower for w in ["piping", "spool", "hydro", "hydrotest", "flange", "valve", "p-101", "p-102", "pip-"]
+        ):
             return DisciplineEnum.PIPING
-        if any(w in lower for w in ["civil", "concrete", "pour", "rebar", "shuttering", "excavation", "civ-", "fnd-", "footing"]):
+        if any(
+            w in lower
+            for w in ["civil", "concrete", "pour", "rebar", "shuttering", "excavation", "civ-", "fnd-", "footing"]
+        ):
             return DisciplineEnum.CIVIL
         if any(w in lower for w in ["pump", "compressor", "motor", "alignment", "grouting", "mec-", "crude charge"]):
             return DisciplineEnum.MECHANICAL
@@ -150,8 +174,8 @@ class DocumentExtractor:
         return EventTypeEnum.PROGRESS
 
     @staticmethod
-    def _detect_progress(text: str) -> Optional[float]:
-        m = re.search(r'(\d+(?:\.\d+)?)\s*%', text)
+    def _detect_progress(text: str) -> float | None:
+        m = re.search(r"(\d+(?:\.\d+)?)\s*%", text)
         if m:
             return float(m.group(1))
         if any(w in text.lower() for w in ["completed", "complete", "100%", "done"]):
@@ -159,19 +183,19 @@ class DocumentExtractor:
         return None
 
     @staticmethod
-    def _detect_quantity(text: str) -> Tuple[Optional[float], Optional[str]]:
-        m = re.search(r'(\d+(?:\.\d+)?)\s*(inch-dia|mt|cu\.m|cum|meters|m|units?|tags?)', text, re.IGNORECASE)
+    def _detect_quantity(text: str) -> tuple[float | None, str | None]:
+        m = re.search(r"(\d+(?:\.\d+)?)\s*(inch-dia|mt|cu\.m|cum|meters|m|units?|tags?)", text, re.IGNORECASE)
         if m:
             return float(m.group(1)), m.group(2)
         return None, None
 
     @staticmethod
-    def _detect_equipment(text: str) -> Optional[str]:
-        m = re.search(r'\b(P-101A?|P-102|C-101|PT-101|RACK-[A-Z0-9]+|COL-FTG-\d+)\b', text, re.IGNORECASE)
+    def _detect_equipment(text: str) -> str | None:
+        m = re.search(r"\b(P-101A?|P-102|C-101|PT-101|RACK-[A-Z0-9]+|COL-FTG-\d+)\b", text, re.IGNORECASE)
         return m.group(1).upper() if m else None
 
     @staticmethod
-    def _detect_location(text: str) -> Optional[str]:
+    def _detect_location(text: str) -> str | None:
         lower = text.lower()
         if "pipe rack b" in lower or "rack b" in lower:
             return "Pipe Rack B"

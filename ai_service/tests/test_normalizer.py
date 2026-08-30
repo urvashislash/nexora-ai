@@ -2,14 +2,18 @@
 Comprehensive tests for the TerminologyNormalizer service.
 Tests all terminology mappings, edge cases, and normalization behaviors.
 """
-import pytest
-from app.services.normalizer import TerminologyNormalizer, default_normalizer, DEFAULT_TERMINOLOGY_MAP
-from app.models.schemas import DisciplineEnum
 
+from app.models.schemas import DisciplineEnum
+from app.services.normalizer import (
+    DEFAULT_TERMINOLOGY_MAP,
+    TerminologyNormalizer,
+    default_normalizer,
+)
 
 # =============================================================================
 # Piping Terminology Normalization
 # =============================================================================
+
 
 class TestPipingNormalization:
     """Tests for piping-related terminology normalization."""
@@ -67,6 +71,7 @@ class TestPipingNormalization:
 # Civil Terminology Normalization
 # =============================================================================
 
+
 class TestCivilNormalization:
     """Tests for civil-related terminology normalization."""
 
@@ -111,6 +116,7 @@ class TestCivilNormalization:
 # Mechanical/Electrical/Instrumentation Normalization
 # =============================================================================
 
+
 class TestOtherDisciplineNormalization:
     def test_pump_alignment(self):
         result = default_normalizer.normalize("pump alignment in progress")
@@ -140,6 +146,7 @@ class TestOtherDisciplineNormalization:
 # =============================================================================
 # Edge Cases
 # =============================================================================
+
 
 class TestNormalizerEdgeCases:
     def test_empty_string(self):
@@ -185,6 +192,7 @@ class TestNormalizerEdgeCases:
 # =============================================================================
 # Integration with Discipline Context
 # =============================================================================
+
 
 class TestNormalizerWithDiscipline:
     def test_normalize_with_piping_context(self):

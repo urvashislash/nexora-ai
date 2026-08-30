@@ -1,19 +1,18 @@
 """
 Comprehensive tests for the DocumentExtractor service.
-Tests all extraction paths: text, discipline detection, event detection, 
+Tests all extraction paths: text, discipline detection, event detection,
 progress detection, quantity detection, equipment detection, and location detection.
 """
-from datetime import date
+
 from uuid import uuid4
-import pytest
 
-from app.services.extractor import DocumentExtractor
 from app.models.schemas import DisciplineEnum, EventTypeEnum
-
+from app.services.extractor import DocumentExtractor
 
 # =============================================================================
 # Discipline Detection Tests
 # =============================================================================
+
 
 class TestDisciplineDetection:
     """Tests for _detect_discipline across all 7 disciplines."""
@@ -113,6 +112,7 @@ class TestDisciplineDetection:
 # Event Type Detection Tests
 # =============================================================================
 
+
 class TestEventTypeDetection:
     """Tests for _detect_event_type across all 6 event types."""
 
@@ -178,6 +178,7 @@ class TestEventTypeDetection:
 # Progress Detection Tests
 # =============================================================================
 
+
 class TestProgressDetection:
     """Tests for _detect_progress percentage extraction."""
 
@@ -214,6 +215,7 @@ class TestProgressDetection:
 # Quantity Detection Tests
 # =============================================================================
 
+
 class TestQuantityDetection:
     """Tests for _detect_quantity value and unit extraction."""
 
@@ -230,11 +232,11 @@ class TestQuantityDetection:
         assert unit.upper() == "MT"
 
     def test_cubic_meters(self):
-        qty, unit = DocumentExtractor._detect_quantity("Poured 180 Cu.M of concrete")
+        qty, _ = DocumentExtractor._detect_quantity("Poured 180 Cu.M of concrete")
         assert qty == 180.0
 
     def test_meters(self):
-        qty, unit = DocumentExtractor._detect_quantity("Laid 25 meters of cable")
+        qty, _ = DocumentExtractor._detect_quantity("Laid 25 meters of cable")
         assert qty == 25.0
 
     def test_no_quantity(self):
@@ -246,6 +248,7 @@ class TestQuantityDetection:
 # =============================================================================
 # Equipment Detection Tests
 # =============================================================================
+
 
 class TestEquipmentDetection:
     """Tests for _detect_equipment tag extraction."""
@@ -273,6 +276,7 @@ class TestEquipmentDetection:
 # Location Detection Tests
 # =============================================================================
 
+
 class TestLocationDetection:
     """Tests for _detect_location."""
 
@@ -298,6 +302,7 @@ class TestLocationDetection:
 # =============================================================================
 # Text Extraction (Full Pipeline) Tests
 # =============================================================================
+
 
 class TestTextExtraction:
     """Tests for extract_from_text end-to-end pipeline."""

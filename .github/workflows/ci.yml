@@ -87,7 +87,7 @@ jobs:
       - name: Run linting (ruff)
         run: |
           pip install ruff
-          ruff check app/ tests/ --ignore E501
+          ruff check app/ tests/
 
       - name: Run type checking (mypy)
         run: |

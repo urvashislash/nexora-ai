@@ -1,10 +1,9 @@
 import logging
-from typing import List, Optional
+
 from rapidfuzz import fuzz
 
 from app.core.config import settings
 from app.models.schemas import (
-    DisciplineEnum,
     MatchCandidate,
     MatchProposalPayload,
     MatchTierEnum,
@@ -24,44 +23,47 @@ class HybridMatcher:
 
     @classmethod
     def match_observation(
-        cls,
-        observation: NormalizedObservation,
-        activities: List[ScheduleActivity],
-        top_k: int = 3
+        cls, observation: NormalizedObservation, activities: list[ScheduleActivity], top_k: int = 3
     ) -> MatchProposalPayload:
         if not activities:
             return MatchProposalPayload(
-                observation=observation,
-                candidates=[],
-                top_match=None,
-                auto_link_eligible=False
+                observation=observation, candidates=[], top_match=None, auto_link_eligible=False
             )
 
         # 1. Generate observation embedding
-        obs_text_for_embedding = f"{observation.normalized_text} {observation.discipline or ''} {observation.equipment_tag or ''}"
+        obs_text_for_embedding = (
+            f"{observation.normalized_text} {observation.discipline or ''} {observation.equipment_tag or ''}"
+        )
         obs_embedding = compute_embeddings([obs_text_for_embedding])[0]
 
-        scored_candidates: List[MatchCandidate] = []
+        scored_candidates: list[MatchCandidate] = []
 
         for act in activities:
             # 2. Lexical scoring
             lex_score_set = fuzz.token_set_ratio(observation.normalized_text.lower(), act.name.lower()) / 100.0
             lex_score_sort = fuzz.token_sort_ratio(observation.normalized_text.lower(), act.name.lower()) / 100.0
-            lex_score_desc = fuzz.token_set_ratio(observation.normalized_text.lower(), (act.description or "").lower()) / 100.0
+            lex_score_desc = (
+                fuzz.token_set_ratio(observation.normalized_text.lower(), (act.description or "").lower()) / 100.0
+            )
             lex_score_code = fuzz.partial_ratio(observation.normalized_text.lower(), act.code.lower()) / 100.0
-            
+
             # Check exact code or equipment tag mention
             raw_lower = observation.raw_text.lower()
             norm_lower = observation.normalized_text.lower()
-            act_tag_clean = (act.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
-            obs_tag_clean = (observation.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
-            
+            act_tag_clean = (
+                (act.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
+            )
+            obs_tag_clean = (
+                (observation.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
+            )
+
             has_code_match = act.code.lower() in raw_lower or act.code.lower() in norm_lower
             has_tag_match = bool(
-                act_tag_clean and (
-                    act_tag_clean in raw_lower or 
-                    act_tag_clean in norm_lower or 
-                    (obs_tag_clean and act_tag_clean == obs_tag_clean)
+                act_tag_clean
+                and (
+                    act_tag_clean in raw_lower
+                    or act_tag_clean in norm_lower
+                    or (obs_tag_clean and act_tag_clean == obs_tag_clean)
                 )
             )
 
@@ -119,12 +121,12 @@ class HybridMatcher:
 
             # 7. Explanation & Evidence Snippet
             explanation = (
-                f"Confidence {combined_score*100:.1f}%: "
-                f"Lexical={lexical_score*100:.0f}%, "
-                f"Semantic={semantic_score*100:.0f}%, "
-                f"Context boost={context_boost*100:.0f}%"
+                f"Confidence {combined_score * 100:.1f}%: "
+                f"Lexical={lexical_score * 100:.0f}%, "
+                f"Semantic={semantic_score * 100:.0f}%, "
+                f"Context boost={context_boost * 100:.0f}%"
             )
-            evidence_snippet = f"Obs: \"{observation.raw_text}\" -> Activity [{act.code}] \"{act.name}\""
+            evidence_snippet = f'Obs: "{observation.raw_text}" -> Activity [{act.code}] "{act.name}"'
 
             candidate = MatchCandidate(
                 activity_id=act.id,
@@ -137,7 +139,7 @@ class HybridMatcher:
                 confidence_score=round(combined_score, 4),
                 match_tier=match_tier,
                 explanation=explanation,
-                evidence_snippet=evidence_snippet
+                evidence_snippet=evidence_snippet,
             )
             scored_candidates.append(candidate)
 
@@ -149,7 +151,9 @@ class HybridMatcher:
             cand.candidate_rank = rank
 
         top_candidates = scored_candidates[:top_k]
-        top_match = top_candidates[0] if top_candidates and top_candidates[0].match_tier != MatchTierEnum.UNMATCHED else None
+        top_match = (
+            top_candidates[0] if top_candidates and top_candidates[0].match_tier != MatchTierEnum.UNMATCHED else None
+        )
 
         # Auto-link eligibility: High confidence and clear separation from 2nd candidate
         auto_link_eligible = False
@@ -165,5 +169,5 @@ class HybridMatcher:
             observation=observation,
             candidates=top_candidates,
             top_match=top_match,
-            auto_link_eligible=auto_link_eligible
+            auto_link_eligible=auto_link_eligible,
         )

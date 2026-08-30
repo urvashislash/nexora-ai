@@ -3,14 +3,14 @@ Comprehensive tests for FastAPI HTTP API endpoints.
 Tests all endpoints: GET /, GET /api/v1/health, POST /api/v1/extract,
 POST /api/v1/extract-file, POST /api/v1/normalize, POST /api/v1/embed, POST /api/v1/match.
 """
+
 import io
 from uuid import uuid4
-from datetime import date
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.schemas import DisciplineEnum, EventTypeEnum
 
 
 @pytest.fixture
@@ -21,6 +21,7 @@ def client():
 # =============================================================================
 # Root & Health Endpoints
 # =============================================================================
+
 
 class TestRootAndHealth:
     def test_root_endpoint(self, client):
@@ -44,6 +45,7 @@ class TestRootAndHealth:
 # =============================================================================
 # Normalize Endpoint
 # =============================================================================
+
 
 class TestNormalizeEndpoint:
     def test_normalize_basic(self, client):
@@ -89,6 +91,7 @@ class TestNormalizeEndpoint:
 # Extract Endpoint
 # =============================================================================
 
+
 class TestExtractEndpoint:
     def test_extract_text_content(self, client):
         project_id = str(uuid4())
@@ -131,13 +134,14 @@ class TestExtractEndpoint:
 # Extract-File Endpoint
 # =============================================================================
 
+
 class TestExtractFileEndpoint:
     def test_extract_from_text_file(self, client):
         project_id = str(uuid4())
         content = b"Spool erection on Pipe Rack B finished (100% complete).\nRebar tying in progress."
         files = {"file": ("report.txt", io.BytesIO(content), "text/plain")}
         data = {"project_id": project_id}
-        
+
         response = client.post("/api/v1/extract-file", data=data, files=files)
         assert response.status_code == 200
         observations = response.json()
@@ -148,7 +152,7 @@ class TestExtractFileEndpoint:
         content = b"activity_id,description,status,discipline\nPIP-2400,Spool erection,100% complete,Piping\nCIV-1100,Rebar work,50% in progress,Civil"
         files = {"file": ("log.csv", io.BytesIO(content), "text/csv")}
         data = {"project_id": project_id}
-        
+
         response = client.post("/api/v1/extract-file", data=data, files=files)
         assert response.status_code == 200
         observations = response.json()
@@ -158,6 +162,7 @@ class TestExtractFileEndpoint:
 # =============================================================================
 # Embed Endpoint
 # =============================================================================
+
 
 class TestEmbedEndpoint:
     def test_embed_texts(self, client):
@@ -187,6 +192,7 @@ class TestEmbedEndpoint:
 # =============================================================================
 # Match Endpoint
 # =============================================================================
+
 
 class TestMatchEndpoint:
     def test_match_observations_against_activities(self, client):

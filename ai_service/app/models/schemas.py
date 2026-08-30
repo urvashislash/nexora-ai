@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID, uuid4
+
 from pydantic import BaseModel, Field
 
 
@@ -46,22 +47,22 @@ class DocumentJobType(str, Enum):
 # -----------------------------------------------------------------------------
 class RawObservation(BaseModel):
     raw_text: str
-    observed_at: Optional[datetime] = None
-    discipline: Optional[DisciplineEnum] = None
-    location: Optional[str] = None
-    zone: Optional[str] = None
-    equipment_tag: Optional[str] = None
-    event_type: Optional[EventTypeEnum] = None
-    reported_progress: Optional[float] = None
-    reported_quantity: Optional[float] = None
-    unit_of_measure: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    observed_at: datetime | None = None
+    discipline: DisciplineEnum | None = None
+    location: str | None = None
+    zone: str | None = None
+    equipment_tag: str | None = None
+    event_type: EventTypeEnum | None = None
+    reported_progress: float | None = None
+    reported_quantity: float | None = None
+    unit_of_measure: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class NormalizedObservation(RawObservation):
     id: UUID = Field(default_factory=uuid4)
     project_id: UUID
-    document_id: Optional[UUID] = None
+    document_id: UUID | None = None
     normalized_text: str
     extraction_confidence: float = 1.0
 
@@ -74,16 +75,16 @@ class ScheduleActivity(BaseModel):
     project_id: UUID
     code: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     discipline: DisciplineEnum
-    location: Optional[str] = None
-    zone: Optional[str] = None
-    equipment_tag: Optional[str] = None
+    location: str | None = None
+    zone: str | None = None
+    equipment_tag: str | None = None
     planned_start_date: date
     planned_finish_date: date
-    planned_quantity: Optional[float] = None
-    unit_of_measure: Optional[str] = None
-    embedding: Optional[List[float]] = None
+    planned_quantity: float | None = None
+    unit_of_measure: str | None = None
+    embedding: list[float] | None = None
 
 
 # -----------------------------------------------------------------------------
@@ -105,8 +106,8 @@ class MatchCandidate(BaseModel):
 
 class MatchProposalPayload(BaseModel):
     observation: NormalizedObservation
-    candidates: List[MatchCandidate]
-    top_match: Optional[MatchCandidate] = None
+    candidates: list[MatchCandidate]
+    top_match: MatchCandidate | None = None
     auto_link_eligible: bool = False
 
 
@@ -115,30 +116,30 @@ class MatchProposalPayload(BaseModel):
 # -----------------------------------------------------------------------------
 class ExtractRequest(BaseModel):
     project_id: UUID
-    document_id: Optional[UUID] = None
+    document_id: UUID | None = None
     source_type: str = "DAILY_REPORT"
-    text_content: Optional[str] = None
+    text_content: str | None = None
 
 
 class NormalizeRequest(BaseModel):
     project_id: UUID
     text: str
-    discipline: Optional[DisciplineEnum] = None
+    discipline: DisciplineEnum | None = None
 
 
 class EmbedRequest(BaseModel):
-    texts: List[str]
+    texts: list[str]
 
 
 class EmbedResponse(BaseModel):
-    embeddings: List[List[float]]
+    embeddings: list[list[float]]
     dimension: int
 
 
 class MatchRequest(BaseModel):
     project_id: UUID
-    observations: List[NormalizedObservation]
-    activities: List[ScheduleActivity]
+    observations: list[NormalizedObservation]
+    activities: list[ScheduleActivity]
 
 
 class ProcessDocumentMessage(BaseModel):
@@ -149,4 +150,4 @@ class ProcessDocumentMessage(BaseModel):
     storage_key: str
     source_type: str
     filename: str
-    text_content: Optional[str] = None
+    text_content: str | None = None

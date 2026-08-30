@@ -1,7 +1,6 @@
 import hashlib
 import logging
 import math
-from typing import List
 
 from app.core.config import settings
 
@@ -15,15 +14,16 @@ def get_embedding_model():
     if _model is None:
         try:
             from sentence_transformers import SentenceTransformer
+
             logger.info(f"Loading embedding model: {settings.EMBEDDING_MODEL}")
             _model = SentenceTransformer(settings.EMBEDDING_MODEL)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not load SentenceTransformer ({e}). Falling back to fast hash-vector projection.")
             _model = "FALLBACK"
     return _model
 
 
-def generate_fallback_embedding(text: str, dim: int = 384) -> List[float]:
+def generate_fallback_embedding(text: str, dim: int = 384) -> list[float]:
     """
     Deterministic pseudo-semantic projection for fast local testing/offline CI.
     Generates a normalized 384-dimensional vector based on token hashes.
@@ -46,29 +46,28 @@ def generate_fallback_embedding(text: str, dim: int = 384) -> List[float]:
     return vector
 
 
-def compute_embeddings(texts: List[str]) -> List[List[float]]:
+def compute_embeddings(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
-    
+
     model = get_embedding_model()
     if model != "FALLBACK":
         try:
             raw_embeddings = model.encode(texts, normalize_embeddings=True)
             return [emb.tolist() for emb in raw_embeddings]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error during model.encode: {e}. Using fallback.")
-            
+
     return [generate_fallback_embedding(t, settings.EMBEDDING_DIM) for t in texts]
 
 
-def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
+def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
     if not vec_a or not vec_b or len(vec_a) != len(vec_b):
         return 0.0
-    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    dot = sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
     norm_a = math.sqrt(sum(a * a for a in vec_a))
     norm_b = math.sqrt(sum(b * b for b in vec_b))
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
     sim = dot / (norm_a * norm_b)
     return max(0.0, min(1.0, (sim + 1.0) / 2.0 if sim < 0 else sim))
-
