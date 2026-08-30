@@ -1,4 +1,4 @@
-FROM rust:1.78-slim as builder
+FROM rust:1.78-slim AS builder
 
 WORKDIR /app
 
@@ -27,5 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/target/release/backend /app/backend
 
 EXPOSE 3000
+
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://127.0.0.1:3000/api/v1/health || exit 1
 
 CMD ["/app/backend"]
