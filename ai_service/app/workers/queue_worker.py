@@ -293,9 +293,7 @@ class AIQueueWorker:
                 else:
                     if failed_job_id:
                         self.state_store.fail(failed_job_id, str(exc), final=True)
-                    failure_corr_id = (
-                        message.correlation_id if message else getattr(properties, "correlation_id", None)
-                    )
+                    failure_corr_id = message.correlation_id if message else getattr(properties, "correlation_id", None)
                     failure = {
                         "correlation_id": failure_corr_id,
                         "idempotency_key": failed_job_id,

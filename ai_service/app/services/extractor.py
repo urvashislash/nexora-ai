@@ -411,6 +411,19 @@ class DocumentExtractor:
                         },
                     )
                 )
+        if not observations:
+            try:
+                text = content.decode("utf-8-sig", errors="replace").strip()
+                if text:
+                    return cls.extract_from_text(
+                        text,
+                        project_id,
+                        document_id,
+                        source_type=source_type,
+                        base_metadata={"extraction_method": "text_fallback"},
+                    )
+            except Exception:
+                pass
         return observations
 
     @classmethod
@@ -619,6 +632,8 @@ class DocumentExtractor:
                     "p-101",
                     "p-102",
                     "pressure test",
+                    "hydrotest",
+                    "leak test",
                 ),
             ),
             (
@@ -635,6 +650,7 @@ class DocumentExtractor:
                     "footing",
                     "foundation",
                     "dewatering",
+                    "trench",
                 ),
             ),
             (
@@ -645,6 +661,8 @@ class DocumentExtractor:
                     "compressor",
                     "motor",
                     "shaft alignment",
+                    "pump alignment",
+                    "alignment",
                     "grouting",
                     "mec-",
                     "vessel",
@@ -686,10 +704,15 @@ class DocumentExtractor:
             return EventTypeEnum.BLOCKER
         if any(word in lower for word in ("delay", "delayed", "weather", "waiting for", "held up")):
             return EventTypeEnum.DELAY
-        if any(word in lower for word in ("inspection", "inspected", "witnessed", "sign off", "rfi raised")):
-            return EventTypeEnum.INSPECTION
-        if any(word in lower for word in ("complete", "completed", "done", "finished", "erected", "tested", "closed")):
+        if any(
+            word in lower
+            for word in ("complete", "completed", "done", "finished", "erected", "tested", "closed", "100%")
+        ):
             return EventTypeEnum.FINISH
+        if any(
+            word in lower for word in ("inspection", "inspected", "witnessed", "sign off", "rfi raised", "walkdown")
+        ):
+            return EventTypeEnum.INSPECTION
         if any(word in lower for word in ("started", "initiated", "commenced", "mobilized", "ongoing")):
             return EventTypeEnum.START
         return EventTypeEnum.PROGRESS

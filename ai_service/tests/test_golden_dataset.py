@@ -3,7 +3,8 @@ from uuid import uuid4
 
 from app.models.schemas import EventTypeEnum, MatchTierEnum, NormalizedObservation
 from app.services.matcher import HybridMatcher
-from tests.golden_dataset import GOLDEN_SCHEDULE, GOLDEN_TEST_CASES, PROJECT_ID
+
+from .golden_dataset import GOLDEN_SCHEDULE, GOLDEN_TEST_CASES, PROJECT_ID
 
 
 def test_golden_dataset_metrics():

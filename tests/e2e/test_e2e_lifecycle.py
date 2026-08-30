@@ -29,18 +29,47 @@ class MockRustBackend:
     def approve_proposal(self, proposal_id, reviewer_id, comments=""):
         if proposal_id in self.proposals:
             prop = self.proposals[proposal_id]
-            self.approvals.append({"proposal_id": proposal_id, "action": "APPROVE", "reviewer_id": reviewer_id})
-            self.events.append({"activity_id": prop.activity_id, "event_type": "PROGRESS", "status": "COMMITTED"})
-            self.audit_trail.append({"action": "PROPOSAL_APPROVED", "proposal_id": proposal_id, "comments": comments})
+            self.approvals.append(
+                {
+                    "proposal_id": proposal_id,
+                    "action": "APPROVE",
+                    "reviewer_id": reviewer_id,
+                }
+            )
+            self.events.append(
+                {
+                    "activity_id": prop.activity_id,
+                    "event_type": "PROGRESS",
+                    "status": "COMMITTED",
+                }
+            )
+            self.audit_trail.append(
+                {
+                    "action": "PROPOSAL_APPROVED",
+                    "proposal_id": proposal_id,
+                    "comments": comments,
+                }
+            )
             return {"status": "APPROVED"}
         return {"status": "NOT_FOUND"}
 
     def reject_proposal(self, proposal_id, reviewer_id, reason=""):
         if proposal_id in self.proposals:
             self.approvals.append(
-                {"proposal_id": proposal_id, "action": "REJECT", "reviewer_id": reviewer_id, "reason": reason}
+                {
+                    "proposal_id": proposal_id,
+                    "action": "REJECT",
+                    "reviewer_id": reviewer_id,
+                    "reason": reason,
+                }
             )
-            self.audit_trail.append({"action": "PROPOSAL_REJECTED", "proposal_id": proposal_id, "reason": reason})
+            self.audit_trail.append(
+                {
+                    "action": "PROPOSAL_REJECTED",
+                    "proposal_id": proposal_id,
+                    "reason": reason,
+                }
+            )
             return {"status": "REJECTED"}
         return {"status": "NOT_FOUND"}
 
@@ -105,7 +134,9 @@ def test_e2e_lifecycle_approval_flow(mock_backend, project_activities):
 
     # 4. Planner Reviews and Approves
     reviewer_id = uuid4()
-    approve_res = mock_backend.approve_proposal(prop_id, reviewer_id, comments="Looks good")
+    approve_res = mock_backend.approve_proposal(
+        prop_id, reviewer_id, comments="Looks good"
+    )
     assert approve_res["status"] == "APPROVED"
 
     # 5. Validate Event Output and Audit Trail

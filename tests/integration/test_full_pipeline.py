@@ -11,24 +11,20 @@ the full Python AI pipeline and simulating the Rust trust-plane logic in Python.
 
 import io
 import json
-from datetime import date, datetime, timezone
-from uuid import UUID, uuid4
+from datetime import date
+from uuid import UUID
 
 import pytest
-
 from app.models.schemas import (
     DisciplineEnum,
-    EventTypeEnum,
     MatchProposalPayload,
-    MatchRequest,
     MatchTierEnum,
     NormalizedObservation,
     ScheduleActivity,
 )
 from app.services.extractor import DocumentExtractor
 from app.services.matcher import HybridMatcher
-from app.services.normalizer import TerminologyNormalizer, default_normalizer
-
+from app.services.normalizer import default_normalizer
 
 # =============================================================================
 # Shared Fixtures — Realistic Project Schedule
@@ -197,20 +193,26 @@ Contractor: NEXORA EPC
 
     def test_extract_filters_headers(self, project_id, full_schedule):
         """Header/metadata lines must be filtered, only work observations remain."""
-        observations = DocumentExtractor.extract_from_text(self.DAILY_REPORT, project_id)
+        observations = DocumentExtractor.extract_from_text(
+            self.DAILY_REPORT, project_id
+        )
         # 4 header lines filtered, 7 observation lines retained
         assert len(observations) == 7
 
     def test_normalization_applied(self, project_id, full_schedule):
         """Each observation must have normalized text differing from raw text."""
-        observations = DocumentExtractor.extract_from_text(self.DAILY_REPORT, project_id)
+        observations = DocumentExtractor.extract_from_text(
+            self.DAILY_REPORT, project_id
+        )
         for obs in observations:
             assert obs.normalized_text is not None
             assert len(obs.normalized_text) > 0
 
     def test_discipline_detection_across_disciplines(self, project_id, full_schedule):
         """The report contains piping, civil, electrical, and instrumentation work at minimum."""
-        observations = DocumentExtractor.extract_from_text(self.DAILY_REPORT, project_id)
+        observations = DocumentExtractor.extract_from_text(
+            self.DAILY_REPORT, project_id
+        )
         detected_disciplines = {obs.discipline for obs in observations}
         assert DisciplineEnum.PIPING in detected_disciplines
         assert DisciplineEnum.CIVIL in detected_disciplines
@@ -225,7 +227,9 @@ Contractor: NEXORA EPC
         against the full schedule. Verify correct activity codes, tiers, and
         auto-link eligibility.
         """
-        observations = DocumentExtractor.extract_from_text(self.DAILY_REPORT, project_id)
+        observations = DocumentExtractor.extract_from_text(
+            self.DAILY_REPORT, project_id
+        )
         assert len(observations) >= 7
 
         proposals: list[MatchProposalPayload] = []
@@ -241,17 +245,19 @@ Contractor: NEXORA EPC
 
         # Verify specific high-confidence matches exist
         matched_codes = [
-            p.top_match.activity_code
-            for p in proposals
-            if p.top_match is not None
+            p.top_match.activity_code for p in proposals if p.top_match is not None
         ]
         assert "PIP-2401" in matched_codes  # P-101 hydro test
         assert "PIP-2400" in matched_codes  # Spool erection
 
     def test_pipeline_produces_auto_link_candidates(self, project_id, full_schedule):
         """High-confidence matches with clear score gap should be auto-link eligible."""
-        observations = DocumentExtractor.extract_from_text(self.DAILY_REPORT, project_id)
-        proposals = [HybridMatcher.match_observation(obs, full_schedule) for obs in observations]
+        observations = DocumentExtractor.extract_from_text(
+            self.DAILY_REPORT, project_id
+        )
+        proposals = [
+            HybridMatcher.match_observation(obs, full_schedule) for obs in observations
+        ]
 
         auto_linkable = [p for p in proposals if p.auto_link_eligible]
         # At least some observations should be auto-linkable
@@ -277,8 +283,12 @@ Contractor: NEXORA EPC
         Simulates the commit gate: only HIGH-tier auto-linkable matches are
         eligible for automatic commitment; others require human review.
         """
-        observations = DocumentExtractor.extract_from_text(self.DAILY_REPORT, project_id)
-        proposals = [HybridMatcher.match_observation(obs, full_schedule) for obs in observations]
+        observations = DocumentExtractor.extract_from_text(
+            self.DAILY_REPORT, project_id
+        )
+        proposals = [
+            HybridMatcher.match_observation(obs, full_schedule) for obs in observations
+        ]
 
         for proposal in proposals:
             if proposal.auto_link_eligible:
@@ -307,20 +317,56 @@ class TestFullPipelineExcelIngestion:
         ws.title = "Daily Log"
 
         ws.append(["Activity Code", "Description", "Status", "Discipline", "Remarks"])
-        ws.append(["PIP-2400", "Spool erection on Pipe Rack B Tier 2", "100% Complete", "Piping", "All spools erected"])
-        ws.append(["CIV-1100", "Rebar tying for compressor foundation", "In Progress", "Civil", "15 MT tied"])
-        ws.append(["CIV-1101", "Concrete pour column footings", "Complete", "Civil", "180 cu.m poured"])
-        ws.append(["ELE-4100", "Cable tray installation Rack B Tier 3", "75% Complete", "Electrical", "465m installed"])
+        ws.append(
+            [
+                "PIP-2400",
+                "Spool erection on Pipe Rack B Tier 2",
+                "100% Complete",
+                "Piping",
+                "All spools erected",
+            ]
+        )
+        ws.append(
+            [
+                "CIV-1100",
+                "Rebar tying for compressor foundation",
+                "In Progress",
+                "Civil",
+                "15 MT tied",
+            ]
+        )
+        ws.append(
+            [
+                "CIV-1101",
+                "Concrete pour column footings",
+                "Complete",
+                "Civil",
+                "180 cu.m poured",
+            ]
+        )
+        ws.append(
+            [
+                "ELE-4100",
+                "Cable tray installation Rack B Tier 3",
+                "75% Complete",
+                "Electrical",
+                "465m installed",
+            ]
+        )
 
         buf = io.BytesIO()
         wb.save(buf)
         excel_bytes = buf.getvalue()
 
-        observations = DocumentExtractor.extract_from_excel_bytes(excel_bytes, project_id)
+        observations = DocumentExtractor.extract_from_excel_bytes(
+            excel_bytes, project_id
+        )
         assert len(observations) == 4
 
         # Match each observation
-        proposals = [HybridMatcher.match_observation(obs, full_schedule) for obs in observations]
+        proposals = [
+            HybridMatcher.match_observation(obs, full_schedule) for obs in observations
+        ]
         assert len(proposals) == 4
 
         # Verify correct activity code matches
@@ -335,12 +381,22 @@ class TestFullPipelineExcelIngestion:
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.append(["Act. Code", "Work Description", "% Complete", "Disc.", "Tag No"])
-        ws.append(["PIP-2401", "Hydrostatic Testing Line P-101", "100", "Piping", "LINE-P-101"])
+        ws.append(
+            [
+                "PIP-2401",
+                "Hydrostatic Testing Line P-101",
+                "100",
+                "Piping",
+                "LINE-P-101",
+            ]
+        )
 
         buf = io.BytesIO()
         wb.save(buf)
 
-        observations = DocumentExtractor.extract_from_excel_bytes(buf.getvalue(), project_id)
+        observations = DocumentExtractor.extract_from_excel_bytes(
+            buf.getvalue(), project_id
+        )
         assert len(observations) == 1
         assert observations[0].discipline == DisciplineEnum.PIPING
 
@@ -428,13 +484,16 @@ class TestAuditRecordGeneration:
         before_state = None
         after_state = proposal.model_dump(mode="json")
 
-        payload_for_hash = json.dumps({
-            "entity_type": "match_proposal",
-            "entity_id": str(entity_id),
-            "action": action,
-            "before": before_state,
-            "after": after_state,
-        }, default=str)
+        payload_for_hash = json.dumps(
+            {
+                "entity_type": "match_proposal",
+                "entity_id": str(entity_id),
+                "action": action,
+                "before": before_state,
+                "after": after_state,
+            },
+            default=str,
+        )
 
         payload_hash = hashlib.sha256(
             str(entity_id).encode() + action.encode() + payload_for_hash.encode()
@@ -497,9 +556,12 @@ class TestDuplicateHandling:
             extraction_confidence=0.98,
         )
 
-        similarity = fuzz.token_sort_ratio(
-            obs1.normalized_text.lower(), obs2.normalized_text.lower()
-        ) / 100.0
+        similarity = (
+            fuzz.token_sort_ratio(
+                obs1.normalized_text.lower(), obs2.normalized_text.lower()
+            )
+            / 100.0
+        )
         # These are near-duplicates — similarity above dedup threshold
         assert similarity >= 0.85
         # The higher-confidence one should be preferred in a dedup merge
@@ -524,13 +586,18 @@ class TestDuplicateHandling:
             extraction_confidence=0.95,
         )
 
-        similarity = fuzz.token_sort_ratio(
-            obs1.normalized_text.lower(), obs2.normalized_text.lower()
-        ) / 100.0
+        similarity = (
+            fuzz.token_sort_ratio(
+                obs1.normalized_text.lower(), obs2.normalized_text.lower()
+            )
+            / 100.0
+        )
         # These are distinct — similarity well below dedup threshold
         assert similarity < 0.50
 
-    def test_duplicate_excel_rows_produce_separate_observations(self, project_id, full_schedule):
+    def test_duplicate_excel_rows_produce_separate_observations(
+        self, project_id, full_schedule
+    ):
         """Identical rows in Excel should produce separate observations."""
         import openpyxl
         from rapidfuzz import fuzz
@@ -539,18 +606,25 @@ class TestDuplicateHandling:
         ws = wb.active
         ws.append(["Activity Code", "Description", "Status", "Discipline"])
         ws.append(["PIP-2400", "Spool erection complete", "100%", "Piping"])
-        ws.append(["PIP-2400", "Spool erection complete", "100%", "Piping"])  # Duplicate row
+        ws.append(
+            ["PIP-2400", "Spool erection complete", "100%", "Piping"]
+        )  # Duplicate row
 
         buf = io.BytesIO()
         wb.save(buf)
 
-        observations = DocumentExtractor.extract_from_excel_bytes(buf.getvalue(), project_id)
+        observations = DocumentExtractor.extract_from_excel_bytes(
+            buf.getvalue(), project_id
+        )
         assert len(observations) == 2  # Both extracted
         # The duplicates are detectable by similarity
-        similarity = fuzz.token_sort_ratio(
-            observations[0].normalized_text.lower(),
-            observations[1].normalized_text.lower(),
-        ) / 100.0
+        similarity = (
+            fuzz.token_sort_ratio(
+                observations[0].normalized_text.lower(),
+                observations[1].normalized_text.lower(),
+            )
+            / 100.0
+        )
         assert similarity >= 0.92  # Confirmed as near-duplicates
 
 
@@ -564,7 +638,9 @@ class TestMalformedData:
 
     def test_whitespace_only_produces_no_observations(self, project_id):
         """Whitespace-only input should produce zero observations."""
-        observations = DocumentExtractor.extract_from_text("   \n\n\t\t  \n  ", project_id)
+        observations = DocumentExtractor.extract_from_text(
+            "   \n\n\t\t  \n  ", project_id
+        )
         assert observations == []
 
     def test_garbage_text_produces_general_discipline(self, project_id):
@@ -614,7 +690,9 @@ Spool erection on Pipe Rack B completed."""
         assert proposal.top_match is None
         assert proposal.auto_link_eligible is False
 
-    def test_observation_with_no_discipline_still_matches(self, project_id, full_schedule):
+    def test_observation_with_no_discipline_still_matches(
+        self, project_id, full_schedule
+    ):
         """Observations without explicit discipline should still produce matches."""
         obs = NormalizedObservation(
             project_id=project_id,
@@ -751,7 +829,10 @@ class TestRetryAndIdempotency:
         assert proposal_1.top_match is not None
         assert proposal_2.top_match is not None
         assert proposal_1.top_match.activity_code == proposal_2.top_match.activity_code
-        assert proposal_1.top_match.confidence_score == proposal_2.top_match.confidence_score
+        assert (
+            proposal_1.top_match.confidence_score
+            == proposal_2.top_match.confidence_score
+        )
 
 
 # =============================================================================
@@ -770,7 +851,12 @@ class TestGoldenDatasetIntegration:
         import os
 
         golden_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "tests", "golden_dataset", "field_observations.json"
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "tests",
+            "golden_dataset",
+            "field_observations.json",
         )
         if not os.path.exists(golden_path):
             pytest.skip("Golden dataset file not found")
@@ -789,7 +875,9 @@ class TestGoldenDatasetIntegration:
             expected_tier = scenario.get("expected_match_tier")
 
             observations = DocumentExtractor.extract_from_text(raw_text, project_id)
-            assert len(observations) >= 1, f"No observations extracted for {scenario['id']}"
+            assert len(observations) >= 1, (
+                f"No observations extracted for {scenario['id']}"
+            )
 
             proposal = HybridMatcher.match_observation(observations[0], full_schedule)
 
@@ -798,7 +886,9 @@ class TestGoldenDatasetIntegration:
                 if proposal.top_match:
                     assert proposal.top_match.confidence_score < 0.60
             elif expected_tier == "HIGH":
-                assert proposal.top_match is not None, f"Expected HIGH match for {scenario['id']}"
+                assert proposal.top_match is not None, (
+                    f"Expected HIGH match for {scenario['id']}"
+                )
                 assert proposal.top_match.confidence_score >= 0.60
 
     def test_golden_event_types_detected(self, project_id, golden_scenarios):
@@ -832,8 +922,9 @@ class TestAPIFullPipeline:
 
     @pytest.fixture
     def client(self):
-        from fastapi.testclient import TestClient
         from app.main import app
+        from fastapi.testclient import TestClient
+
         return TestClient(app)
 
     def test_extract_then_match_via_api(self, client, project_id, full_schedule):
@@ -919,14 +1010,18 @@ class TestMultiDisciplineStress:
 
     def test_all_disciplines_represented(self, project_id, full_schedule):
         """Multi-discipline report should detect at least 5 different disciplines."""
-        observations = DocumentExtractor.extract_from_text(self.MULTI_DISC_REPORT, project_id)
+        observations = DocumentExtractor.extract_from_text(
+            self.MULTI_DISC_REPORT, project_id
+        )
         disciplines = {obs.discipline for obs in observations}
         # At least Piping, Civil, Mechanical, Electrical, Instrumentation
         assert len(disciplines) >= 5
 
     def test_no_cross_discipline_auto_linking(self, project_id, full_schedule):
         """A piping observation should not auto-link to a civil activity, etc."""
-        observations = DocumentExtractor.extract_from_text(self.MULTI_DISC_REPORT, project_id)
+        observations = DocumentExtractor.extract_from_text(
+            self.MULTI_DISC_REPORT, project_id
+        )
 
         for obs in observations:
             proposal = HybridMatcher.match_observation(obs, full_schedule)
@@ -941,14 +1036,18 @@ class TestMultiDisciplineStress:
                 }
                 expected_prefix = disc_prefix_map.get(obs.discipline, "")
                 if expected_prefix and obs.discipline != DisciplineEnum.GENERAL:
-                    assert proposal.top_match.activity_code.startswith(expected_prefix), (
+                    assert proposal.top_match.activity_code.startswith(
+                        expected_prefix
+                    ), (
                         f"Cross-discipline auto-link: obs discipline={obs.discipline}, "
                         f"matched activity={proposal.top_match.activity_code}"
                     )
 
     def test_candidate_rankings_always_descending(self, project_id, full_schedule):
         """For every observation, candidate scores must be in descending order."""
-        observations = DocumentExtractor.extract_from_text(self.MULTI_DISC_REPORT, project_id)
+        observations = DocumentExtractor.extract_from_text(
+            self.MULTI_DISC_REPORT, project_id
+        )
 
         for obs in observations:
             proposal = HybridMatcher.match_observation(obs, full_schedule)

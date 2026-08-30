@@ -1,13 +1,11 @@
 import json
 from datetime import date
 from uuid import uuid4
-import pytest
 
+import pytest
 from app.models.schemas import (
     DisciplineEnum,
-    EventTypeEnum,
     MatchTierEnum,
-    NormalizedObservation,
     ScheduleActivity,
 )
 from app.services.extractor import DocumentExtractor
@@ -133,11 +131,11 @@ def test_scenario_a_exact_match(demo_activities):
     """
     project_id = demo_activities[0].project_id
     text = "P-101 completed successfully with 42.5 bar pressure holding."
-    
+
     observations = DocumentExtractor.extract_from_text(text, project_id)
     assert len(observations) == 1
     obs = observations[0]
-    
+
     proposal = HybridMatcher.match_observation(obs, demo_activities)
     assert proposal.top_match is not None
     assert proposal.top_match.activity_code == "PIP-2401"
@@ -152,11 +150,11 @@ def test_scenario_b_semantic_match(demo_activities):
     """
     project_id = demo_activities[0].project_id
     text = "spool erection complete on Pipe Rack B Tier 2 with alignment done."
-    
+
     observations = DocumentExtractor.extract_from_text(text, project_id)
     assert len(observations) == 1
     obs = observations[0]
-    
+
     proposal = HybridMatcher.match_observation(obs, demo_activities)
     assert proposal.top_match is not None
     assert proposal.top_match.activity_code == "PIP-2400"
@@ -220,7 +218,9 @@ def test_golden_benchmark_dataset_execution(demo_activities):
     """
     import os
 
-    benchmark_path = os.path.join(os.path.dirname(__file__), "..", "golden_dataset", "field_observations.json")
+    benchmark_path = os.path.join(
+        os.path.dirname(__file__), "..", "golden_dataset", "field_observations.json"
+    )
     with open(benchmark_path) as f:
         dataset = json.load(f)
 
@@ -239,10 +239,14 @@ def test_golden_benchmark_dataset_execution(demo_activities):
 
         if scenario.get("expected_activity_code"):
             expected_code = scenario["expected_activity_code"]
-            assert proposal.top_match is not None, f"Expected top match for {scenario['id']}"
+            assert proposal.top_match is not None, (
+                f"Expected top match for {scenario['id']}"
+            )
             if scenario["id"] == "SCENARIO_C_01":
                 candidate_codes = [c.activity_code for c in proposal.candidates]
-                assert any(c in candidate_codes for c in ("PIP-2401", "PIP-2402", "PIP-2400")), (
+                assert any(
+                    c in candidate_codes for c in ("PIP-2401", "PIP-2402", "PIP-2400")
+                ), (
                     f"Scenario {scenario['id']}: expected candidate pool to contain PIP-2401/PIP-2402/PIP-2400, got {candidate_codes}"
                 )
             else:
@@ -288,12 +292,16 @@ def test_full_pdf_ingestion_end_to_end(demo_activities):
     raw_obs = DocumentExtractor.extract_from_pdf_bytes(pdf_bytes, project_id)
     # Filter work items (excluding title header)
     observations = [
-        o for o in raw_obs if any(kw in o.raw_text.lower() for kw in ("p-101", "cable tray", "pt-101"))
+        o
+        for o in raw_obs
+        if any(kw in o.raw_text.lower() for kw in ("p-101", "cable tray", "pt-101"))
     ]
     assert len(observations) == 3
 
     # Match each observation
-    proposals = [HybridMatcher.match_observation(obs, demo_activities) for obs in observations]
+    proposals = [
+        HybridMatcher.match_observation(obs, demo_activities) for obs in observations
+    ]
 
     # Verify 1st: P-101 -> PIP-2401 (Auto-link eligible)
     assert proposals[0].top_match.activity_code == "PIP-2401"
@@ -306,4 +314,3 @@ def test_full_pdf_ingestion_end_to_end(demo_activities):
     # Verify 3rd: PT-101 -> INS-5100
     assert proposals[2].top_match.activity_code == "INS-5100"
     assert proposals[2].auto_link_eligible is True
-

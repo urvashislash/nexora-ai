@@ -92,6 +92,22 @@ class MatchingThresholds:
                     f"Top candidates are ambiguous: score gap {score_gap:.3f} is below {self.min_auto_link_gap:.3f}"
                 ),
             )
+        from app.models.schemas import DisciplineEnum
+
+        if (
+            observation.discipline
+            and observation.discipline != DisciplineEnum.GENERAL
+            and not top_candidate.discipline_match
+        ):
+            return MatchDecision(
+                decision=MatchDecisionEnum.REVIEW_REQUIRED,
+                auto_link_eligible=False,
+                review_required=True,
+                reason=(
+                    f"Discipline mismatch ({observation.discipline.value} observation matched "
+                    "candidate with different discipline); planner review required"
+                ),
+            )
         return MatchDecision(
             decision=MatchDecisionEnum.AUTO_LINK,
             auto_link_eligible=True,
