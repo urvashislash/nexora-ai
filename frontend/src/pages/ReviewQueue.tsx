@@ -3,21 +3,44 @@ import {
   CheckCircle2, 
   XCircle, 
   ShieldAlert,
-  Check
+  Check,
+  Edit3
 } from 'lucide-react';
-import type { ReviewQueueItem } from '../types';
+import type { ActivityWithState, ReviewQueueItem } from '../types';
 
 interface ReviewQueueProps {
   items: ReviewQueueItem[];
+  allActivities?: ActivityWithState[];
   onApprove: (proposalId: string, selectedActivityId?: string) => void;
   onReject: (proposalId: string, reason?: string) => void;
+  onOverride?: (proposalId: string, newActivityId: string, comments?: string) => void;
 }
 
-export const ReviewQueue: React.FC<ReviewQueueProps> = ({ items, onApprove, onReject }) => {
+export const ReviewQueue: React.FC<ReviewQueueProps> = ({ 
+  items, 
+  allActivities = [], 
+  onApprove, 
+  onReject, 
+  onOverride 
+}) => {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(items.length > 0 ? items[0].proposal.id : null);
-  const [selectedAlternativeId] = useState<string | null>(null);
+  const [overrideActivityId, setOverrideActivityId] = useState<string>('');
+  const [overrideComments, setOverrideComments] = useState<string>('');
+  const [isOverriding, setIsOverriding] = useState<boolean>(false);
 
   const currentItem = items.find(i => i.proposal.id === selectedItemId) || items[0];
+
+  const handleOverrideSubmit = () => {
+    if (!currentItem || !overrideActivityId) return;
+    if (onOverride) {
+      onOverride(currentItem.proposal.id, overrideActivityId, overrideComments);
+    } else {
+      onApprove(currentItem.proposal.id, overrideActivityId);
+    }
+    setIsOverriding(false);
+    setOverrideActivityId('');
+    setOverrideComments('');
+  };
 
   return (
     <div className="space-y-6">
@@ -28,7 +51,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ items, onApprove, onRe
             Planner Review & Evidence Verification Queue
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Review ambiguous candidate mappings, inspect source document evidence, and approve validated actual progress events.
+            Review ambiguous candidate mappings, inspect source document evidence, override activity mappings, and approve validated events.
           </p>
         </div>
 
@@ -66,6 +89,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ items, onApprove, onRe
                     key={item.proposal.id}
                     onClick={() => {
                       setSelectedItemId(item.proposal.id);
+                      setIsOverriding(false);
                     }}
                     className={`glass-card rounded-xl p-4 cursor-pointer transition border ${
                       isSelected 
@@ -126,21 +150,60 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ items, onApprove, onRe
               {/* Matched Schedule Activity Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-xl bg-slate-900/60 p-4 border border-slate-800 space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Target Baseline Activity
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Target Baseline Activity
+                    </span>
+                    <button
+                      onClick={() => setIsOverriding(!isOverriding)}
+                      className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1 underline font-medium"
+                    >
+                      <Edit3 className="h-3 w-3" />
+                      {isOverriding ? 'Cancel Override' : 'Override Activity'}
+                    </button>
                   </div>
-                  <div className="font-mono text-base font-bold text-sky-400">
-                    {currentItem.activity?.code}
-                  </div>
-                  <div className="text-sm font-semibold text-white">
-                    {currentItem.activity?.name}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {currentItem.activity?.description}
-                  </div>
-                  <div className="pt-2 text-xs text-slate-300 font-mono">
-                    Planned: {currentItem.activity?.planned_start_date} → {currentItem.activity?.planned_finish_date}
-                  </div>
+                  
+                  {!isOverriding ? (
+                    <>
+                      <div className="font-mono text-base font-bold text-sky-400">
+                        {currentItem.activity?.code}
+                      </div>
+                      <div className="text-sm font-semibold text-white">
+                        {currentItem.activity?.name}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {currentItem.activity?.description}
+                      </div>
+                      <div className="pt-2 text-xs text-slate-300 font-mono">
+                        Planned: {currentItem.activity?.planned_start_date} → {currentItem.activity?.planned_finish_date}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      <label className="text-[11px] font-semibold uppercase text-amber-400">
+                        Select Correct Schedule Activity:
+                      </label>
+                      <select
+                        value={overrideActivityId || currentItem.activity?.id || ''}
+                        onChange={(e) => setOverrideActivityId(e.target.value)}
+                        className="w-full rounded bg-slate-950 border border-slate-700 p-2 text-xs text-white"
+                      >
+                        <option value="">-- Choose activity --</option>
+                        {allActivities.map(a => (
+                          <option key={a.activity.id} value={a.activity.id}>
+                            [{a.activity.code}] {a.activity.name} ({a.activity.discipline})
+                          </option>
+                        ))}
+                      </select>
+                      <textarea
+                        value={overrideComments}
+                        onChange={(e) => setOverrideComments(e.target.value)}
+                        placeholder="Reason for override / planner remarks..."
+                        rows={2}
+                        className="w-full rounded bg-slate-950 border border-slate-700 p-2 text-xs text-white placeholder-slate-500 font-mono"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Score Breakdown */}
@@ -202,13 +265,24 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ items, onApprove, onRe
                     <span>Reject Proposal</span>
                   </button>
 
-                  <button
-                    onClick={() => onApprove(currentItem.proposal.id, selectedAlternativeId || undefined)}
-                    className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 transition"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>Approve & Commit to Ledger</span>
-                  </button>
+                  {isOverriding ? (
+                    <button
+                      onClick={handleOverrideSubmit}
+                      disabled={!overrideActivityId && !currentItem.activity?.id}
+                      className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 rounded-lg bg-amber-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-amber-600/30 hover:bg-amber-500 transition disabled:opacity-50"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      <span>Override & Commit</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onApprove(currentItem.proposal.id)}
+                      className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 transition"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Approve & Commit to Ledger</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -218,3 +292,4 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({ items, onApprove, onRe
     </div>
   );
 };
+

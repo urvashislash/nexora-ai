@@ -1,4 +1,5 @@
 import logging
+import time
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, File, Form, UploadFile
@@ -9,8 +10,12 @@ from app.models.schemas import (
     ExtractRequest,
     MatchProposalPayload,
     MatchRequest,
+    MatchTierEnum,
     NormalizedObservation,
     NormalizeRequest,
+    PipelineProcessRequest,
+    PipelineProcessResult,
+    PipelineStageStatus,
 )
 from app.services.embeddings import compute_embeddings
 from app.services.extractor import DocumentExtractor
@@ -51,12 +56,17 @@ async def extract_observations_from_file(
     project_id: UUID = Form(...), document_id: UUID = Form(default_factory=uuid4), file: UploadFile = File(...)
 ):
     """
-    Ingests binary file (Excel, CSV, or Text) and extracts observations.
+    Ingests binary file (PDF, Excel, CSV, or Text) and extracts observations.
     """
     content = await file.read()
-    filename = file.filename or ""
+    filename = (file.filename or "").lower()
+    content_type = (file.content_type or "").lower()
 
-    if filename.endswith((".xlsx", ".xls", ".csv")):
+    if filename.endswith(".pdf") or "pdf" in content_type:
+        observations = DocumentExtractor.extract_from_pdf_bytes(
+            content=content, project_id=project_id, document_id=document_id
+        )
+    elif filename.endswith((".xlsx", ".xls", ".csv")):
         observations = DocumentExtractor.extract_from_excel_bytes(
             content=content, project_id=project_id, document_id=document_id
         )
@@ -96,3 +106,71 @@ async def match_observations(payload: MatchRequest):
         proposals.append(proposal)
 
     return proposals
+
+
+@router.post("/pipeline/process", response_model=PipelineProcessResult)
+async def process_pipeline(payload: PipelineProcessRequest):
+    """
+    Executes the full end-to-end ingestion pipeline:
+    parse -> extract -> normalize -> embed -> hybrid match.
+    """
+    stages: list[PipelineStageStatus] = []
+    t0 = time.perf_counter()
+
+    # Stage 1: Extraction & Normalization
+    if payload.text_content:
+        observations = DocumentExtractor.extract_from_text(
+            text=payload.text_content, project_id=payload.project_id, document_id=payload.document_id
+        )
+    else:
+        observations = []
+
+    t1 = time.perf_counter()
+    stages.append(
+        PipelineStageStatus(
+            stage="EXTRACT_AND_NORMALIZE",
+            status="COMPLETED",
+            items_processed=len(observations),
+            duration_ms=round((t1 - t0) * 1000, 2),
+        )
+    )
+
+    # Stage 2: Hybrid Matching against schedule activities
+    t2_start = time.perf_counter()
+    proposals: list[MatchProposalPayload] = []
+    auto_link_count = 0
+    review_required_count = 0
+    unmatched_count = 0
+
+    for obs in observations:
+        proposal = HybridMatcher.match_observation(observation=obs, activities=payload.activities)
+        proposals.append(proposal)
+
+        if proposal.auto_link_eligible:
+            auto_link_count += 1
+        elif proposal.top_match and proposal.top_match.match_tier != MatchTierEnum.UNMATCHED:
+            review_required_count += 1
+        else:
+            unmatched_count += 1
+
+    t2_end = time.perf_counter()
+    stages.append(
+        PipelineStageStatus(
+            stage="HYBRID_MATCHING",
+            status="COMPLETED",
+            items_processed=len(proposals),
+            duration_ms=round((t2_end - t2_start) * 1000, 2),
+        )
+    )
+
+    return PipelineProcessResult(
+        project_id=payload.project_id,
+        document_id=payload.document_id,
+        observations=observations,
+        proposals=proposals,
+        stages=stages,
+        auto_link_count=auto_link_count,
+        review_required_count=review_required_count,
+        unmatched_count=unmatched_count,
+    )
+

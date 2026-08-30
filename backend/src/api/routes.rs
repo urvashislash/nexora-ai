@@ -7,7 +7,7 @@ use tower_http::trace::TraceLayer;
 
 use super::handlers::{
     approve_proposal, export_schedule_p6, get_activities, get_audit_trail, get_dashboard,
-    get_review_queue, reject_proposal, AppState,
+    get_review_queue, ingest_observations, override_proposal, reject_proposal, AppState,
 };
 
 pub fn create_router(state: AppState) -> Router {
@@ -20,7 +20,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/projects/:id/dashboard", get(get_dashboard))
         .route("/api/v1/projects/:id/activities", get(get_activities))
         .route("/api/v1/projects/:id/review-queue", get(get_review_queue))
+        .route("/api/v1/projects/:id/ingest", post(ingest_observations))
         .route("/api/v1/proposals/:id/approve", post(approve_proposal))
+        .route("/api/v1/proposals/:id/override", post(override_proposal))
         .route("/api/v1/proposals/:id/reject", post(reject_proposal))
         .route("/api/v1/projects/:id/audit-trail", get(get_audit_trail))
         .route("/api/v1/projects/:id/export/p6", get(export_schedule_p6))
@@ -28,3 +30,4 @@ pub fn create_router(state: AppState) -> Router {
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
+

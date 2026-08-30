@@ -28,7 +28,7 @@ class DocumentExtractor:
             # Skip noise / header lines
             lower_line = line.lower()
             if len(line) < 5 or any(
-                lower_line.startswith(p)
+                p in lower_line
                 for p in [
                     "page ",
                     "project:",
@@ -37,10 +37,16 @@ class DocumentExtractor:
                     "report no",
                     "daily construction report",
                     "daily progress report",
+                    "site progress report",
+                    "progress report",
+                    "construction report",
+                    "daily site progress",
                     "title:",
                 ]
             ):
                 continue
+
+
 
             discipline = DocumentExtractor._detect_discipline(line)
             event_type = DocumentExtractor._detect_event_type(line)
@@ -69,6 +75,43 @@ class DocumentExtractor:
             observations.append(obs)
 
         return observations
+
+    @staticmethod
+    def extract_from_pdf_bytes(
+        content: bytes, project_id: UUID, document_id: UUID | None = None
+    ) -> list[NormalizedObservation]:
+        """
+        Extracts observations from an uploaded PDF daily progress report or field document.
+        """
+        extracted_text = ""
+        try:
+            import fitz  # PyMuPDF
+
+            doc = fitz.open(stream=content, filetype="pdf")
+            pages = []
+            for page in doc:
+                text = page.get_text()
+                if text:
+                    pages.append(text)
+            extracted_text = "\n".join(pages)
+        except Exception:
+            try:
+                import pypdf
+
+                reader = pypdf.PdfReader(io.BytesIO(content))
+                pages = []
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        pages.append(text)
+                extracted_text = "\n".join(pages)
+            except Exception:
+                extracted_text = content.decode("utf-8", errors="ignore")
+
+        if not extracted_text.strip():
+            return []
+
+        return DocumentExtractor.extract_from_text(extracted_text, project_id, document_id)
 
     @staticmethod
     def extract_from_excel_bytes(
@@ -140,21 +183,75 @@ class DocumentExtractor:
     def _detect_discipline(text: str) -> DisciplineEnum:
         lower = text.lower()
         if any(
-            w in lower for w in ["piping", "spool", "hydro", "hydrotest", "flange", "valve", "p-101", "p-102", "pip-"]
+            w in lower
+            for w in [
+                "piping",
+                "spool",
+                "hydro",
+                "hydrotest",
+                "flange",
+                "valve",
+                "p-101",
+                "p-102",
+                "pip-",
+                "pressure testing",
+                "header",
+            ]
         ):
             return DisciplineEnum.PIPING
         if any(
             w in lower
-            for w in ["civil", "concrete", "pour", "rebar", "shuttering", "excavation", "civ-", "fnd-", "footing"]
+            for w in [
+                "civil",
+                "concrete",
+                "pour",
+                "rebar",
+                "shuttering",
+                "excavation",
+                "civ-",
+                "fnd-",
+                "footing",
+                "foundation",
+                "dewatering",
+            ]
         ):
             return DisciplineEnum.CIVIL
-        if any(w in lower for w in ["pump", "compressor", "motor", "alignment", "grouting", "mec-", "crude charge"]):
+        if any(
+            w in lower
+            for w in ["pump", "compressor", "motor", "alignment", "grouting", "mec-", "crude charge", "c-101", "p-101a"]
+        ):
             return DisciplineEnum.MECHANICAL
-        if any(w in lower for w in ["electrical", "cable", "tray", "traying", "ele-", "transformer", "switchgear"]):
+        if any(
+            w in lower
+            for w in [
+                "electrical",
+                "cable",
+                "tray",
+                "traying",
+                "ele-",
+                "transformer",
+                "switchgear",
+                "substation",
+                "bracket",
+            ]
+        ):
             return DisciplineEnum.ELECTRICAL
-        if any(w in lower for w in ["instrumentation", "transmitter", "pt-101", "ins-", "calibration", "scada", "plc"]):
+        if any(
+            w in lower
+            for w in [
+                "instrumentation",
+                "transmitter",
+                "pt-101",
+                "ins-",
+                "calibration",
+                "scada",
+                "plc",
+                "tubing",
+                "impulse",
+            ]
+        ):
             return DisciplineEnum.INSTRUMENTATION
-        if any(w in lower for w in ["hse", "safety", "incident", "permit", "toolbox"]):
+        if any(w in lower for w in ["hse", "safety", "incident", "permit", "toolbox", "spill"]):
             return DisciplineEnum.HSE
         return DisciplineEnum.GENERAL
 
@@ -191,7 +288,11 @@ class DocumentExtractor:
 
     @staticmethod
     def _detect_equipment(text: str) -> str | None:
-        m = re.search(r"\b(P-101A?|P-102|C-101|PT-101|RACK-[A-Z0-9]+|COL-FTG-\d+)\b", text, re.IGNORECASE)
+        m = re.search(
+            r"\b(P-101A?|P-102|C-101|PT-101|RACK-[A-Z0-9]+|COL-FTG-\d+|MEC-[A-Z0-9]+|ELE-[A-Z0-9]+|INS-[A-Z0-9]+)\b",
+            text,
+            re.IGNORECASE,
+        )
         return m.group(1).upper() if m else None
 
     @staticmethod
@@ -203,4 +304,6 @@ class DocumentExtractor:
             return "CDU Area 100"
         if "compressor" in lower or "area 102" in lower:
             return "Compressor House"
+        if "substation" in lower:
+            return "Substation 4"
         return None
