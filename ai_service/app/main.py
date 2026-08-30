@@ -36,6 +36,15 @@ async def root():
     }
 
 
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "service": "ai_service",
+        "version": "1.1.0"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
 
