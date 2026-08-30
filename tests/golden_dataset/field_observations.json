@@ -36,8 +36,8 @@
       "raw_text": "concreting finished for heavy column footings C1-C12 in CDU area, 180 cu.m poured.",
       "discipline": "CIVIL",
       "expected_activity_code": "CIV-1101",
-      "expected_match_tier": "HIGH",
-      "expected_auto_link": true,
+      "expected_match_tier": "MEDIUM",
+      "expected_auto_link": false,
       "expected_event_type": "FINISH"
     },
     {

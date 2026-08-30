@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- 2. Projects Table
 CREATE TABLE IF NOT EXISTS projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     description TEXT,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS projects (
 
 -- 3. Project Members Table
 CREATE TABLE IF NOT EXISTS project_members (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     user_id UUID NOT NULL,
     email TEXT NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS project_members (
 
 -- 4. Schedule Versions Table
 CREATE TABLE IF NOT EXISTS schedule_versions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     version_number INTEGER NOT NULL,
     version_label TEXT NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS schedule_versions (
 
 -- 5. WBS Nodes Table (L1 - L4)
 CREATE TABLE IF NOT EXISTS wbs_nodes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     schedule_version_id UUID NOT NULL REFERENCES schedule_versions(id) ON DELETE CASCADE,
     parent_id UUID REFERENCES wbs_nodes(id) ON DELETE CASCADE,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS wbs_nodes (
 
 -- 6. Activities Table (L5 / L6)
 CREATE TABLE IF NOT EXISTS activities (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     schedule_version_id UUID NOT NULL REFERENCES schedule_versions(id) ON DELETE CASCADE,
     wbs_id UUID NOT NULL REFERENCES wbs_nodes(id) ON DELETE RESTRICT,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS activities (
 
 -- 7. Activity Dependencies Table
 CREATE TABLE IF NOT EXISTS activity_dependencies (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     schedule_version_id UUID NOT NULL REFERENCES schedule_versions(id) ON DELETE CASCADE,
     predecessor_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
     successor_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS activity_dependencies (
 
 -- 8. Documents Table (Ingested files)
 CREATE TABLE IF NOT EXISTS documents (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     filename TEXT NOT NULL,
     mime_type TEXT NOT NULL,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS documents (
 
 -- 9. Document Processing Jobs
 CREATE TABLE IF NOT EXISTS document_jobs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     job_type TEXT NOT NULL CHECK (job_type IN ('PARSE', 'OCR', 'ASR', 'EXTRACT', 'NORMALIZE', 'EMBED', 'MATCH')),
     status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'RETRYING')),
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS document_jobs (
 
 -- 10. Document Extractions (Raw and Structured Artifacts)
 CREATE TABLE IF NOT EXISTS document_extractions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     extraction_version TEXT NOT NULL DEFAULT 'v1.0',
     extracted_text TEXT,
@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS document_extractions (
 
 -- 11. Work Observations Table (Canonical Field Facts)
 CREATE TABLE IF NOT EXISTS work_observations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
     reported_by UUID,
@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS work_observations (
 
 -- 12. Match Proposals Table
 CREATE TABLE IF NOT EXISTS match_proposals (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     observation_id UUID NOT NULL REFERENCES work_observations(id) ON DELETE CASCADE,
     activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS match_proposals (
 
 -- 13. Actual Events Table (Immutable Event Ledger)
 CREATE TABLE IF NOT EXISTS actual_events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE RESTRICT,
     observation_id UUID REFERENCES work_observations(id) ON DELETE SET NULL,
@@ -225,7 +225,7 @@ CREATE TABLE IF NOT EXISTS activity_current_state (
 
 -- 15. Approvals Table
 CREATE TABLE IF NOT EXISTS approvals (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     event_id UUID REFERENCES actual_events(id) ON DELETE CASCADE,
     proposal_id UUID REFERENCES match_proposals(id) ON DELETE CASCADE,
@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS approvals (
 
 -- 16. Audit Events Table (Tamper-Evident Trail)
 CREATE TABLE IF NOT EXISTS audit_events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     entity_type TEXT NOT NULL,
     entity_id UUID NOT NULL,
@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
 
 -- 17. Outbox Events Table (Reliable Transactional Outbox)
 CREATE TABLE IF NOT EXISTS outbox_events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     event_type TEXT NOT NULL,
     payload JSONB NOT NULL,
@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS outbox_events (
 
 -- 18. Activity Lineage Table
 CREATE TABLE IF NOT EXISTS activity_lineage (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     previous_activity_id UUID NOT NULL,
     new_activity_id UUID NOT NULL,
@@ -279,7 +279,7 @@ CREATE TABLE IF NOT EXISTS activity_lineage (
 
 -- 19. Terminology Dictionary Table
 CREATE TABLE IF NOT EXISTS terminology (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     discipline TEXT NOT NULL,
     synonym_term TEXT NOT NULL,

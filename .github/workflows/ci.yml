@@ -95,12 +95,12 @@ jobs:
           mypy app/ tests/ --check-untyped-defs --ignore-missing-imports
 
       - name: Run all tests with verbose output
-        run: python -m pytest tests/ -v --tb=short -q
+        run: PYTHONPATH=. python -m pytest tests/ -v --tb=short -q
 
       - name: Run tests with coverage
         run: |
           pip install pytest-cov
-          python -m pytest tests/ --cov=app --cov-report=term-missing --cov-fail-under=60
+          PYTHONPATH=. python -m pytest tests/ --cov=app --cov-report=term-missing --cov-fail-under=60
 
   # ===========================================================================
   # E2E Integration Tests
@@ -125,7 +125,7 @@ jobs:
       - name: Run E2E scenario tests
         run: |
           cd ai_service
-          python -m pytest ../tests/e2e/ -v --tb=short
+          PYTHONPATH=. python -m pytest ../tests/e2e/ -v --tb=short
 
   # ===========================================================================
   # Frontend Build & Type Check

@@ -1,0 +1,121 @@
+{
+  "project_id": "11111111-2222-4333-8444-555555555555",
+  "activities": [
+    {
+      "code": "PIP-2400",
+      "name": "Spool Erection and Alignment - Pipe Rack B",
+      "description": "Erect, align and bolt prefabricated process piping spools on rack tier 2",
+      "discipline": "PIPING",
+      "location": "Pipe Rack B",
+      "zone": "Zone 2",
+      "equipment_tag": "RACK-B",
+      "planned_quantity": 450,
+      "unit_of_measure": "Inch-Dia"
+    },
+    {
+      "code": "PIP-2401",
+      "name": "Hydrostatic Testing - Crude Feed Header P-101",
+      "description": "Pressure testing, reinstatement and handover of process line P-101",
+      "discipline": "PIPING",
+      "location": "Pipe Rack B",
+      "zone": "Zone 2",
+      "equipment_tag": "P-101"
+    },
+    {
+      "code": "CIV-1100",
+      "name": "Rebar Tying and Shuttering - Compressor Foundation",
+      "description": "Reinforcement and formwork for compressor C-101 foundation",
+      "discipline": "CIVIL",
+      "location": "Compressor House",
+      "zone": "Zone 1",
+      "equipment_tag": "FND-C-101",
+      "planned_quantity": 35,
+      "unit_of_measure": "MT"
+    },
+    {
+      "code": "CIV-1101",
+      "name": "Concrete Pour - CDU Column Footings",
+      "description": "M35 concrete placement for heavy column footings in area 100",
+      "discipline": "CIVIL",
+      "location": "CDU Area 100",
+      "zone": "Zone 1",
+      "equipment_tag": "COL-FTG-100",
+      "planned_quantity": 180,
+      "unit_of_measure": "Cu.M"
+    },
+    {
+      "code": "MEC-2100",
+      "name": "Equipment Alignment - Crude Charge Pump P-101A",
+      "description": "Cold alignment, coupling check and final grouting of rotating pump",
+      "discipline": "MECHANICAL",
+      "location": "CDU Area 100",
+      "zone": "Zone 1",
+      "equipment_tag": "P-101A"
+    },
+    {
+      "code": "ELE-3100",
+      "name": "Cable Tray Installation - Area 100",
+      "description": "Install perforated cable trays and supports along CDU rack",
+      "discipline": "ELECTRICAL",
+      "location": "CDU Area 100",
+      "zone": "Zone 1",
+      "equipment_tag": "TRAY-100",
+      "planned_quantity": 600,
+      "unit_of_measure": "M"
+    },
+    {
+      "code": "ELE-3101",
+      "name": "Cable Glanding and Termination - MCC Panel 01",
+      "description": "Power cable dressing, gland installation and termination at MCC-01",
+      "discipline": "ELECTRICAL",
+      "location": "Substation 4",
+      "zone": "Zone 3",
+      "equipment_tag": "MCC-01"
+    },
+    {
+      "code": "INS-4100",
+      "name": "Pressure Transmitter Calibration and Hookup - PT-101",
+      "description": "Bench calibration, impulse tubing and loop verification",
+      "discipline": "INSTRUMENTATION",
+      "location": "CDU Area 100",
+      "zone": "Zone 1",
+      "equipment_tag": "PT-101"
+    },
+    {
+      "code": "INS-4101",
+      "name": "Flow Transmitter Loop Check - FT-202",
+      "description": "Field to DCS continuity and functional loop test",
+      "discipline": "INSTRUMENTATION",
+      "location": "Pipe Rack B",
+      "zone": "Zone 2",
+      "equipment_tag": "FT-202"
+    },
+    {
+      "code": "HSE-5100",
+      "name": "Scaffold Inspection and Green Tagging",
+      "description": "Inspect access scaffold and release safe work platform",
+      "discipline": "HSE",
+      "location": "Pipe Rack B",
+      "zone": "Zone 2",
+      "equipment_tag": "RACK-B"
+    }
+  ],
+  "observations": [
+    {"id": "o01", "text": "PIP-2400 spool erection completed on Pipe Rack B tier 2, 450 inch-dia installed.", "expected_activity_code": "PIP-2400"},
+    {"id": "o02", "text": "Hydro test of P-101 held at pressure and line reinstatement finished.", "expected_activity_code": "PIP-2401"},
+    {"id": "o03", "text": "RACK-B pipe erection is 80% complete in Zone 2.", "expected_activity_code": "PIP-2400"},
+    {"id": "o04", "text": "35 MT rebar binding and shuttering completed for FND-C-101 at compressor house.", "expected_activity_code": "CIV-1100"},
+    {"id": "o05", "text": "Concrete pour commenced for COL-FTG-100 in Area 100; 120 cu.m placed.", "expected_activity_code": "CIV-1101"},
+    {"id": "o06", "text": "CIV-1100 reinforcement WIP at compressor foundation, physical progress 65%.", "expected_activity_code": "CIV-1100"},
+    {"id": "o07", "text": "Cold shaft alignment of pump P-101A completed after coupling check.", "expected_activity_code": "MEC-2100"},
+    {"id": "o08", "text": "Final grouting for P-101A pump is done in CDU area.", "expected_activity_code": "MEC-2100"},
+    {"id": "o09", "text": "ELE-3100 cable traying WIP in Area 100; 280 m installed.", "expected_activity_code": "ELE-3100"},
+    {"id": "o10", "text": "Power cable glanding and termination completed at MCC-01 in substation 4.", "expected_activity_code": "ELE-3101"},
+    {"id": "o11", "text": "PT-101 bench calibration and impulse line hookup witnessed by QC.", "expected_activity_code": "INS-4100"},
+    {"id": "o12", "text": "Loop check for FT-202 completed from field JB to DCS.", "expected_activity_code": "INS-4101"},
+    {"id": "o13", "text": "Scaffold green tag inspection completed at Rack B before work permit release.", "expected_activity_code": "HSE-5100"},
+    {"id": "o14", "text": "Third party witnessed pressure testing for crude feed header P-101.", "expected_activity_code": "PIP-2401"},
+    {"id": "o15", "text": "Crew attendance recorded and lunch packets delivered to camp office.", "expected_activity_code": null},
+    {"id": "o16", "text": "General housekeeping completed near the warehouse parking area.", "expected_activity_code": null}
+  ]
+}

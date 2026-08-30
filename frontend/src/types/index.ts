@@ -136,10 +136,40 @@ export interface MatchProposal {
   created_at: string;
 }
 
+export type ReviewDecision = 'APPROVE' | 'REJECT' | 'OVERRIDE';
+
+export interface ReviewQueueFilters {
+  discipline?: Discipline | 'ALL';
+  matchTier?: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNMATCHED' | 'ALL';
+  sortBy?: 'confidence_asc' | 'confidence_desc' | 'date_asc' | 'date_desc';
+  searchQuery?: string;
+}
+
 export interface ReviewQueueItem {
   proposal: MatchProposal;
   observation?: WorkObservation;
   activity?: Activity;
+  alternativeCandidates?: MatchCandidate[];
+}
+
+export interface Approval {
+  id: string;
+  project_id: string;
+  event_id?: string;
+  proposal_id?: string;
+  action: ReviewDecision;
+  reviewed_by: string;
+  reviewed_at: string;
+  selected_activity_id?: string;
+  comments?: string;
+  confidence_override?: number;
+}
+
+export interface ToastMessage {
+  id: string;
+  type: 'success' | 'error' | 'info';
+  title: string;
+  message: string;
 }
 
 export interface ActualEvent {

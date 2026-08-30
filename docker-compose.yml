@@ -65,9 +65,34 @@ services:
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/%2f
       - REDIS_URL=redis://redis:6379/0
       - AI_PORT=8000
+      - EMBEDDING_ALLOW_DOWNLOAD=${EMBEDDING_ALLOW_DOWNLOAD:-false}
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ai_worker:
+    build:
+      context: ./ai_service
+      dockerfile: Dockerfile
+    container_name: nexora-ai-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.queue_worker"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nexora}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/%2f
+      - REDIS_URL=redis://redis:6379/0
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - SUPABASE_STORAGE_BUCKET=${SUPABASE_STORAGE_BUCKET:-evidence-documents}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      - EMBEDDING_ALLOW_DOWNLOAD=${EMBEDDING_ALLOW_DOWNLOAD:-false}
+      - QUEUE_MAX_ATTEMPTS=${QUEUE_MAX_ATTEMPTS:-3}
+      - QUEUE_RETRY_DELAY_MS=${QUEUE_RETRY_DELAY_MS:-15000}
+    depends_on:
       rabbitmq:
         condition: service_healthy
       redis:

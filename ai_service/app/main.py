@@ -1,7 +1,8 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.endpoints import router as api_router
 from app.core.config import settings
@@ -14,6 +15,24 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",
 )
+
+
+# -----------------------------------------------------------------------------
+# Security Headers Middleware
+# -----------------------------------------------------------------------------
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "0"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Set CORS middleware
 app.add_middleware(
@@ -31,9 +50,14 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 async def root():
     return {
         "service": "NEXORA AI — Python AI Processing Plane",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "docs": f"{settings.API_V1_STR}/docs",
     }
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "ai_service", "version": "1.1.0"}
 
 
 if __name__ == "__main__":

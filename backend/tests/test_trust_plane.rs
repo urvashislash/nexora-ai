@@ -61,7 +61,7 @@ fn test_scenario_a_exact_match_and_commit() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(&mut state, &event, planned_finish);
+    let _ = StateMachine::project_event(&mut state, &event, planned_finish);
 
     assert_eq!(state.execution_status, ExecutionStatus::Completed);
     assert_eq!(state.current_progress_pct, 100.0);
@@ -329,7 +329,7 @@ fn test_project_event_start_type() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -380,7 +380,7 @@ fn test_project_event_progress_type_partial() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -428,7 +428,7 @@ fn test_project_event_progress_type_100_completes() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -479,7 +479,7 @@ fn test_project_event_delay_variance_accumulation() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -525,7 +525,7 @@ fn test_project_event_blocker_status() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(
+    let _ = StateMachine::project_event(
         &mut state,
         &event,
         NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
@@ -602,8 +602,9 @@ fn test_validate_progress_boundary_values() {
 fn test_audit_hash_deterministic_across_calls() {
     let entity_id = Uuid::new_v4();
     let payload = json!({"status": "COMPLETED", "progress": 100.0});
-    let hash_a = EventLedger::compute_hash(&entity_id, "APPROVE", &payload, Some("prev_123"));
-    let hash_b = EventLedger::compute_hash(&entity_id, "APPROVE", &payload, Some("prev_123"));
+    let ts = Utc::now();
+    let hash_a = EventLedger::compute_hash(&entity_id, "APPROVE", &payload, Some("prev_123"), &ts);
+    let hash_b = EventLedger::compute_hash(&entity_id, "APPROVE", &payload, Some("prev_123"), &ts);
     assert_eq!(hash_a, hash_b);
 }
 
@@ -612,8 +613,9 @@ fn test_audit_hash_differs_when_payload_changes() {
     let entity_id = Uuid::new_v4();
     let p1 = json!({"progress": 50.0});
     let p2 = json!({"progress": 60.0});
-    let hash1 = EventLedger::compute_hash(&entity_id, "UPDATE", &p1, None);
-    let hash2 = EventLedger::compute_hash(&entity_id, "UPDATE", &p2, None);
+    let ts = Utc::now();
+    let hash1 = EventLedger::compute_hash(&entity_id, "UPDATE", &p1, None, &ts);
+    let hash2 = EventLedger::compute_hash(&entity_id, "UPDATE", &p2, None, &ts);
     assert_ne!(hash1, hash2);
 }
 
@@ -621,9 +623,21 @@ fn test_audit_hash_differs_when_payload_changes() {
 fn test_audit_hash_differs_when_previous_hash_changes() {
     let entity_id = Uuid::new_v4();
     let p = json!({"status": "COMMITTED"});
-    let hash_chain_a = EventLedger::compute_hash(&entity_id, "COMMIT", &p, Some("hash_001"));
-    let hash_chain_b = EventLedger::compute_hash(&entity_id, "COMMIT", &p, Some("hash_002"));
+    let ts = Utc::now();
+    let hash_chain_a = EventLedger::compute_hash(&entity_id, "COMMIT", &p, Some("hash_001"), &ts);
+    let hash_chain_b = EventLedger::compute_hash(&entity_id, "COMMIT", &p, Some("hash_002"), &ts);
     assert_ne!(hash_chain_a, hash_chain_b);
+}
+
+#[test]
+fn test_timestamp_in_hash_uniqueness() {
+    let entity_id = Uuid::new_v4();
+    let payload = json!({"action": "DUPLICATE_PAYLOAD"});
+    let ts1 = Utc::now();
+    let ts2 = ts1 + chrono::Duration::seconds(5);
+    let h1 = EventLedger::compute_hash(&entity_id, "ACTION", &payload, None, &ts1);
+    let h2 = EventLedger::compute_hash(&entity_id, "ACTION", &payload, None, &ts2);
+    assert_ne!(h1, h2);
 }
 
 #[test]
@@ -698,6 +712,152 @@ fn test_audit_chain_hash_continuity() {
     assert_eq!(audit2.payload_hash.len(), 64);
 }
 
+#[test]
+fn test_audit_chain_integrity_verification_pass() {
+    let project_id = Uuid::new_v4();
+    let entity1 = Uuid::new_v4();
+    let entity2 = Uuid::new_v4();
+    let entity3 = Uuid::new_v4();
+
+    let e1 = EventLedger::create_audit_event(
+        project_id,
+        "OBSERVATION",
+        entity1,
+        "CREATE",
+        None,
+        Some("SUPERVISOR"),
+        None,
+        Some(json!({"raw_text": "Completed piping at Rack B"})),
+        None,
+    );
+
+    let e2 = EventLedger::create_audit_event(
+        project_id,
+        "MATCH_PROPOSAL",
+        entity2,
+        "GENERATE_PROPOSAL",
+        None,
+        Some("AI_SERVICE"),
+        None,
+        Some(json!({"confidence": 0.95})),
+        Some(&e1.payload_hash),
+    );
+
+    let e3 = EventLedger::create_audit_event(
+        project_id,
+        "PROPOSAL_APPROVAL",
+        entity3,
+        "APPROVE_AND_COMMIT",
+        None,
+        Some("PLANNER"),
+        Some(json!({"status": "PENDING_REVIEW"})),
+        Some(json!({"status": "COMMITTED"})),
+        Some(&e2.payload_hash),
+    );
+
+    let chain = vec![e1, e2, e3];
+    assert!(EventLedger::verify_chain_integrity(&chain).is_ok());
+}
+
+#[test]
+fn test_audit_chain_integrity_tamper_detection() {
+    let project_id = Uuid::new_v4();
+    let entity1 = Uuid::new_v4();
+    let entity2 = Uuid::new_v4();
+
+    let e1 = EventLedger::create_audit_event(
+        project_id,
+        "OBSERVATION",
+        entity1,
+        "CREATE",
+        None,
+        None,
+        None,
+        Some(json!({"data": "original"})),
+        None,
+    );
+
+    let mut e2 = EventLedger::create_audit_event(
+        project_id,
+        "EVENT",
+        entity2,
+        "UPDATE",
+        None,
+        None,
+        None,
+        Some(json!({"data": "next"})),
+        Some(&e1.payload_hash),
+    );
+
+    // Tamper with previous_hash pointer
+    e2.previous_hash =
+        Some("tampered_hash_00000000000000000000000000000000000000000000000000000000".to_string());
+
+    let chain = vec![e1, e2];
+    let res = EventLedger::verify_chain_integrity(&chain);
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err(), 1);
+}
+
+#[test]
+fn test_audit_chain_single_hash_tamper_detection() {
+    let project_id = Uuid::new_v4();
+    let entity_id = Uuid::new_v4();
+
+    let mut audit = EventLedger::create_audit_event(
+        project_id,
+        "EVENT",
+        entity_id,
+        "COMMIT",
+        None,
+        None,
+        None,
+        Some(json!({"status": "ORIGINAL"})),
+        None,
+    );
+
+    assert!(EventLedger::verify_single_hash(&audit));
+
+    // Tamper with action after hash computation
+    audit.action = "TAMPERED_ACTION".to_string();
+    assert!(!EventLedger::verify_single_hash(&audit));
+}
+
+#[test]
+fn test_validate_commit_readiness_guards() {
+    // Only Approved status is committable
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Approved).is_ok());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Matched).is_ok());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Proposed).is_err());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::ReviewRequired).is_err());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Rejected).is_err());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Committed).is_err());
+}
+
+#[test]
+fn test_idempotency_key_duplicate_detection() {
+    let existing = vec![
+        Some("event-act-001-2026-08-28".to_string()),
+        Some("event-act-002-2026-08-28".to_string()),
+    ];
+
+    // Unique key passes
+    assert!(ValidationEngine::validate_idempotency_key(
+        Some("event-act-003-2026-08-28"),
+        &existing
+    )
+    .is_ok());
+
+    // Duplicate key fails
+    let dup_res =
+        ValidationEngine::validate_idempotency_key(Some("event-act-001-2026-08-28"), &existing);
+    assert!(dup_res.is_err());
+    assert!(matches!(
+        dup_res.unwrap_err(),
+        ValidationError::DuplicateEventKey { .. }
+    ));
+}
+
 // =============================================================================
 // Handler Simulation & KPI Logic Tests
 // =============================================================================
@@ -748,7 +908,7 @@ fn test_approve_proposal_flow_creates_committed_event_and_audit_entry() {
         created_at: Utc::now(),
     };
 
-    StateMachine::project_event(&mut state, &new_event, planned_finish);
+    let _ = StateMachine::project_event(&mut state, &new_event, planned_finish);
 
     let audit = EventLedger::create_audit_event(
         project_id,
@@ -897,4 +1057,102 @@ fn test_serde_event_type_serialization() {
 
     let deserialized: EventType = serde_json::from_str(&json_str).unwrap();
     assert_eq!(deserialized, EventType::Finish);
+}
+
+#[test]
+fn test_state_machine_autolink_direct_matched_to_committed() {
+    let transition =
+        StateMachine::transition_lifecycle(LifecycleStatus::Matched, LifecycleStatus::Committed);
+    assert!(transition.is_ok());
+    assert_eq!(transition.unwrap(), LifecycleStatus::Committed);
+}
+
+// =============================================================================
+// New Functionality Tests (Validation, Outbox, RBAC)
+// =============================================================================
+
+#[test]
+fn test_new_validation_rules() {
+    // 1. Negative quantity
+    assert!(ValidationEngine::validate_quantity_bounds(Some(-5.0)).is_err());
+    assert!(ValidationEngine::validate_quantity_bounds(Some(10.0)).is_ok());
+
+    // 2. Finish without start
+    let mut state = ActivityCurrentState {
+        activity_id: Uuid::new_v4(),
+        project_id: Uuid::new_v4(),
+        execution_status: ExecutionStatus::NotStarted,
+        actual_start_date: None,
+        actual_finish_date: None,
+        current_progress_pct: 0.0,
+        cumulative_quantity: 0.0,
+        last_event_id: None,
+        last_event_date: None,
+        is_critical_path_delayed: false,
+        variance_days: 0,
+        updated_at: Utc::now(),
+    };
+
+    // Fails because actual_start_date is None
+    assert!(ValidationEngine::validate_finish_without_start(&state).is_err());
+
+    // Succeeds after setting start date
+    state.actual_start_date = Some(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
+    assert!(ValidationEngine::validate_finish_without_start(&state).is_ok());
+}
+
+#[test]
+fn test_outbox_lifecycle() {
+    let project_id = Uuid::new_v4();
+    let activity_id = Uuid::new_v4();
+
+    let event = ActualEvent {
+        id: Uuid::new_v4(),
+        project_id,
+        activity_id,
+        observation_id: None,
+        match_proposal_id: None,
+        event_type: EventType::Finish,
+        actual_date: NaiveDate::from_ymd_opt(2026, 8, 28).unwrap(),
+        actual_progress_pct: Some(100.0),
+        actual_quantity: Some(1.0),
+        delay_reason: None,
+        delay_days: None,
+        lifecycle_status: LifecycleStatus::Committed,
+        verification_status: VerificationStatus::SystemVerified,
+        idempotency_key: None,
+        created_by: None,
+        created_at: Utc::now(),
+    };
+
+    // Create
+    let mut outbox = EventLedger::create_outbox_event(project_id, "TEST_EVENT", &event);
+    assert_eq!(outbox.status, "PENDING");
+
+    // Fail once
+    EventLedger::mark_outbox_failed(&mut outbox, 3);
+    assert_eq!(outbox.status, "RETRY");
+    assert_eq!(outbox.retry_count, 1);
+
+    // Get pending should include it
+    let outbox_list = [outbox.clone()];
+    let pending = EventLedger::get_pending_outbox_events(&outbox_list);
+    assert_eq!(pending.len(), 1);
+
+    // Fail max times
+    EventLedger::mark_outbox_failed(&mut outbox, 3);
+    EventLedger::mark_outbox_failed(&mut outbox, 3);
+    assert_eq!(outbox.status, "DEAD_LETTER");
+    assert_eq!(outbox.retry_count, 3);
+
+    // Get pending should ignore dead letters
+    let outbox_list2 = [outbox.clone()];
+    let pending2 = EventLedger::get_pending_outbox_events(&outbox_list2);
+    assert_eq!(pending2.len(), 0);
+
+    // Processed
+    outbox.status = "PENDING".to_string(); // reset
+    EventLedger::mark_outbox_processed(&mut outbox);
+    assert_eq!(outbox.status, "PROCESSED");
+    assert!(outbox.processed_at.is_some());
 }

@@ -1,279 +1,234 @@
-# NEXORA AI
+# NEXORA AI — Intelligent Infrastructure Project Intelligence & Schedule-Linking Platform
 
-Intelligent Data Capture & Schedule-Linking Layer for Infrastructure Project Management.
+**Real-Time Actual Progress Tracking & Planning-to-Execution Bridge**  
+*Smart India Hackathon (SIH) — Hardware & Software Edition*
 
-NEXORA AI is an evidence-driven platform that turns fragmented field execution data into structured, auditable actual-progress events for infrastructure projects. It connects messy site reality to the authoritative L5/L6 baseline schedule used by planners, discipline engineers, and project managers.
-
-## Why this project exists
-
-Infrastructure projects generate progress evidence through multiple channels: daily PDFs, discipline spreadsheets, site diaries, scanned documents, image uploads, and verbal updates. The schedule itself is formal and structured, but the execution information is fragmented, delayed, and often described in different terminology.
-
-NEXORA AI solves that mismatch by:
-
-- ingesting heterogeneous field inputs,
-- extracting activity-level execution evidence,
-- normalizing discipline-specific language,
-- matching observations to the correct schedule activity,
-- assigning confidence and evidence for every match,
-- routing ambiguous cases to human review,
-- preserving a full audit trail before any official schedule state is changed.
-
-The core trust model is:
-
-AI proposes → Rust validates → Human approves when required → PostgreSQL records → Audit proves.
+NEXORA AI is an industrial-grade project intelligence platform that converts unstructured, fragmented field execution evidence (daily site reports, subcontractor spreadsheets, voice logs, and inspection sheets) into structured, auditable actual-progress events for EPC infrastructure projects. It bridges the critical divide between field execution reality and authoritative L5/L6 baseline schedules (Oracle Primavera P6 / MS Project).
 
 ---
 
-## Product vision
+## 👥 Team Kasukabe
 
-Build a trusted digital layer that converts field execution evidence into schedule-linked project truth.
-
-The long-term outcome is a live, traceable, near-real-time view of actual progress that helps teams manage delays, forecast outcomes, and improve project control across civil, piping, mechanical, electrical, and instrumentation workstreams.
-
----
-
-## Primary use case
-
-A planner or project manager uploads a daily progress report, discipline spreadsheet, or field observation and receives:
-
-- extracted actual events,
-- candidate schedule matches,
-- confidence scores,
-- source evidence,
-- review queues for uncertain mappings,
-- a clean audit record of what was accepted or rejected.
-
-This reduces manual effort and improves the reliability of progress reconciliation.
+- **Sirwagya Shekhar** — Team Leader & Core Architecture
+- **Shravanee Yadav** — AI/ML & Embeddings Pipeline
+- **Urvashi Pali** — Data Architecture & Supabase Integration
+- **Avika Mishra** — Systems Engineering & Trust Plane
+- **Aditya Shende** — Frontend & Field Ledger UI
+- **Divyanshi Mewara** — Security, Compliance & Documentation
 
 ---
 
-## Core capabilities
+## 🏛️ Core Trust Architecture
 
-### 1. Heterogeneous ingestion
-Supports evidence from:
+NEXORA AI enforces a **zero-hallucination trust protocol**:
 
-- PDF reports
-- Excel and spreadsheet data
-- text updates
-- scanned images
-- voice-based supervisor input
-- field observations
+$$\text{AI Proposes} \longrightarrow \text{Rust Validates} \longrightarrow \text{Planner Approves} \longrightarrow \text{PostgreSQL Records} \longrightarrow \text{Audit Proves}$$
 
-### 2. Evidence extraction
-The system identifies activity-level facts such as:
-
-- actual start dates
-- actual finish dates
-- progress completion
-- delays and blockers
-- location and equipment context
-
-### 3. Terminology normalization
-Field reports may describe work using different terminology than the formal schedule. NEXORA AI normalizes these differences so a planner can reliably map real-world progress to the correct schedule activity.
-
-### 4. Semantic schedule matching
-Observations are compared against L5/L6 schedule activities using embeddings and lexical matching, enabling better candidate retrieval and higher-quality match proposals.
-
-### 5. Confidence and governance
-Each match carries confidence, explanation, and evidence so planners can review unclear cases without losing traceability.
-
-### 6. Trusted state transitions
-The AI layer never directly changes authoritative schedule state. A Rust validation layer enforces business rules and approval logic before events are committed.
-
-### 7. Auditability
-Every observation, match, approval, rejection, and state transition is preserved in an audit ledger for review and compliance.
-
----
-
-## Locked MVP decisions
-
-The MVP is intentionally constrained to a safer, demonstrable implementation baseline:
-
-- Storage: Supabase Storage only for the MVP
-- Queue: RabbitMQ required for MVP processing
-- Service communication: REST/JSON between Rust and Python
-- Database naming: work_observations, match_proposals, actual_events, approvals, audit_events
-- Event lifecycle: PROPOSED → MATCHED → REVIEW_REQUIRED → APPROVED → COMMITTED
-- Verification status: UNVERIFIED, SYSTEM_VERIFIED, HUMAN_VERIFIED
-- Embedding model: sentence-transformers/all-MiniLM-L6-v2 (384-dim)
-- Architecture flow: one authoritative process governs the whole build
-
----
-
-## Target users
-
-- Site supervisors
-- Discipline engineers
-- Planners and schedulers
-- Project managers
-- Auditors and governance stakeholders
-
----
-
-## System overview
-
-```text
-Users
-  ↓
-React / TypeScript frontend
-  ↓
-Rust trust layer
-  ├── Auth and RBAC
-  ├── Validation
-  ├── State machine
-  ├── Approval workflow
-  ├── Audit logging
-  └── Event persistence
-  ↓
-PostgreSQL + pgvector
-  ↓
-Python AI processing layer
-  ├── Extraction
-  ├── OCR / ASR
-  ├── NLP
-  ├── Embeddings
-  ├── Hybrid matching
-  └── Match proposal generation
-  ↓
-RabbitMQ for async jobs
-  ↓
-Supabase Storage for evidence files
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              NEXORA FRONTEND                                │
+│                     (React 19 + TypeScript + Vite + Tailwind 4)             │
+│                       Field Ledger UI — http://localhost:5173               │
+└───────────────────────┬─────────────────────────────────────────────────────┘
+                        │
+         ┌──────────────┴──────────────┐
+         ▼                             ▼
+┌──────────────────────────────┐ ┌───────────────────────────────────────────┐
+│     RUST TRUST PLANE API     │ │         PYTHON AI PROCESSING PLANE        │
+│   (Axum + Tokio + SHA-256)   │ │  (FastAPI + RapidFuzz + all-MiniLM-L6-v2) │
+│    http://localhost:3000     │ │           http://localhost:8000           │
+│   • Predecessor validation   │ │  • PDF/Audio/Spreadsheet extraction       │
+│   • Monotonic progress rules │ │  • 384-dim semantic embedding search      │
+│   • Cryptographic audit logs │ │  • Normalized entity parsing              │
+└──────────────┬───────────────┘ └─────────────────────┬─────────────────────┘
+               │                                       │
+               └───────────────────┬───────────────────┘
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PERSISTENCE & STORAGE (SUPABASE CLOUD)                   │
+│             PostgreSQL 16 + pgvector • Storage Bucket: evidence-documents   │
+│                 Project: vitxgshrjpyvczidzvto.supabase.co                   │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Standard application flow
+## 🚀 Key Platform Capabilities
 
-1. A user uploads source evidence.
-2. Rust creates a document or observation record.
-3. The file is stored in Supabase Storage.
-4. A processing job is queued.
-5. Python extracts text or structured data from the source.
-6. Observations are normalized and enriched.
-7. Schedule activities are retrieved for candidate matching.
-8. Matching generates one or more proposals.
-9. Rust validates the proposal against business rules.
-10. High-confidence matches are auto-linked.
-11. Ambiguous results are routed to planner review.
-12. Approved events are committed and audited.
+### 1. Heterogeneous Field Evidence Ingestion
+- Ingests free-text daily progress logs, structured Excel/CSV inspection sheets, multi-page PDFs, and audio recordings into Supabase Storage (`evidence-documents`).
+- Real-time 5-stage pipeline tracker visualizes parsing, extraction, embedding generation, trust verification, and ledger commitment.
 
----
+### 2. Hybrid AI Schedule Matching Engine
+- **Lexical Matching (40%)**: RapidFuzz token sort and partial string matching on activity codes, equipment tags, and line numbers.
+- **Semantic Search (40%)**: 384-dimensional dense vector embeddings (`sentence-transformers/all-MiniLM-L6-v2`) with pgvector cosine similarity search.
+- **Context Boost (20%)**: Spatial, discipline, and WBS path alignment bonuses.
 
-## Technology stack
+### 3. Rust-Powered Zero-Hallucination Trust Plane
+- Enforces strict topological dependency rules (predecessor completion requirements).
+- Prevents impossible timeline anomalies (e.g., negative duration, progress rollback, finish date preceding start date).
+- Deterministic state machine: `PROPOSED` &rarr; `MATCHED` &rarr; `REVIEW_REQUIRED` &rarr; `APPROVED` &rarr; `COMMITTED`.
 
-### Frontend
-- React
-- TypeScript
-- Tailwind CSS
+### 4. High-Density Planner Review Console
+- 3-column split view for human-in-the-loop review of ambiguous proposals.
+- Score decomposition visualizer (Lexical, Semantic, Context).
+- Single approve, batch approve, activity override selector, and rejection with mandatory engineering rationale.
 
-### Core backend
-- Rust
-- Axum
-- Tokio
-- SQLx
-- Serde
-- Tracing
+### 5. Cryptographic SHA-256 Audit Trail
+- Every state transition is cryptographically chained to the previous block's SHA-256 hash.
+- Live verification action (`/api/v1/projects/:id/audit-trail/verify`) detects any unauthorized database tampering.
+- Interactive before/after JSON diff inspection.
 
-### AI and processing layer
-- Python
-- FastAPI
-- Pydantic v2
-- Polars / Pandas
-- PyMuPDF
-- openpyxl
-- spaCy
-- RapidFuzz
-- sentence-transformers/all-MiniLM-L6-v2
-
-### Data and infrastructure
-- PostgreSQL
-- pgvector
-- Redis
-- RabbitMQ
-- Supabase Storage
-- Docker / Docker Compose
+### 6. Oracle Primavera P6 Export & PMIS Sync
+- One-click export to standardized Oracle Primavera P6 XML (`V24` schema).
+- Real-time CSV schedule variance download and JSON PMIS sync payloads.
 
 ---
 
-## Data model principles
+## ⚡ Quick Start (Local Setup)
 
-The platform is centered on a trusted event ledger. It explicitly separates:
+### 1. Prerequisites
+- **Node.js 20+** & **npm 10+**
+- **Rust 1.78+** (`cargo`)
+- **Python 3.11+** & **uv**
+- **Supabase CLI** (`npx supabase`)
 
-- schedule data,
-- field observations,
-- match proposals,
-- actual events,
-- approvals,
-- audit records.
+### 2. Clone and Configure Environment
+```bash
+git clone https://github.com/urvashislash/nexora-ai.git
+cd nexora-ai
 
-This preserves a clear distinction between raw evidence, AI-generated suggestions, and verified project truth.
+# Copy environment configurations
+cp .env.example .env
+cp frontend/.env.example frontend/.env
+```
 
----
+### 3. Start Local Services
 
-## Key project outcomes
+Open 3 terminal sessions:
 
-NEXORA AI is designed to deliver:
+```bash
+# Terminal 1: Rust Backend API (Port 3000)
+cd backend
+cargo run
 
-- faster reconciliation between field reality and the project schedule,
-- more transparent actual-progress reporting,
-- reduced manual planner effort,
-- better delay visibility and progress analysis,
-- auditable traceability for every schedule-linked event,
-- a practical, production-oriented SIH demo with governance value.
+# Terminal 2: Python AI Processing Service (Port 8000)
+cd ai_service
+uv venv && uv pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app --port 8000 --host 0.0.0.0
 
----
+# Terminal 3: React Frontend Console (Port 5173)
+cd frontend
+npm install
+npm run dev
+```
 
-## Demo acceptance criteria
+### 4. Verify System Health
+Run the automated multi-service health probe:
+```bash
+./scripts/health_probe.sh local
+```
 
-The prototype should show that it can:
-
-- upload a daily progress report,
-- ingest a discipline spreadsheet,
-- extract actual field observations,
-- normalize terminology,
-- match to the proper L5/L6 activity,
-- show confidence and candidate alternatives,
-- present evidence for each match,
-- auto-link high-confidence events,
-- route uncertain cases to planner review,
-- reject invalid events,
-- persist official event data,
-- generate audit records,
-- update project metrics,
-- export or project schedule-linked outputs.
-
----
-
-## Project documentation
-
-This repository contains the design and technical baseline for the solution:
-
-- [PRD.md](PRD.md) — product requirements and MVP scope
-- [TRD.md](TRD.md) — technical architecture and locked requirements
-- [Application_Flow.md](Application_Flow.md) — workflow diagrams and system stages
-- [Backend_Schema.md](Backend_Schema.md) — database model and domain schema
-- [Implementation_Plan.md](Implementation_Plan.md) — milestone plan and build sequence
+Expected Output:
+```text
+=============================================================================
+ NEXORA AI — System Health & Availability Probe [local]
+=============================================================================
+• Probing Rust Backend API (http://localhost:3000/api/v1/health)... ✅ HEALTHY
+• Probing Python AI Service (http://localhost:8000/health)... ✅ HEALTHY
+• Probing Frontend Web App (http://localhost:5173)... ✅ HEALTHY
+• Probing Supabase / PostgreSQL Connection... ✅ CONNECTED
+=============================================================================
+🎉 System status: ALL PROBED SERVICES OPERATIONAL
+```
 
 ---
 
-## Repository status
+## 🧪 Smart India Hackathon (SIH) Demo Scenarios
 
-This repository currently contains the design and technical baseline for the NEXORA AI prototype, rather than a completed end-to-end application implementation. The structure is intentionally aligned with a production-ready government/PSU architecture while remaining feasible for an SIH prototype.
+The platform includes 5 built-in demonstration scenarios located on the **Evidence Inbox** page:
 
----
-
-## Suggested next steps
-
-1. Create the monorepo structure for frontend, Rust, and Python services.
-2. Set up Docker Compose for local orchestration.
-3. Implement the PostgreSQL schema and migrations.
-4. Build the Rust trust layer and authorization model.
-5. Implement the Python extraction and matching pipeline.
-6. Create the review dashboard and project workflows.
-7. Validate the full demo flow with seeded project data.
+| Scenario | Input Evidence | Expected Behavior |
+|---|---|---|
+| **Scenario A: Exact Match** | *"P-101 completed successfully. Hydro test pack holding pressure maintained at 42.5 bar for 4 hours."* | **>90% Auto-Link**: Matches `PIP-2401`. Rust Trust Plane commits 100% completion automatically. |
+| **Scenario B: Semantic Match** | *"spool erection complete on Pipe Rack B Tier 2 with alignment and bolt tightening done."* | **Semantic Normalization**: 384-d embedding matches `PIP-2400` despite colloquial wording. |
+| **Scenario C: Ambiguous Match** | *"Hydrostatic pressure testing completed along Interconnecting Pipe Rack B headers yesterday."* | **Planner Review Queue**: Matches both `PIP-2401` and `PIP-2402` (76% confidence). Routed to Planner Review. |
+| **Scenario D: Unmatched Scope** | *"Emergency dewatering and deep foundation pit excavation carried out near Substation 4."* | **Unmatched Isolation**: Scope does not exist in baseline L5 schedule; isolated for scope adjustment without hallucinating. |
+| **Scenario E: Date Inversion** | *"Line P-101 testing finished on 20-Aug-2026, work started on 28-Aug-2026."* | **Trust Plane Rejection**: Rejects impossible timeline (`finish < start`) with `VALIDATION_ERROR`. |
 
 ---
 
-## License
+## 📁 Repository Structure
 
-This project is currently intended for prototype and hackathon use. Add a production-appropriate license before public or commercial deployment.
+```text
+nexora-ai/
+├── backend/                         # Rust Axum Trust Plane
+│   ├── src/
+│   │   ├── api/                     # Route handlers & RBAC middleware
+│   │   ├── domain/                  # Trust validation, state machine & SHA-256 ledger
+│   │   └── main.rs                  # Axum HTTP server entry point
+│   ├── Cargo.toml
+│   └── Dockerfile
+├── ai_service/                      # Python AI Extraction & Matching Plane
+│   ├── app/
+│   │   ├── api/                     # FastAPI extraction & matching endpoints
+│   │   ├── services/                # Hybrid matcher, embeddings, document parser
+│   │   ├── workers/                 # RabbitMQ background queue worker
+│   │   └── main.py                  # FastAPI application entry point
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/                        # React 19 Frontend (Field Ledger UI)
+│   ├── src/
+│   │   ├── components/              # ActivityDrawer, EvidenceDrawer, Sidebar
+│   │   ├── pages/                   # Dashboard, Evidence, Review, Explorer, Audit, Export
+│   │   ├── lib/                     # API client & Supabase Cloud connectors
+│   │   └── App.tsx                  # Master application shell
+│   ├── nginx.conf                   # Hardened production Nginx configuration
+│   └── Dockerfile
+├── database/                        # Database Schema & Migrations
+│   ├── migrations/                  # 001 to 007 SQL migrations (PostgreSQL + pgvector)
+│   └── seeds/                       # Demo refinery project seed data
+├── scripts/                         # Operational & DevOps CLI Helpers
+│   ├── health_probe.sh              # Multi-tier health probe
+│   ├── link_supabase.sh             # Cloud database connector
+│   ├── deploy_to_supabase.sh        # Migration deployment script
+│   ├── backup_db.sh                 # Database backup utility
+│   ├── restore_db.sh                # Database restore utility
+│   └── rollback.sh                  # Emergency container rollback script
+├── docs/                            # Comprehensive Technical Documentation
+│   ├── developer_onboarding.md       # Local setup & troubleshooting guide
+│   ├── product_overview_and_demo.md # Product architecture & SIH demo script
+│   ├── support_and_operations_checklist.md # Production support & escalation
+│   ├── project_readiness_checklist.md # Final release gate sign-off matrix
+│   ├── monitoring_and_alerts.md     # SLIs, SLOs & alerting thresholds
+│   ├── deployment_runbook.md        # Zero-downtime deployment procedure
+│   ├── incident_runbook.md          # Disaster recovery runbook
+│   ├── rbac_and_access_control.md   # Role-based access specifications
+│   ├── secrets_management.md        # Vault & environment security
+│   └── audit_retention_policy.md    # Cryptographic audit governance
+├── docker-compose.yml               # Local orchestration
+├── docker-compose.prod.yml          # Hardened production orchestration
+└── plan.md                          # Master project implementation roadmap
+```
+
+---
+
+## 📚 Technical Documentation Index
+
+- **[100% Free-Tier Deployment Guide](docs/free_tier_deployment_guide.md)**: Zero-cost deployment blueprint (Vercel, Render, HF Spaces, Supabase, CloudAMQP, Upstash).
+- **[Developer Onboarding Guide](docs/developer_onboarding.md)**: Local setup, environment configuration, and troubleshooting.
+- **[Product Overview & Demo Guide](docs/product_overview_and_demo.md)**: End-to-end user flows and SIH demo walkthrough.
+- **[Production Readiness Checklist](docs/project_readiness_checklist.md)**: Formal audit and release gate sign-off.
+- **[Support & Operations Checklist](docs/support_and_operations_checklist.md)**: Routine maintenance, escalation matrix, and SLAs.
+- **[Monitoring & Alerting Guide](docs/monitoring_and_alerts.md)**: Telemetry metrics, SLIs/SLOs, and alerting rules.
+- **[Deployment Runbook](docs/deployment_runbook.md)**: Zero-downtime container and database deployment steps.
+- **[Incident Response Runbook](docs/incident_runbook.md)**: Recovery protocols for queues, storage, and trust violations.
+- **[RBAC & Access Control](docs/rbac_and_access_control.md)**: Project authorization and RLS governance.
+- **[Secrets Management Guide](docs/secrets_management.md)**: Secure credential isolation policies.
+- **[Audit Retention Policy](docs/audit_retention_policy.md)**: Cryptographic ledger retention and partitioning.
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
