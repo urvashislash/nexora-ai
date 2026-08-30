@@ -6,7 +6,7 @@ create extension if not exists "vector";
 create extension if not exists "pg_trgm";
 
 create table if not exists projects (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     code text not null unique,
     name text not null,
     description text,
@@ -17,7 +17,7 @@ create table if not exists projects (
 );
 
 create table if not exists project_members (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     user_id uuid not null,
     email text not null,
@@ -29,7 +29,7 @@ create table if not exists project_members (
 );
 
 create table if not exists schedule_versions (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     version_number integer not null,
     version_label text not null,
@@ -43,7 +43,7 @@ create table if not exists schedule_versions (
 );
 
 create table if not exists wbs_nodes (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     schedule_version_id uuid not null references schedule_versions(id) on delete cascade,
     parent_id uuid references wbs_nodes(id) on delete cascade,
@@ -56,7 +56,7 @@ create table if not exists wbs_nodes (
 );
 
 create table if not exists activities (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     schedule_version_id uuid not null references schedule_versions(id) on delete cascade,
     wbs_id uuid not null references wbs_nodes(id) on delete restrict,
@@ -81,7 +81,7 @@ create table if not exists activities (
 );
 
 create table if not exists activity_dependencies (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     schedule_version_id uuid not null references schedule_versions(id) on delete cascade,
     predecessor_id uuid not null references activities(id) on delete cascade,
     successor_id uuid not null references activities(id) on delete cascade,
@@ -92,7 +92,7 @@ create table if not exists activity_dependencies (
 );
 
 create table if not exists documents (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     filename text not null,
     mime_type text not null,
@@ -109,7 +109,7 @@ create table if not exists documents (
 );
 
 create table if not exists document_jobs (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     document_id uuid not null references documents(id) on delete cascade,
     job_type text not null check (job_type in ('PARSE', 'OCR', 'ASR', 'EXTRACT', 'NORMALIZE', 'EMBED', 'MATCH')),
     status text not null default 'PENDING' check (status in ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'RETRYING')),
@@ -123,7 +123,7 @@ create table if not exists document_jobs (
 );
 
 create table if not exists document_extractions (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     document_id uuid not null references documents(id) on delete cascade,
     extraction_version text not null default 'v1.0',
     extracted_text text,
@@ -136,7 +136,7 @@ create table if not exists document_extractions (
 );
 
 create table if not exists work_observations (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     document_id uuid references documents(id) on delete set null,
     reported_by uuid,
@@ -157,7 +157,7 @@ create table if not exists work_observations (
 );
 
 create table if not exists match_proposals (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     observation_id uuid not null references work_observations(id) on delete cascade,
     activity_id uuid not null references activities(id) on delete cascade,
@@ -175,7 +175,7 @@ create table if not exists match_proposals (
 );
 
 create table if not exists actual_events (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     activity_id uuid not null references activities(id) on delete restrict,
     observation_id uuid references work_observations(id) on delete set null,
@@ -209,7 +209,7 @@ create table if not exists activity_current_state (
 );
 
 create table if not exists approvals (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     event_id uuid references actual_events(id) on delete cascade,
     proposal_id uuid references match_proposals(id) on delete cascade,
@@ -222,7 +222,7 @@ create table if not exists approvals (
 );
 
 create table if not exists audit_events (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid references projects(id) on delete cascade,
     entity_type text not null,
     entity_id uuid not null,
@@ -238,7 +238,7 @@ create table if not exists audit_events (
 );
 
 create table if not exists outbox_events (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     aggregate_type text not null,
     aggregate_id uuid not null,
@@ -290,7 +290,8 @@ alter table approvals enable row level security;
 alter table audit_events enable row level security;
 alter table outbox_events enable row level security;
 
-create policy if not exists project_members_access_policy on projects
+drop policy if exists project_members_access_policy on projects;
+create policy project_members_access_policy on projects
 for all
 using (
     id in (
@@ -298,7 +299,8 @@ using (
     )
 );
 
-create policy if not exists activities_access_policy on activities
+drop policy if exists activities_access_policy on activities;
+create policy activities_access_policy on activities
 for all
 using (
     project_id in (
@@ -306,7 +308,8 @@ using (
     )
 );
 
-create policy if not exists documents_access_policy on documents
+drop policy if exists documents_access_policy on documents;
+create policy documents_access_policy on documents
 for all
 using (
     project_id in (
@@ -314,7 +317,8 @@ using (
     )
 );
 
-create policy if not exists match_proposals_access_policy on match_proposals
+drop policy if exists match_proposals_access_policy on match_proposals;
+create policy match_proposals_access_policy on match_proposals
 for all
 using (
     project_id in (
@@ -322,7 +326,8 @@ using (
     )
 );
 
-create policy if not exists actual_events_access_policy on actual_events
+drop policy if exists actual_events_access_policy on actual_events;
+create policy actual_events_access_policy on actual_events
 for all
 using (
     project_id in (

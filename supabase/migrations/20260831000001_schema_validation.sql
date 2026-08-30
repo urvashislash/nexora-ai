@@ -82,7 +82,7 @@ $$;
 
 -- 5. activity_lineage table (was missing from Supabase migration)
 create table if not exists activity_lineage (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     previous_activity_id uuid not null,
     new_activity_id uuid not null,
@@ -93,7 +93,7 @@ create table if not exists activity_lineage (
 
 -- 6. terminology table (was missing from Supabase migration)
 create table if not exists terminology (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     project_id uuid not null references projects(id) on delete cascade,
     discipline text not null,
     synonym_term text not null,

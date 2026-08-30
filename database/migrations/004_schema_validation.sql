@@ -113,7 +113,7 @@ ALTER TABLE outbox_events
 -- ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS activity_lineage (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     previous_activity_id UUID NOT NULL,
     new_activity_id UUID NOT NULL,
@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS activity_lineage (
 -- ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS terminology (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     discipline TEXT NOT NULL,
     synonym_term TEXT NOT NULL,
