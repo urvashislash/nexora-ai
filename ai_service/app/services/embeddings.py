@@ -1,15 +1,23 @@
 import hashlib
 import logging
 import math
+from typing import Any, Literal, Protocol
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_model = None
+FallbackEmbeddingModel = Literal["FALLBACK"]
 
 
-def get_embedding_model():
+class EmbeddingModel(Protocol):
+    def encode(self, texts: list[str], normalize_embeddings: bool) -> Any: ...
+
+
+_model: EmbeddingModel | FallbackEmbeddingModel | None = None
+
+
+def get_embedding_model() -> EmbeddingModel | FallbackEmbeddingModel:
     global _model
     if _model is None:
         try:
