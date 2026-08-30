@@ -208,23 +208,23 @@ Implementation and verification details are documented in `ai_service/README.md`
 ## 9. Security, Governance, and Compliance
 
 ### 9.1 Secrets management
-- Move all keys and secrets into a secure secret manager or environment vault.
-- Avoid hardcoding credentials in code or repo files.
-- Rotate keys periodically and keep a change log.
+- [x] Move all keys and secrets into a secure secret manager or environment vault.
+- [x] Avoid hardcoding credentials in code or repo files.
+- [x] Rotate keys periodically and keep a change log.
 
 ### 9.2 RBAC and project access control
-- Define strong access boundaries for project roles and cross-project data isolation.
-- Review all user flows for unauthorized access or leaked document visibility.
+- [x] Define strong access boundaries for project roles and cross-project data isolation.
+- [x] Review all user flows for unauthorized access or leaked document visibility.
 
 ### 9.3 Audit retention and compliance
-- Define retention policy for audit logs and evidence documents.
-- Confirm legal and operational rules for project data handling.
-- Document governance policy for external deployment and client sharing.
+- [x] Define retention policy for audit logs and evidence documents.
+- [x] Confirm legal and operational rules for project data handling.
+- [x] Document governance policy for external deployment and client sharing.
 
 ### 9.4 Security review
-- Review input validation, file upload controls, SQL injection risk, and auth boundaries.
-- Harden API endpoints against abuse and malformed requests.
-- Add rate limiting and request validation for sensitive endpoints.
+- [x] Review input validation, file upload controls, SQL injection risk, and auth boundaries.
+- [x] Harden API endpoints against abuse and malformed requests.
+- [x] Add rate limiting and request validation for sensitive endpoints.
 
 ## 10. Documentation and Handover
 

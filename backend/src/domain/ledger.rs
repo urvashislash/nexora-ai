@@ -1,8 +1,37 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use super::models::{ActualEvent, AuditEvent, OutboxEvent};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditRetentionPolicy {
+    pub hot_retention_days: i64,
+    pub statutory_retention_days: i64,
+    pub enforce_legal_hold: bool,
+}
+
+impl Default for AuditRetentionPolicy {
+    fn default() -> Self {
+        Self {
+            hot_retention_days: 90,
+            statutory_retention_days: 2555, // 7 years statutory construction requirement
+            enforce_legal_hold: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditArchiveBatch {
+    pub batch_id: Uuid,
+    pub project_id: Uuid,
+    pub record_count: usize,
+    pub root_hash: String,
+    pub oldest_record_at: DateTime<Utc>,
+    pub newest_record_at: DateTime<Utc>,
+    pub archived_at: DateTime<Utc>,
+}
 
 pub struct EventLedger;
 
@@ -134,6 +163,60 @@ impl EventLedger {
         recomputed == event.payload_hash
     }
 
+    /// Evaluates audit events for archival under the retention policy.
+    ///
+    /// Ensures that the chain is 100% verified prior to producing an archive batch.
+    pub fn prepare_audit_archive(
+        project_id: Uuid,
+        chain: &[AuditEvent],
+        policy: &AuditRetentionPolicy,
+        has_legal_hold: bool,
+    ) -> Result<Option<(AuditArchiveBatch, Vec<AuditEvent>, Vec<AuditEvent>)>, String> {
+        if has_legal_hold && policy.enforce_legal_hold {
+            return Err("Cannot archive audit events while project is under active legal hold".to_string());
+        }
+
+        if let Err(broken_idx) = Self::verify_chain_integrity(chain) {
+            return Err(format!(
+                "Integrity verification failed at record index {}. Archival aborted.",
+                broken_idx
+            ));
+        }
+
+        let cutoff = Utc::now() - Duration::days(policy.hot_retention_days);
+
+        let mut to_archive = Vec::new();
+        let mut to_retain_hot = Vec::new();
+
+        for event in chain {
+            if event.created_at < cutoff {
+                to_archive.push(event.clone());
+            } else {
+                to_retain_hot.push(event.clone());
+            }
+        }
+
+        if to_archive.is_empty() {
+            return Ok(None);
+        }
+
+        let oldest = to_archive.first().map(|e| e.created_at).unwrap_or_else(Utc::now);
+        let newest = to_archive.last().map(|e| e.created_at).unwrap_or_else(Utc::now);
+        let root_hash = to_archive.last().map(|e| e.payload_hash.clone()).unwrap_or_default();
+
+        let batch = AuditArchiveBatch {
+            batch_id: Uuid::new_v4(),
+            project_id,
+            record_count: to_archive.len(),
+            root_hash,
+            oldest_record_at: oldest,
+            newest_record_at: newest,
+            archived_at: Utc::now(),
+        };
+
+        Ok(Some((batch, to_archive, to_retain_hot)))
+    }
+
     /// Prepares an outbox event for reliable asynchronous delivery to external PMIS / exports
     pub fn create_outbox_event(
         project_id: Uuid,
@@ -178,7 +261,6 @@ impl EventLedger {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,5 +274,14 @@ mod tests {
         let hash2 = EventLedger::compute_hash(&entity_id, "CREATE", &payload, None, &ts);
         assert_eq!(hash1, hash2);
         assert_eq!(hash1.len(), 64);
+    }
+
+    #[test]
+    fn test_legal_hold_blocks_archival() {
+        let project_id = Uuid::new_v4();
+        let policy = AuditRetentionPolicy::default();
+        let result = EventLedger::prepare_audit_archive(project_id, &[], &policy, true);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("legal hold"));
     }
 }

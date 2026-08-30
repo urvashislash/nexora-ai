@@ -7,12 +7,13 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use super::handlers::{
-    add_proposal_comment, approve_proposal, batch_approve_proposals, create_observation,
-    export_schedule_p6, get_activities, get_audit_trail, get_dashboard, get_events,
-    get_observations, get_review_queue, health_check, ingest_observations, override_proposal,
-    reject_proposal, verify_audit_chain, AppState,
+    add_proposal_comment, approve_proposal, archive_audit_trail, batch_approve_proposals,
+    create_observation, export_schedule_p6, get_activities, get_audit_retention_policy,
+    get_audit_trail, get_dashboard, get_events, get_observations, get_review_queue, health_check,
+    ingest_observations, override_proposal, reject_proposal, set_legal_hold, verify_audit_chain,
+    AppState,
 };
-use super::middleware::{require_permission, Permission};
+use super::middleware::{require_permission, security_headers_middleware, Permission};
 
 pub fn create_router(state: AppState) -> Router {
     let cors = CorsLayer::new()
@@ -69,8 +70,26 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/projects/:id/audit-trail/verify",
             get(verify_audit_chain),
         )
+        .route(
+            "/api/v1/projects/:id/audit-trail/retention-policy",
+            get(get_audit_retention_policy),
+        )
         .layer(middleware::from_fn(move |req, next| {
             require_permission(req, next, Permission::ViewAudit)
+        }));
+
+    // --- Retention & Legal Hold Governance routes (ManageRetention permission) ---
+    let governance_routes = Router::new()
+        .route(
+            "/api/v1/projects/:id/audit-trail/legal-hold",
+            post(set_legal_hold),
+        )
+        .route(
+            "/api/v1/projects/:id/audit-trail/archive",
+            post(archive_audit_trail),
+        )
+        .layer(middleware::from_fn(move |req, next| {
+            require_permission(req, next, Permission::ManageRetention)
         }));
 
     // --- Export routes (ExportSchedule permission) ---
@@ -80,7 +99,7 @@ pub fn create_router(state: AppState) -> Router {
             require_permission(req, next, Permission::ExportSchedule)
         }));
 
-    // Merge all route groups
+    // Merge all route groups and apply global security middlewares
     Router::new()
         .merge(public_routes)
         .merge(view_project_routes)
@@ -88,8 +107,10 @@ pub fn create_router(state: AppState) -> Router {
         .merge(approval_routes)
         .merge(override_routes)
         .merge(audit_routes)
+        .merge(governance_routes)
         .merge(export_routes)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
+        .layer(middleware::from_fn(security_headers_middleware))
         .with_state(state)
 }
