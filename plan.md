@@ -169,9 +169,9 @@ Implementation and verification details are documented in `ai_service/README.md`
 - [x] Track precision, recall, and false-positive rates for matching quality.
 
 ### 7.4 End-to-end validation
-- Run end-to-end scenarios for a realistic project lifecycle.
-- Validate review approval and reject flows with actual data.
-- Test from dashboard through approval and event output generation.
+- [x] Run end-to-end scenarios for a realistic project lifecycle.
+- [x] Validate review approval and reject flows with actual data.
+- [x] Test from dashboard through approval and event output generation.
 
 ### 7.5 Regression testing
 - Add automated checks for API contracts and database schema changes.
