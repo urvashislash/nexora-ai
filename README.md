@@ -556,4 +556,8 @@ This repository is best described as a strong prototype foundation and architect
 
 ## License
 
-This project is currently intended for prototype and hackathon use. Add a production-appropriate license before public or commercial deployment.
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for the full text.
+
+The MIT license allows reuse, modification, and distribution with attribution, making it a practical choice for a prototype project and a clean base for future extension or team collaboration.
