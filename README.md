@@ -548,48 +548,36 @@ The code review MCP helps catch architecture, validation, and operational risks 
 
 ---
 
-## Local Supabase quickstart
+## Cloud Supabase quickstart
 
-To use the local Supabase instance for development, Docker Desktop or Podman must be installed and available on PATH.
+The recommended path for this project is to use a hosted Supabase project instead of running the local stack.
 
-1. Install Docker Desktop or Podman.
-2. Start the local Supabase stack:
-
-```bash
-npm run supabase:start
-```
-
-3. Check the local instance status and capture the generated API URL and anon key:
-
-```bash
-npm run supabase:status
-```
-
-4. Reset or reapply the schema when needed:
-
-```bash
-npm run supabase:reset
-# or
-npm run supabase:migrate
-```
-
-5. Copy the local values into the frontend env and project secret config:
+1. Create or open a Supabase project in the cloud dashboard.
+2. Copy the project URL and anon key from the Supabase dashboard.
+3. Create a `.env` file from [.env.example](.env.example) and replace the placeholders:
 
 ```env
-SUPABASE_URL=http://127.0.0.1:54321
-SUPABASE_ANON_KEY=your-local-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-local-service-role-key
-VITE_SUPABASE_URL=http://127.0.0.1:54321
-VITE_SUPABASE_ANON_KEY=your-local-anon-key
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_ANON_KEY=<your-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
 ```
 
+4. Apply the schema to the remote project:
+
+```bash
+supabase db push --project-ref <project-ref>
+```
+
+5. Run the seed and storage setup SQL in the Supabase SQL editor or as migration files against the cloud project.
 6. Start the app:
 
 ```bash
 npm run dev:frontend
 ```
 
-This repo already includes the database migration, seed scripts, storage setup, and frontend client wiring. The remaining runtime requirement is simply a working local Docker/Podman environment so `supabase start` can boot the stack.
+The repo already includes the migration, seed, storage, and client wiring for the cloud path. Local Docker-based Supabase remains optional for debugging and is not required for normal development.
 
 ---
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './pages/Dashboard';
 import { DocumentUpload } from './pages/DocumentUpload';
@@ -6,6 +6,7 @@ import { ReviewQueue } from './pages/ReviewQueue';
 import { ScheduleExplorer } from './pages/ScheduleExplorer';
 import { AuditTrail } from './pages/AuditTrail';
 import { ScheduleExport } from './pages/ScheduleExport';
+import { getSupabaseStatus, supabase } from './lib/supabase';
 import type { 
   ActivityWithState, 
   AuditEvent, 
@@ -16,6 +17,32 @@ import type {
 
 export function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function checkSupabase() {
+      try {
+        const { error } = await supabase.auth.getSession();
+        if (mounted) {
+          setSupabaseConnected(!error);
+        }
+      } catch {
+        if (mounted) {
+          setSupabaseConnected(false);
+        }
+      }
+    }
+
+    checkSupabase();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const supabaseStatus = getSupabaseStatus();
 
   // Initial Demo Activities
   const [activities, setActivities] = useState<ActivityWithState[]>([
@@ -409,6 +436,12 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      <div className="border-b border-slate-800 bg-slate-900/80 px-4 py-2 text-xs text-slate-300 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <span>Supabase status: {supabaseConnected ? 'connected' : 'local fallback'}</span>
+          <span className="text-slate-400">{supabaseStatus.url}</span>
+        </div>
+      </div>
       <Navbar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
