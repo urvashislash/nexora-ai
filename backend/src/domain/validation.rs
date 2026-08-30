@@ -104,6 +104,25 @@ impl ValidationEngine {
         }
         Ok(())
     }
+
+    /// Validates that an idempotency key is unique and not already present in existing events
+    pub fn validate_idempotency_key(
+        proposed_key: Option<&str>,
+        existing_keys: &[Option<String>],
+    ) -> Result<(), ValidationError> {
+        if let Some(key) = proposed_key {
+            for existing in existing_keys {
+                if let Some(e) = existing {
+                    if e == key {
+                        return Err(ValidationError::DuplicateEventKey {
+                            idempotency_key: key.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -135,5 +154,13 @@ mod tests {
         assert!(ValidationEngine::validate_progress(Some(100.0)).is_ok());
         assert!(ValidationEngine::validate_progress(Some(-5.0)).is_err());
         assert!(ValidationEngine::validate_progress(Some(105.0)).is_err());
+    }
+
+    #[test]
+    fn test_idempotency_key_validation() {
+        let existing = vec![Some("key-1".to_string())];
+        assert!(ValidationEngine::validate_idempotency_key(Some("key-2"), &existing).is_ok());
+        assert!(ValidationEngine::validate_idempotency_key(Some("key-1"), &existing).is_err());
+        assert!(ValidationEngine::validate_idempotency_key(None, &existing).is_ok());
     }
 }

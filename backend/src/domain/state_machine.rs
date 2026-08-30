@@ -51,6 +51,31 @@ impl StateMachine {
         }
     }
 
+    /// Guard: verifies that an event's lifecycle status is `Approved` before
+    /// allowing transition to `Committed`. Returns error if the event is not
+    /// in a committable state.
+    pub fn validate_commit_readiness(
+        current_status: LifecycleStatus,
+    ) -> Result<(), StateMachineError> {
+        if current_status == LifecycleStatus::Approved {
+            Ok(())
+        } else {
+            Err(StateMachineError::CannotCommit(current_status))
+        }
+    }
+
+    /// Performs a lifecycle transition and returns (before_state, after_state)
+    /// as JSON values suitable for direct use in audit event creation.
+    pub fn transition_with_audit(
+        current: LifecycleStatus,
+        target: LifecycleStatus,
+    ) -> Result<(LifecycleStatus, serde_json::Value, serde_json::Value), StateMachineError> {
+        let new_status = Self::transition_lifecycle(current, target)?;
+        let before = serde_json::json!({"lifecycle_status": format!("{:?}", current)});
+        let after = serde_json::json!({"lifecycle_status": format!("{:?}", new_status)});
+        Ok((new_status, before, after))
+    }
+
     /// Projects an approved/committed actual event onto the activity's current execution state
     pub fn project_event(
         current_state: &mut ActivityCurrentState,
@@ -152,5 +177,23 @@ mod tests {
             LifecycleStatus::Proposed,
         );
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_validate_commit_readiness() {
+        assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Approved).is_ok());
+        assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Proposed).is_err());
+    }
+
+    #[test]
+    fn test_transition_with_audit() {
+        let (status, before, after) = StateMachine::transition_with_audit(
+            LifecycleStatus::Matched,
+            LifecycleStatus::Approved,
+        )
+        .unwrap();
+        assert_eq!(status, LifecycleStatus::Approved);
+        assert_eq!(before["lifecycle_status"], "Matched");
+        assert_eq!(after["lifecycle_status"], "Approved");
     }
 }

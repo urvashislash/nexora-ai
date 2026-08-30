@@ -602,8 +602,9 @@ fn test_validate_progress_boundary_values() {
 fn test_audit_hash_deterministic_across_calls() {
     let entity_id = Uuid::new_v4();
     let payload = json!({"status": "COMPLETED", "progress": 100.0});
-    let hash_a = EventLedger::compute_hash(&entity_id, "APPROVE", &payload, Some("prev_123"));
-    let hash_b = EventLedger::compute_hash(&entity_id, "APPROVE", &payload, Some("prev_123"));
+    let ts = Utc::now();
+    let hash_a = EventLedger::compute_hash(&entity_id, "APPROVE", &payload, Some("prev_123"), &ts);
+    let hash_b = EventLedger::compute_hash(&entity_id, "APPROVE", &payload, Some("prev_123"), &ts);
     assert_eq!(hash_a, hash_b);
 }
 
@@ -612,8 +613,9 @@ fn test_audit_hash_differs_when_payload_changes() {
     let entity_id = Uuid::new_v4();
     let p1 = json!({"progress": 50.0});
     let p2 = json!({"progress": 60.0});
-    let hash1 = EventLedger::compute_hash(&entity_id, "UPDATE", &p1, None);
-    let hash2 = EventLedger::compute_hash(&entity_id, "UPDATE", &p2, None);
+    let ts = Utc::now();
+    let hash1 = EventLedger::compute_hash(&entity_id, "UPDATE", &p1, None, &ts);
+    let hash2 = EventLedger::compute_hash(&entity_id, "UPDATE", &p2, None, &ts);
     assert_ne!(hash1, hash2);
 }
 
@@ -621,9 +623,21 @@ fn test_audit_hash_differs_when_payload_changes() {
 fn test_audit_hash_differs_when_previous_hash_changes() {
     let entity_id = Uuid::new_v4();
     let p = json!({"status": "COMMITTED"});
-    let hash_chain_a = EventLedger::compute_hash(&entity_id, "COMMIT", &p, Some("hash_001"));
-    let hash_chain_b = EventLedger::compute_hash(&entity_id, "COMMIT", &p, Some("hash_002"));
+    let ts = Utc::now();
+    let hash_chain_a = EventLedger::compute_hash(&entity_id, "COMMIT", &p, Some("hash_001"), &ts);
+    let hash_chain_b = EventLedger::compute_hash(&entity_id, "COMMIT", &p, Some("hash_002"), &ts);
     assert_ne!(hash_chain_a, hash_chain_b);
+}
+
+#[test]
+fn test_timestamp_in_hash_uniqueness() {
+    let entity_id = Uuid::new_v4();
+    let payload = json!({"action": "DUPLICATE_PAYLOAD"});
+    let ts1 = Utc::now();
+    let ts2 = ts1 + chrono::Duration::seconds(5);
+    let h1 = EventLedger::compute_hash(&entity_id, "ACTION", &payload, None, &ts1);
+    let h2 = EventLedger::compute_hash(&entity_id, "ACTION", &payload, None, &ts2);
+    assert_ne!(h1, h2);
 }
 
 #[test]
@@ -696,6 +710,152 @@ fn test_audit_chain_hash_continuity() {
     assert_ne!(audit1.payload_hash, audit2.payload_hash);
     assert_eq!(audit1.payload_hash.len(), 64);
     assert_eq!(audit2.payload_hash.len(), 64);
+}
+
+#[test]
+fn test_audit_chain_integrity_verification_pass() {
+    let project_id = Uuid::new_v4();
+    let entity1 = Uuid::new_v4();
+    let entity2 = Uuid::new_v4();
+    let entity3 = Uuid::new_v4();
+
+    let e1 = EventLedger::create_audit_event(
+        project_id,
+        "OBSERVATION",
+        entity1,
+        "CREATE",
+        None,
+        Some("SUPERVISOR"),
+        None,
+        Some(json!({"raw_text": "Completed piping at Rack B"})),
+        None,
+    );
+
+    let e2 = EventLedger::create_audit_event(
+        project_id,
+        "MATCH_PROPOSAL",
+        entity2,
+        "GENERATE_PROPOSAL",
+        None,
+        Some("AI_SERVICE"),
+        None,
+        Some(json!({"confidence": 0.95})),
+        Some(&e1.payload_hash),
+    );
+
+    let e3 = EventLedger::create_audit_event(
+        project_id,
+        "PROPOSAL_APPROVAL",
+        entity3,
+        "APPROVE_AND_COMMIT",
+        None,
+        Some("PLANNER"),
+        Some(json!({"status": "PENDING_REVIEW"})),
+        Some(json!({"status": "COMMITTED"})),
+        Some(&e2.payload_hash),
+    );
+
+    let chain = vec![e1, e2, e3];
+    assert!(EventLedger::verify_chain_integrity(&chain).is_ok());
+}
+
+#[test]
+fn test_audit_chain_integrity_tamper_detection() {
+    let project_id = Uuid::new_v4();
+    let entity1 = Uuid::new_v4();
+    let entity2 = Uuid::new_v4();
+
+    let e1 = EventLedger::create_audit_event(
+        project_id,
+        "OBSERVATION",
+        entity1,
+        "CREATE",
+        None,
+        None,
+        None,
+        Some(json!({"data": "original"})),
+        None,
+    );
+
+    let mut e2 = EventLedger::create_audit_event(
+        project_id,
+        "EVENT",
+        entity2,
+        "UPDATE",
+        None,
+        None,
+        None,
+        Some(json!({"data": "next"})),
+        Some(&e1.payload_hash),
+    );
+
+    // Tamper with previous_hash pointer
+    e2.previous_hash = Some("tampered_hash_00000000000000000000000000000000000000000000000000000000".to_string());
+
+    let chain = vec![e1, e2];
+    let res = EventLedger::verify_chain_integrity(&chain);
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err(), 1);
+}
+
+#[test]
+fn test_audit_chain_single_hash_tamper_detection() {
+    let project_id = Uuid::new_v4();
+    let entity_id = Uuid::new_v4();
+
+    let mut audit = EventLedger::create_audit_event(
+        project_id,
+        "EVENT",
+        entity_id,
+        "COMMIT",
+        None,
+        None,
+        None,
+        Some(json!({"status": "ORIGINAL"})),
+        None,
+    );
+
+    assert!(EventLedger::verify_single_hash(&audit));
+
+    // Tamper with action after hash computation
+    audit.action = "TAMPERED_ACTION".to_string();
+    assert!(!EventLedger::verify_single_hash(&audit));
+}
+
+#[test]
+fn test_validate_commit_readiness_guards() {
+    // Only Approved status is committable
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Approved).is_ok());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Proposed).is_err());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Matched).is_err());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::ReviewRequired).is_err());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Rejected).is_err());
+    assert!(StateMachine::validate_commit_readiness(LifecycleStatus::Committed).is_err());
+}
+
+#[test]
+fn test_idempotency_key_duplicate_detection() {
+    let existing = vec![
+        Some("event-act-001-2026-08-28".to_string()),
+        Some("event-act-002-2026-08-28".to_string()),
+    ];
+
+    // Unique key passes
+    assert!(ValidationEngine::validate_idempotency_key(
+        Some("event-act-003-2026-08-28"),
+        &existing
+    ).is_ok());
+
+    // Duplicate key fails
+    let dup_res = ValidationEngine::validate_idempotency_key(
+        Some("event-act-001-2026-08-28"),
+        &existing
+    );
+    assert!(dup_res.is_err());
+    assert!(matches!(
+        dup_res.unwrap_err(),
+        ValidationError::DuplicateEventKey { .. }
+    ));
 }
 
 // =============================================================================

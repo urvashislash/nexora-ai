@@ -25,6 +25,7 @@ pub struct AppState {
     pub proposals: Arc<RwLock<Vec<MatchProposal>>>,
     pub events: Arc<RwLock<Vec<ActualEvent>>>,
     pub audit_trail: Arc<RwLock<Vec<AuditEvent>>>,
+    pub last_audit_hash: Arc<RwLock<Option<String>>>,
 }
 
 impl AppState {
@@ -189,6 +190,7 @@ impl AppState {
             proposals: Arc::new(RwLock::new(Vec::new())),
             events: Arc::new(RwLock::new(Vec::new())),
             audit_trail: Arc::new(RwLock::new(Vec::new())),
+            last_audit_hash: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -338,6 +340,7 @@ pub async fn approve_proposal(
     let mut events = state.events.write().await;
     let mut act_states = state.activity_states.write().await;
     let mut audit_trail = state.audit_trail.write().await;
+    let mut last_hash_lock = state.last_audit_hash.write().await;
     let acts = state.activities.read().await;
 
     let proposal = proposals
@@ -360,6 +363,22 @@ pub async fn approve_proposal(
     ValidationEngine::validate_progress(Some(100.0))
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
+    // --- Idempotency gate: detect duplicate event keys ---
+    let idempotency_key = format!("event-{}-{}", target_activity_id, actual_date);
+    let existing_keys: Vec<Option<String>> = events.iter().map(|e| e.idempotency_key.clone()).collect();
+    ValidationEngine::validate_idempotency_key(Some(&idempotency_key), &existing_keys)
+        .map_err(|e| (StatusCode::CONFLICT, e.to_string()))?;
+
+    // --- State-machine lifecycle gate: enforce PROPOSED -> MATCHED -> APPROVED -> COMMITTED ---
+    let l1 = StateMachine::transition_lifecycle(LifecycleStatus::Proposed, LifecycleStatus::Matched)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let l2 = StateMachine::transition_lifecycle(l1, LifecycleStatus::Approved)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    StateMachine::validate_commit_readiness(l2)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let final_status = StateMachine::transition_lifecycle(l2, LifecycleStatus::Committed)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
     // Create official ActualEvent
     let new_event = ActualEvent {
         id: Uuid::new_v4(),
@@ -373,9 +392,9 @@ pub async fn approve_proposal(
         actual_quantity: act.planned_quantity,
         delay_reason: None,
         delay_days: None,
-        lifecycle_status: LifecycleStatus::Committed,
+        lifecycle_status: final_status,
         verification_status: VerificationStatus::HumanVerified,
-        idempotency_key: Some(format!("event-{}-{}", target_activity_id, actual_date)),
+        idempotency_key: Some(idempotency_key),
         created_by: Some(payload.reviewer_id),
         created_at: Utc::now(),
     };
@@ -388,7 +407,7 @@ pub async fn approve_proposal(
         StateMachine::project_event(state_entry, &new_event, act.planned_finish_date);
     }
 
-    // Add to audit trail
+    // Add to audit trail with cryptographic hash chaining
     let audit = EventLedger::create_audit_event(
         proposal.project_id,
         "PROPOSAL_APPROVAL",
@@ -397,9 +416,14 @@ pub async fn approve_proposal(
         Some(payload.reviewer_id),
         Some("PLANNER"),
         Some(serde_json::json!({"status": "PENDING_REVIEW"})),
-        Some(serde_json::json!({"status": "COMMITTED", "event_id": new_event.id})),
-        None,
+        Some(serde_json::json!({
+            "status": "COMMITTED",
+            "event_id": new_event.id,
+            "lifecycle_status": format!("{:?}", final_status)
+        })),
+        last_hash_lock.as_deref(),
     );
+    *last_hash_lock = Some(audit.payload_hash.clone());
 
     // Create outbox event for async delivery to external systems (PMIS / P6)
     let _outbox =
@@ -422,6 +446,7 @@ pub async fn reject_proposal(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut proposals = state.proposals.write().await;
     let mut audit_trail = state.audit_trail.write().await;
+    let mut last_hash_lock = state.last_audit_hash.write().await;
 
     let proposal = proposals
         .iter_mut()
@@ -439,13 +464,115 @@ pub async fn reject_proposal(
         Some("PLANNER"),
         Some(serde_json::json!({"status": "PENDING_REVIEW"})),
         Some(serde_json::json!({"status": "REJECTED", "comments": payload.comments})),
-        None,
+        last_hash_lock.as_deref(),
     );
+    *last_hash_lock = Some(audit.payload_hash.clone());
+
     audit_trail.push(audit);
 
     Ok(Json(
         serde_json::json!({"status": "REJECTED", "proposal_id": proposal_id}),
     ))
+}
+
+#[derive(Deserialize)]
+#[allow(dead_code)]
+pub struct CreateObservationPayload {
+    pub discipline: Option<Discipline>,
+    pub location: Option<String>,
+    pub zone: Option<String>,
+    pub equipment_tag: Option<String>,
+    pub raw_text: String,
+    pub normalized_text: Option<String>,
+    pub event_type: Option<EventType>,
+    pub reported_progress: Option<f64>,
+    pub reported_quantity: Option<f64>,
+    pub unit_of_measure: Option<String>,
+    pub reported_by: Option<Uuid>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+pub async fn create_observation(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+    Json(payload): Json<CreateObservationPayload>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    // Validate progress if supplied
+    ValidationEngine::validate_progress(payload.reported_progress)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let mut obs_list = state.observations.write().await;
+    let mut audit_trail = state.audit_trail.write().await;
+    let mut last_hash_lock = state.last_audit_hash.write().await;
+
+    let obs = WorkObservation {
+        id: Uuid::new_v4(),
+        project_id,
+        document_id: None,
+        reported_by: payload.reported_by,
+        observed_at: Some(Utc::now()),
+        recorded_at: Utc::now(),
+        discipline: payload.discipline,
+        location: payload.location,
+        zone: payload.zone,
+        equipment_tag: payload.equipment_tag,
+        raw_text: payload.raw_text,
+        normalized_text: payload.normalized_text,
+        event_type: payload.event_type,
+        reported_progress: payload.reported_progress,
+        reported_quantity: payload.reported_quantity,
+        unit_of_measure: payload.unit_of_measure,
+        metadata: payload.metadata.unwrap_or(serde_json::json!({})),
+    };
+
+    let audit = EventLedger::create_audit_event(
+        project_id,
+        "WORK_OBSERVATION",
+        obs.id,
+        "CREATE_OBSERVATION",
+        payload.reported_by,
+        Some("SUPERVISOR"),
+        None,
+        Some(serde_json::json!({
+            "raw_text": obs.raw_text,
+            "discipline": obs.discipline,
+            "progress": obs.reported_progress
+        })),
+        last_hash_lock.as_deref(),
+    );
+    *last_hash_lock = Some(audit.payload_hash.clone());
+
+    obs_list.push(obs.clone());
+    audit_trail.push(audit);
+
+    Ok((StatusCode::CREATED, Json(obs)))
+}
+
+pub async fn verify_audit_chain(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let trail = state.audit_trail.read().await;
+    let filtered: Vec<AuditEvent> = trail
+        .iter()
+        .filter(|a| a.project_id == project_id)
+        .cloned()
+        .collect();
+
+    let result = EventLedger::verify_chain_integrity(&filtered);
+    match result {
+        Ok(()) => Json(serde_json::json!({
+            "valid": true,
+            "total_events": filtered.len(),
+            "message": "Audit chain integrity fully verified"
+        })),
+        Err(broken_idx) => Json(serde_json::json!({
+            "valid": false,
+            "total_events": filtered.len(),
+            "broken_at_index": broken_idx,
+            "message": format!("Audit chain verification failed at event index {}", broken_idx)
+        })),
+    }
 }
 
 pub async fn get_audit_trail(
