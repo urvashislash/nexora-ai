@@ -1,4 +1,4 @@
-# NEXORA AI — Remaining Project Plan
+ # NEXORA AI — Remaining Project Plan
 
 This document lists every major task still required to take the project from its current working prototype state to a production-ready, demonstrable, and deployable product.
 
