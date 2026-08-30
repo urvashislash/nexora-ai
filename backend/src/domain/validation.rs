@@ -2,17 +2,21 @@ use chrono::{Local, NaiveDate};
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::models::{Activity, ActivityCurrentState, ActivityDependency, DependencyType, ExecutionStatus};
+use super::models::{
+    Activity, ActivityCurrentState, ActivityDependency, DependencyType, ExecutionStatus,
+};
 
 #[allow(dead_code)]
 #[derive(Debug, Error, PartialEq)]
 pub enum ValidationError {
-
     #[error("Finish date {finish} cannot be before start date {start}")]
     FinishBeforeStart { start: NaiveDate, finish: NaiveDate },
 
     #[error("Event date {event_date} is in the future beyond acceptable tolerance")]
-    FutureDateNotAllowed { event_date: NaiveDate, max_allowed: NaiveDate },
+    FutureDateNotAllowed {
+        event_date: NaiveDate,
+        max_allowed: NaiveDate,
+    },
 
     #[error("Progress percentage {progress}% is out of bounds (must be 0.0 to 100.0)")]
     InvalidProgressPercentage { progress: f64 },
@@ -42,7 +46,10 @@ impl ValidationEngine {
     ) -> Result<(), ValidationError> {
         if let (Some(s), Some(f)) = (start, finish) {
             if f < s {
-                return Err(ValidationError::FinishBeforeStart { start: s, finish: f });
+                return Err(ValidationError::FinishBeforeStart {
+                    start: s,
+                    finish: f,
+                });
             }
         }
         Ok(())
@@ -115,7 +122,10 @@ mod tests {
         let start = NaiveDate::from_ymd_opt(2026, 8, 20);
         let finish = NaiveDate::from_ymd_opt(2026, 8, 10);
         let res = ValidationEngine::validate_date_sequence(start, finish);
-        assert!(matches!(res, Err(ValidationError::FinishBeforeStart { .. })));
+        assert!(matches!(
+            res,
+            Err(ValidationError::FinishBeforeStart { .. })
+        ));
     }
 
     #[test]

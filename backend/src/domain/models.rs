@@ -245,4 +245,3 @@ pub struct OutboxEvent {
     pub created_at: DateTime<Utc>,
     pub processed_at: Option<DateTime<Utc>>,
 }
-
