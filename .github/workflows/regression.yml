@@ -1,0 +1,54 @@
+name: Regression & E2E Validation
+
+on:
+  push:
+    branches:
+      - production
+      - main
+  pull_request:
+    branches:
+      - production
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          # If there's a requirements.txt, it would be installed here
+          # pip install -r ai_service/requirements.txt
+
+      - name: Run AI Service Unit Tests
+        run: |
+          pytest ai_service/tests/
+
+      - name: Run End-to-End Tests
+        run: |
+          pytest tests/e2e/
+
+      - name: Run Regression Tests
+        run: |
+          pytest tests/regression/
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          cargo test --verbose
