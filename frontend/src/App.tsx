@@ -17,256 +17,279 @@ import type {
 } from './types';
 
 const PROJECT_ID = 'a0000000-0000-0000-0000-000000000001';
+const STORAGE_KEY = 'nexora-project-state-v1';
 
-export function App() {
+const initialActivities: ActivityWithState[] = [
+  {
+    activity: {
+      id: 'd0000000-0000-0000-0000-000000000001',
+      project_id: PROJECT_ID,
+      schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
+      wbs_id: 'c0000000-0000-0000-0000-000000000003',
+      code: 'PIP-2400',
+      name: 'Spool Erection and Alignment - Pipe Rack B',
+      description: 'Prefabricated carbon steel piping spool erection on Rack B',
+      discipline: 'PIPING',
+      planned_start_date: '2026-08-10',
+      planned_finish_date: '2026-08-25',
+      planned_duration_days: 15,
+      planned_quantity: 450,
+      unit_of_measure: 'Inch-Dia',
+      location: 'Pipe Rack B',
+      zone: 'Zone 2',
+      equipment_tag: 'RACK-B-CS',
+      weightage: 1.5,
+      critical_path: true,
+    },
+    state: {
+      activity_id: 'd0000000-0000-0000-0000-000000000001',
+      project_id: PROJECT_ID,
+      execution_status: 'IN_PROGRESS',
+      actual_start_date: '2026-08-10',
+      actual_finish_date: undefined,
+      current_progress_pct: 80,
+      cumulative_quantity: 360,
+      is_critical_path_delayed: false,
+      variance_days: 0,
+      updated_at: new Date().toISOString(),
+    }
+  },
+  {
+    activity: {
+      id: 'd0000000-0000-0000-0000-000000000002',
+      project_id: PROJECT_ID,
+      schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
+      wbs_id: 'c0000000-0000-0000-0000-000000000003',
+      code: 'PIP-2401',
+      name: 'Hydrostatic Testing - Line P-101 (Crude Feed Header)',
+      description: 'Pressure testing of 24 inch crude feed header Line P-101 at 42.5 bar',
+      discipline: 'PIPING',
+      planned_start_date: '2026-08-26',
+      planned_finish_date: '2026-08-28',
+      planned_duration_days: 3,
+      planned_quantity: 1,
+      unit_of_measure: 'Test-Pack',
+      location: 'Pipe Rack B',
+      zone: 'Zone 2',
+      equipment_tag: 'LINE-P-101',
+      weightage: 2.0,
+      critical_path: true,
+    },
+    state: {
+      activity_id: 'd0000000-0000-0000-0000-000000000002',
+      project_id: PROJECT_ID,
+      execution_status: 'NOT_STARTED',
+      actual_start_date: undefined,
+      actual_finish_date: undefined,
+      current_progress_pct: 0,
+      cumulative_quantity: 0,
+      is_critical_path_delayed: false,
+      variance_days: 0,
+      updated_at: new Date().toISOString(),
+    }
+  },
+  {
+    activity: {
+      id: 'd0000000-0000-0000-0000-000000000003',
+      project_id: PROJECT_ID,
+      schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
+      wbs_id: 'c0000000-0000-0000-0000-000000000003',
+      code: 'PIP-2402',
+      name: 'Hydrostatic Testing - Line P-102 (Naphtha Return Header)',
+      description: 'Pressure testing of 16 inch naphtha return header Line P-102 at 32.0 bar',
+      discipline: 'PIPING',
+      planned_start_date: '2026-08-28',
+      planned_finish_date: '2026-08-30',
+      planned_duration_days: 3,
+      planned_quantity: 1,
+      unit_of_measure: 'Test-Pack',
+      location: 'Pipe Rack B',
+      zone: 'Zone 2',
+      equipment_tag: 'LINE-P-102',
+      weightage: 1.8,
+      critical_path: false,
+    },
+    state: {
+      activity_id: 'd0000000-0000-0000-0000-000000000003',
+      project_id: PROJECT_ID,
+      execution_status: 'NOT_STARTED',
+      current_progress_pct: 0,
+      cumulative_quantity: 0,
+      is_critical_path_delayed: false,
+      variance_days: 0,
+      updated_at: new Date().toISOString(),
+    }
+  },
+  {
+    activity: {
+      id: 'd0000000-0000-0000-0000-000000000004',
+      project_id: PROJECT_ID,
+      schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
+      wbs_id: 'c0000000-0000-0000-0000-000000000004',
+      code: 'CIV-1100',
+      name: 'Rebar Tying and Shuttering - Compressor Foundation',
+      description: 'Reinforcement steel bar cutting, bending, binding, and formwork for C-101',
+      discipline: 'CIVIL',
+      planned_start_date: '2026-08-15',
+      planned_finish_date: '2026-08-24',
+      planned_duration_days: 10,
+      planned_quantity: 35.5,
+      unit_of_measure: 'MT',
+      location: 'Compressor House',
+      zone: 'Zone 1',
+      equipment_tag: 'FND-C-101',
+      weightage: 1.2,
+      critical_path: false,
+    },
+    state: {
+      activity_id: 'd0000000-0000-0000-0000-000000000004',
+      project_id: PROJECT_ID,
+      execution_status: 'COMPLETED',
+      actual_start_date: '2026-08-15',
+      actual_finish_date: '2026-08-24',
+      current_progress_pct: 100,
+      cumulative_quantity: 35.5,
+      is_critical_path_delayed: false,
+      variance_days: 0,
+      updated_at: new Date().toISOString(),
+    }
+  },
+  {
+    activity: {
+      id: 'd0000000-0000-0000-0000-000000000005',
+      project_id: PROJECT_ID,
+      schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
+      wbs_id: 'c0000000-0000-0000-0000-000000000002',
+      code: 'CIV-1101',
+      name: 'Concrete Pour - Column Footings Area 100',
+      description: 'M35 grade ready-mix concrete pouring for heavy column footings C1-C12',
+      discipline: 'CIVIL',
+      planned_start_date: '2026-08-25',
+      planned_finish_date: '2026-08-29',
+      planned_duration_days: 5,
+      planned_quantity: 180,
+      unit_of_measure: 'Cu.M',
+      location: 'CDU Area 100',
+      zone: 'Zone 1',
+      equipment_tag: 'COL-FTG-100',
+      weightage: 1.4,
+      critical_path: false,
+    },
+    state: {
+      activity_id: 'd0000000-0000-0000-0000-000000000005',
+      project_id: PROJECT_ID,
+      execution_status: 'IN_PROGRESS',
+      actual_start_date: '2026-08-25',
+      current_progress_pct: 60,
+      cumulative_quantity: 108,
+      is_critical_path_delayed: false,
+      variance_days: 0,
+      updated_at: new Date().toISOString(),
+    }
+  }
+];
+
+const initialObservations: WorkObservation[] = [
+  {
+    id: 'obs-init-01',
+    project_id: PROJECT_ID,
+    raw_text: 'Hydrostatic testing completed along Pipe Rack B headers yesterday afternoon.',
+    normalized_text: 'Hydrostatic Testing completed along Pipe Rack B headers',
+    discipline: 'PIPING',
+    recorded_at: new Date().toISOString(),
+    event_type: 'FINISH',
+    reported_progress: 100,
+  }
+];
+
+function safeReadStorage<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    return (JSON.parse(raw) as T) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Initial Demo Activities
-  const [activities, setActivities] = useState<ActivityWithState[]>([
-    {
-      activity: {
-        id: 'd0000000-0000-0000-0000-000000000001',
-        project_id: PROJECT_ID,
-        schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
-        wbs_id: 'c0000000-0000-0000-0000-000000000003',
-        code: 'PIP-2400',
-        name: 'Spool Erection and Alignment - Pipe Rack B',
-        description: 'Prefabricated carbon steel piping spool erection on Rack B',
-        discipline: 'PIPING',
-        planned_start_date: '2026-08-10',
-        planned_finish_date: '2026-08-25',
-        planned_duration_days: 15,
-        planned_quantity: 450,
-        unit_of_measure: 'Inch-Dia',
-        location: 'Pipe Rack B',
-        zone: 'Zone 2',
-        equipment_tag: 'RACK-B-CS',
-        weightage: 1.5,
-        critical_path: true,
-      },
-      state: {
-        activity_id: 'd0000000-0000-0000-0000-000000000001',
-        project_id: PROJECT_ID,
-        execution_status: 'IN_PROGRESS',
-        actual_start_date: '2026-08-10',
-        actual_finish_date: undefined,
-        current_progress_pct: 80,
-        cumulative_quantity: 360,
-        is_critical_path_delayed: false,
-        variance_days: 0,
-        updated_at: new Date().toISOString(),
-      }
-    },
-    {
-      activity: {
-        id: 'd0000000-0000-0000-0000-000000000002',
-        project_id: PROJECT_ID,
-        schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
-        wbs_id: 'c0000000-0000-0000-0000-000000000003',
-        code: 'PIP-2401',
-        name: 'Hydrostatic Testing - Line P-101 (Crude Feed Header)',
-        description: 'Pressure testing of 24 inch crude feed header Line P-101 at 42.5 bar',
-        discipline: 'PIPING',
-        planned_start_date: '2026-08-26',
-        planned_finish_date: '2026-08-28',
-        planned_duration_days: 3,
-        planned_quantity: 1,
-        unit_of_measure: 'Test-Pack',
-        location: 'Pipe Rack B',
-        zone: 'Zone 2',
-        equipment_tag: 'LINE-P-101',
-        weightage: 2.0,
-        critical_path: true,
-      },
-      state: {
-        activity_id: 'd0000000-0000-0000-0000-000000000002',
-        project_id: PROJECT_ID,
-        execution_status: 'NOT_STARTED',
-        actual_start_date: undefined,
-        actual_finish_date: undefined,
-        current_progress_pct: 0,
-        cumulative_quantity: 0,
-        is_critical_path_delayed: false,
-        variance_days: 0,
-        updated_at: new Date().toISOString(),
-      }
-    },
-    {
-      activity: {
-        id: 'd0000000-0000-0000-0000-000000000003',
-        project_id: PROJECT_ID,
-        schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
-        wbs_id: 'c0000000-0000-0000-0000-000000000003',
-        code: 'PIP-2402',
-        name: 'Hydrostatic Testing - Line P-102 (Naphtha Return Header)',
-        description: 'Pressure testing of 16 inch naphtha return header Line P-102 at 32.0 bar',
-        discipline: 'PIPING',
-        planned_start_date: '2026-08-28',
-        planned_finish_date: '2026-08-30',
-        planned_duration_days: 3,
-        planned_quantity: 1,
-        unit_of_measure: 'Test-Pack',
-        location: 'Pipe Rack B',
-        zone: 'Zone 2',
-        equipment_tag: 'LINE-P-102',
-        weightage: 1.8,
-        critical_path: false,
-      },
-      state: {
-        activity_id: 'd0000000-0000-0000-0000-000000000003',
-        project_id: PROJECT_ID,
-        execution_status: 'NOT_STARTED',
-        current_progress_pct: 0,
-        cumulative_quantity: 0,
-        is_critical_path_delayed: false,
-        variance_days: 0,
-        updated_at: new Date().toISOString(),
-      }
-    },
-    {
-      activity: {
-        id: 'd0000000-0000-0000-0000-000000000004',
-        project_id: PROJECT_ID,
-        schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
-        wbs_id: 'c0000000-0000-0000-0000-000000000004',
-        code: 'CIV-1100',
-        name: 'Rebar Tying and Shuttering - Compressor Foundation',
-        description: 'Reinforcement steel bar cutting, bending, binding, and formwork for C-101',
-        discipline: 'CIVIL',
-        planned_start_date: '2026-08-15',
-        planned_finish_date: '2026-08-24',
-        planned_duration_days: 10,
-        planned_quantity: 35.5,
-        unit_of_measure: 'MT',
-        location: 'Compressor House',
-        zone: 'Zone 1',
-        equipment_tag: 'FND-C-101',
-        weightage: 1.2,
-        critical_path: false,
-      },
-      state: {
-        activity_id: 'd0000000-0000-0000-0000-000000000004',
-        project_id: PROJECT_ID,
-        execution_status: 'COMPLETED',
-        actual_start_date: '2026-08-15',
-        actual_finish_date: '2026-08-24',
-        current_progress_pct: 100,
-        cumulative_quantity: 35.5,
-        is_critical_path_delayed: false,
-        variance_days: 0,
-        updated_at: new Date().toISOString(),
-      }
-    },
-    {
-      activity: {
-        id: 'd0000000-0000-0000-0000-000000000005',
-        project_id: PROJECT_ID,
-        schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
-        wbs_id: 'c0000000-0000-0000-0000-000000000002',
-        code: 'CIV-1101',
-        name: 'Concrete Pour - Column Footings Area 100',
-        description: 'M35 grade ready-mix concrete pouring for heavy column footings C1-C12',
-        discipline: 'CIVIL',
-        planned_start_date: '2026-08-25',
-        planned_finish_date: '2026-08-29',
-        planned_duration_days: 5,
-        planned_quantity: 180,
-        unit_of_measure: 'Cu.M',
-        location: 'CDU Area 100',
-        zone: 'Zone 1',
-        equipment_tag: 'COL-FTG-100',
-        weightage: 1.4,
-        critical_path: false,
-      },
-      state: {
-        activity_id: 'd0000000-0000-0000-0000-000000000005',
-        project_id: PROJECT_ID,
-        execution_status: 'IN_PROGRESS',
-        actual_start_date: '2026-08-25',
-        current_progress_pct: 60,
-        cumulative_quantity: 108,
-        is_critical_path_delayed: false,
-        variance_days: 0,
-        updated_at: new Date().toISOString(),
-      }
-    }
-  ]);
+  const [activities, setActivities] = useState<ActivityWithState[]>(() =>
+    safeReadStorage<ActivityWithState[]>(`${STORAGE_KEY}:activities`, initialActivities)
+  );
+  const [observations, setObservations] = useState<WorkObservation[]>(() =>
+    safeReadStorage<WorkObservation[]>(`${STORAGE_KEY}:observations`, initialObservations)
+  );
 
-  const [observations, setObservations] = useState<WorkObservation[]>([
-    {
-      id: 'obs-init-01',
-      project_id: PROJECT_ID,
-      raw_text: 'Hydrostatic testing completed along Pipe Rack B headers yesterday afternoon.',
-      normalized_text: 'Hydrostatic Testing completed along Pipe Rack B headers',
-      discipline: 'PIPING',
-      recorded_at: new Date().toISOString(),
-      event_type: 'FINISH',
-      reported_progress: 100,
-    }
-  ]);
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>(() =>
+    safeReadStorage<ReviewQueueItem[]>(`${STORAGE_KEY}:reviewQueue`, [
+      {
+        proposal: {
+          id: 'prop-init-01',
+          project_id: PROJECT_ID,
+          observation_id: 'obs-init-01',
+          activity_id: 'd0000000-0000-0000-0000-000000000002',
+          candidate_rank: 1,
+          lexical_score: 0.72,
+          semantic_score: 0.78,
+          context_boost: 0.15,
+          confidence_score: 0.76,
+          match_tier: 'MEDIUM',
+          explanation: 'Confidence 76.0%: Matches both PIP-2401 and PIP-2402 on Pipe Rack B header',
+          evidence_snippet: 'Obs: "Hydrostatic testing completed along Pipe Rack B headers" -> PIP-2401',
+          status: 'PENDING_REVIEW',
+          created_at: new Date().toISOString(),
+        },
+        observation: {
+          id: 'obs-init-01',
+          project_id: PROJECT_ID,
+          raw_text: 'Hydrostatic testing completed along Pipe Rack B headers yesterday afternoon.',
+          normalized_text: 'Hydrostatic Testing completed along Pipe Rack B headers',
+          discipline: 'PIPING',
+          recorded_at: new Date().toISOString(),
+          event_type: 'FINISH',
+        },
+        activity: initialActivities[1].activity,
+      }
+    ])
+  );
 
-  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([
-    {
-      proposal: {
-        id: 'prop-init-01',
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() =>
+    safeReadStorage<AuditEvent[]>(`${STORAGE_KEY}:auditEvents`, [
+      {
+        id: 'audit-001',
         project_id: PROJECT_ID,
-        observation_id: 'obs-init-01',
-        activity_id: 'd0000000-0000-0000-0000-000000000002',
-        candidate_rank: 1,
-        lexical_score: 0.72,
-        semantic_score: 0.78,
-        context_boost: 0.15,
-        confidence_score: 0.76,
-        match_tier: 'MEDIUM',
-        explanation: 'Confidence 76.0%: Matches both PIP-2401 and PIP-2402 on Pipe Rack B header',
-        evidence_snippet: 'Obs: "Hydrostatic testing completed along Pipe Rack B headers" -> PIP-2401',
-        status: 'PENDING_REVIEW',
-        created_at: new Date().toISOString(),
+        entity_type: 'ACTIVITY',
+        entity_id: 'd0000000-0000-0000-0000-000000000004',
+        action: 'APPROVE_ACTUAL_PROGRESS',
+        actor_id: '00000000-0000-0000-0000-000000000001',
+        actor_role: 'LEAD_PLANNER',
+        before_state: { progress_pct: 0, status: 'NOT_STARTED' },
+        after_state: { progress_pct: 100, status: 'COMPLETED' },
+        payload_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+        created_at: '2026-08-28T14:30:00Z',
       },
-      observation: {
-        id: 'obs-init-01',
+      {
+        id: 'audit-002',
         project_id: PROJECT_ID,
-        raw_text: 'Hydrostatic testing completed along Pipe Rack B headers yesterday afternoon.',
-        normalized_text: 'Hydrostatic Testing completed along Pipe Rack B headers',
-        discipline: 'PIPING',
-        recorded_at: new Date().toISOString(),
-        event_type: 'FINISH',
-      },
-      activity: activities[1].activity,
-    }
-  ]);
-
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([
-    {
-      id: 'audit-001',
-      project_id: PROJECT_ID,
-      entity_type: 'ACTIVITY',
-      entity_id: 'd0000000-0000-0000-0000-000000000004',
-      action: 'APPROVE_ACTUAL_PROGRESS',
-      actor_id: '00000000-0000-0000-0000-000000000001',
-      actor_role: 'LEAD_PLANNER',
-      before_state: { progress_pct: 0, status: 'NOT_STARTED' },
-      after_state: { progress_pct: 100, status: 'COMPLETED' },
-      payload_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-      created_at: '2026-08-28T14:30:00Z',
-    },
-    {
-      id: 'audit-002',
-      project_id: PROJECT_ID,
-      entity_type: 'WORK_OBSERVATION',
-      entity_id: 'obs-init-01',
-      action: 'AUTO_LINK_OBSERVATION',
-      actor_id: 'SYSTEM',
-      actor_role: 'RUST_TRUST_PLANE',
-      before_state: { status: 'RECEIVED' },
-      after_state: { status: 'MATCHED', confidence: 0.94 },
-      payload_hash: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
-      previous_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-      created_at: '2026-08-29T09:15:00Z',
-    }
-  ]);
+        entity_type: 'WORK_OBSERVATION',
+        entity_id: 'obs-init-01',
+        action: 'AUTO_LINK_OBSERVATION',
+        actor_id: 'SYSTEM',
+        actor_role: 'RUST_TRUST_PLANE',
+        before_state: { status: 'RECEIVED' },
+        after_state: { status: 'MATCHED', confidence: 0.94 },
+        payload_hash: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
+        previous_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+        created_at: '2026-08-29T09:15:00Z',
+      }
+    ])
+  );
 
   // Initial Load from Live APIs
   useEffect(() => {
@@ -314,6 +337,14 @@ export function App() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(`${STORAGE_KEY}:activities`, JSON.stringify(activities));
+    window.localStorage.setItem(`${STORAGE_KEY}:observations`, JSON.stringify(observations));
+    window.localStorage.setItem(`${STORAGE_KEY}:reviewQueue`, JSON.stringify(reviewQueue));
+    window.localStorage.setItem(`${STORAGE_KEY}:auditEvents`, JSON.stringify(auditEvents));
+  }, [activities, observations, reviewQueue, auditEvents]);
 
   // Calculate live KPIs
   const kpis: DashboardKPIs = {
