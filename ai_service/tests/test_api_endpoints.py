@@ -5,6 +5,8 @@ POST /api/v1/extract-file, POST /api/v1/normalize, POST /api/v1/embed, POST /api
 """
 
 import io
+import json
+from datetime import date
 from uuid import uuid4
 
 import pytest
@@ -146,6 +148,52 @@ class TestExtractFileEndpoint:
         assert response.status_code == 200
         observations = response.json()
         assert len(observations) >= 2
+
+    def test_import_schedule_file(self, client):
+        import openpyxl
+
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.append(["Activity Code", "Activity Name", "Discipline", "Planned Start", "Planned Finish"])
+        sheet.append(["PIP-2401", "Hydrostatic Testing P-101", "Piping", "20-Aug-2026", "25-Aug-2026"])
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+
+        response = client.post(
+            "/api/v1/schedule/import-file",
+            data={"project_id": str(uuid4())},
+            files={"file": ("schedule.xlsx", io.BytesIO(buffer.getvalue()), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+        assert response.status_code == 200
+        result = response.json()
+        assert result["rows_processed"] == 1
+        assert result["activities"][0]["code"] == "PIP-2401"
+
+    def test_process_file_pipeline(self, client):
+        project_id = str(uuid4())
+        activity = {
+            "id": str(uuid4()),
+            "project_id": project_id,
+            "code": "PIP-2401",
+            "name": "Hydrostatic Testing - P-101",
+            "discipline": "PIPING",
+            "equipment_tag": "P-101",
+            "planned_start_date": date(2026, 8, 1).isoformat(),
+            "planned_finish_date": date(2026, 9, 30).isoformat(),
+        }
+        response = client.post(
+            "/api/v1/pipeline/process-file",
+            data={
+                "project_id": project_id,
+                "source_type": "DAILY_REPORT",
+                "activities_json": json.dumps([activity]),
+            },
+            files={"file": ("report.txt", io.BytesIO(b"PIP-2401 hydro test P-101 completed."), "text/plain")},
+        )
+        assert response.status_code == 200
+        result = response.json()
+        assert len(result["observations"]) == 1
+        assert result["proposals"][0]["top_match"]["activity_code"] == "PIP-2401"
 
     def test_extract_from_csv_file(self, client):
         project_id = str(uuid4())

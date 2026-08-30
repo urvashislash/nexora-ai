@@ -1,5 +1,5 @@
 import re
-from collections import defaultdict
+from datetime import date, datetime
 
 from app.models.schemas import DisciplineEnum
 
@@ -253,6 +253,26 @@ HSE_TERMINOLOGY: dict[str, str] = {
     "ppe": "Personal Protective Equipment",
 }
 
+CONSTRUCTION_SHORTHAND: dict[str, str] = {
+    "wip": "Work in Progress",
+    "rfi": "Request for Inspection",
+    "tpi": "Third Party Inspection",
+    "qc": "Quality Control",
+    "qa/qc": "Quality Assurance and Quality Control",
+    "matl": "Material",
+    "mtrl": "Material",
+    "avail": "Available",
+    "instld": "Installed",
+    "erectn": "Erection",
+    "fab": "Fabrication",
+    "fit-up": "Fit-up",
+    "fitup": "Fit-up",
+    "insp": "Inspection",
+    "hold pt": "Hold Point",
+    "n/s": "Not Started",
+    "i/p": "In Progress",
+}
+
 # Combined flat map for backward compatibility
 DEFAULT_TERMINOLOGY_MAP: dict[str, str] = {
     **PIPING_TERMINOLOGY,
@@ -261,6 +281,7 @@ DEFAULT_TERMINOLOGY_MAP: dict[str, str] = {
     **ELECTRICAL_TERMINOLOGY,
     **INSTRUMENTATION_TERMINOLOGY,
     **HSE_TERMINOLOGY,
+    **CONSTRUCTION_SHORTHAND,
 }
 
 # Discipline → terminology sub-map
@@ -318,6 +339,40 @@ UNIT_CANONICAL: dict[str, str] = {
     "joint": "Joint",
     "sets": "Sets",
     "set": "Set",
+    "kg": "Kg",
+    "kilogram": "Kg",
+    "kilograms": "Kg",
+    "litre": "L",
+    "liter": "L",
+    "litres": "L",
+    "liters": "L",
+    "hrs": "Hours",
+    "hr": "Hours",
+    "hours": "Hours",
+}
+
+DISCIPLINE_ALIASES: dict[str, DisciplineEnum] = {
+    "civil": DisciplineEnum.CIVIL,
+    "civ": DisciplineEnum.CIVIL,
+    "structural": DisciplineEnum.CIVIL,
+    "piping": DisciplineEnum.PIPING,
+    "pipe": DisciplineEnum.PIPING,
+    "pipeline": DisciplineEnum.PIPING,
+    "mechanical": DisciplineEnum.MECHANICAL,
+    "mech": DisciplineEnum.MECHANICAL,
+    "rotating": DisciplineEnum.MECHANICAL,
+    "static equipment": DisciplineEnum.MECHANICAL,
+    "electrical": DisciplineEnum.ELECTRICAL,
+    "elec": DisciplineEnum.ELECTRICAL,
+    "e&i": DisciplineEnum.ELECTRICAL,
+    "instrumentation": DisciplineEnum.INSTRUMENTATION,
+    "instrument": DisciplineEnum.INSTRUMENTATION,
+    "inst": DisciplineEnum.INSTRUMENTATION,
+    "control": DisciplineEnum.INSTRUMENTATION,
+    "hse": DisciplineEnum.HSE,
+    "ehs": DisciplineEnum.HSE,
+    "safety": DisciplineEnum.HSE,
+    "general": DisciplineEnum.GENERAL,
 }
 
 # =============================================================================
@@ -383,6 +438,81 @@ def normalize_date(text: str) -> str:
     text = _DATE_PATTERNS[1].sub(_replace_mdy_alpha, text)
     text = _DATE_PATTERNS[2].sub(_replace_dmy_numeric, text)
     return text
+
+
+def parse_date_value(value: object) -> date | None:
+    """Parse the common date values used in DPRs, site diaries, P6, and MS Project exports."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+
+    raw = str(value).strip()
+    normalized = normalize_date(raw)
+    iso_match = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", normalized)
+    if iso_match:
+        try:
+            return date.fromisoformat(iso_match.group(0))
+        except ValueError:
+            return None
+
+    for fmt in ("%Y/%m/%d", "%Y.%m.%d", "%d-%b-%Y", "%d %B %Y"):
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def normalize_discipline(value: object) -> DisciplineEnum:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return DisciplineEnum.GENERAL
+    if raw in DISCIPLINE_ALIASES:
+        return DISCIPLINE_ALIASES[raw]
+    for alias, discipline in DISCIPLINE_ALIASES.items():
+        if re.search(rf"\b{re.escape(alias)}\b", raw):
+            return discipline
+    return DisciplineEnum.GENERAL
+
+
+def normalize_equipment_tag(value: object) -> str | None:
+    raw = str(value or "").strip().upper()
+    if not raw:
+        return None
+    raw = re.sub(r"^(?:LINE|PUMP|EQUIPMENT|EQUIP|TAG)[\s:_-]+", "", raw)
+    raw = re.sub(r"\s*/\s*", "/", raw)
+    raw = re.sub(r"[\s_]+", "-", raw)
+    raw = re.sub(r"-+", "-", raw).strip("-")
+    raw = re.sub(r"^([A-Z]{1,6})(\d{2,5}[A-Z]?)$", r"\1-\2", raw)
+    return raw or None
+
+
+def normalize_unit_name(value: object) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    key = re.sub(r"\s+", " ", raw.lower())
+    if key in UNIT_CANONICAL:
+        return UNIT_CANONICAL[key]
+    compact = key.replace(".", "").replace("-", " ")
+    for alias, canonical in UNIT_CANONICAL.items():
+        if compact == alias.replace(".", "").replace("-", " "):
+            return canonical
+    return raw
+
+
+def normalize_quantity_value(value: object) -> float | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        return max(0.0, float(value))
+    match = re.search(r"-?\d[\d,]*(?:\.\d+)?", str(value))
+    if not match:
+        return None
+    return max(0.0, float(match.group(0).replace(",", "")))
 
 
 def normalize_unit(text: str) -> str:

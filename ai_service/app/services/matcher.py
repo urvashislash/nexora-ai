@@ -1,24 +1,35 @@
 import logging
 import re
+from datetime import timezone
 
 from rapidfuzz import fuzz
-
 
 from app.core.config import settings
 from app.models.schemas import (
     MatchCandidate,
+    MatchDecisionEnum,
     MatchProposalPayload,
     MatchTierEnum,
     NormalizedObservation,
     ScheduleActivity,
 )
-from app.services.embeddings import compute_embeddings, cosine_similarity
+from app.services.embeddings import (
+    build_activity_embedding_text,
+    build_observation_embedding_text,
+    compute_embeddings,
+    cosine_similarity,
+)
+from app.services.matching_policy import MatchingThresholds, default_matching_thresholds
+from app.services.normalizer import normalize_equipment_tag, normalize_unit_name
 
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# Quantity Plausibility Scoring
-# =============================================================================
+
+def _units_compatible(left: str | None, right: str | None) -> bool:
+    if not left or not right:
+        return True
+    return normalize_unit_name(left) == normalize_unit_name(right)
+
 
 def _quantity_plausibility_signal(
     obs_quantity: float | None,
@@ -26,354 +37,282 @@ def _quantity_plausibility_signal(
     act_quantity: float | None,
     act_unit: str | None,
 ) -> float:
-    """
-    Returns a small boost or penalty based on whether the reported quantity
-    is plausible relative to the planned activity quantity.
-
-    Returns:
-        +0.03 if reported quantity is within a reasonable range of planned.
-        -0.03 if reported quantity is wildly off (10x or more).
-         0.0  if data is insufficient to judge.
-    """
-    if obs_quantity is None or act_quantity is None:
+    if obs_quantity is None or act_quantity is None or act_quantity <= 0 or not _units_compatible(obs_unit, act_unit):
         return 0.0
-    if act_quantity <= 0:
-        return 0.0
-
-    # Simple unit compatibility check — only compare if units are present and vaguely match
-    if obs_unit and act_unit:
-        obs_u = obs_unit.lower().replace(".", "").replace("-", "").replace(" ", "")
-        act_u = act_unit.lower().replace(".", "").replace("-", "").replace(" ", "")
-        # If units are clearly different classes, skip
-        unit_families = [
-            {"cum", "cubicmeter", "cubicmetre", "cubicmeters"},
-            {"mt", "metricton", "metrictonne", "tonnes", "ton"},
-            {"m", "meters", "metre", "meter", "rm", "runningmeter"},
-            {"inchdia", "id"},
-            {"nos", "numbers", "units", "unit", "tag", "tags"},
-            {"sqm", "squaremeter", "squaremetre"},
-        ]
-        obs_family = None
-        act_family = None
-        for family in unit_families:
-            if obs_u in family:
-                obs_family = family
-            if act_u in family:
-                act_family = family
-        if obs_family and act_family and obs_family != act_family:
-            return 0.0  # Different unit families — can't compare
-
     ratio = obs_quantity / act_quantity
-    if 0.01 <= ratio <= 1.5:
-        return 0.03  # Plausible — small boost
-    elif ratio > 10.0 or ratio < 0.001:
-        return -0.03  # Wildly off — small penalty
+    if 0.001 <= ratio <= 1.5:
+        return 0.03
+    if ratio > 10.0:
+        return -0.04
     return 0.0
 
 
-class HybridMatcher:
-    """
-    Combines Lexical (RapidFuzz), Semantic Vector Similarity (384-dim),
-    and Contextual Boosting to match field observations to L5/L6 activities.
+def _date_plausibility_signal(observation: NormalizedObservation, activity: ScheduleActivity) -> float:
+    if observation.observed_at is None:
+        return 0.0
+    observed_date = observation.observed_at.astimezone(timezone.utc).date()
+    if activity.planned_start_date <= observed_date <= activity.planned_finish_date:
+        return 0.03
+    distance = min(
+        abs((observed_date - activity.planned_start_date).days),
+        abs((observed_date - activity.planned_finish_date).days),
+    )
+    return 0.01 if distance <= 30 else (-0.02 if distance > 180 else 0.0)
 
-    Features:
-    - Hybrid confidence scoring (lexical + semantic + context)
-    - Quantity plausibility signals
-    - Deterministic tie-breaking rules
-    - Batch embedding pre-computation
-    - Near-duplicate observation deduplication
-    """
+
+class HybridMatcher:
+    """Vector retrieval followed by lexical, semantic, and construction-context reranking."""
 
     @classmethod
     def match_observation(
-        cls, observation: NormalizedObservation, activities: list[ScheduleActivity], top_k: int = 3
+        cls,
+        observation: NormalizedObservation,
+        activities: list[ScheduleActivity],
+        top_k: int = 3,
+        *,
+        thresholds: MatchingThresholds | None = None,
     ) -> MatchProposalPayload:
+        policy = thresholds or default_matching_thresholds
         if not activities:
             return MatchProposalPayload(
-                observation=observation, candidates=[], top_match=None, auto_link_eligible=False
+                observation=observation,
+                candidates=[],
+                top_match=None,
+                auto_link_eligible=False,
+                decision=MatchDecisionEnum.REJECTED,
+                review_required=False,
+                decision_reason="No schedule activities were supplied",
+                policy_version=policy.version,
             )
 
-        # 1. Generate observation embedding
-        obs_text_for_embedding = (
-            f"{observation.normalized_text} {observation.discipline or ''} {observation.equipment_tag or ''}"
-        )
-        obs_embedding = compute_embeddings([obs_text_for_embedding])[0]
-
-        # 2. Batch pre-compute activity embeddings for any that don't already have one
+        observation_embedding = compute_embeddings([build_observation_embedding_text(observation)])[0]
         cls._ensure_activity_embeddings(activities)
-
-        scored_candidates: list[MatchCandidate] = []
-
-        for act in activities:
-            # 3. Lexical scoring
-            lex_score_set = fuzz.token_set_ratio(observation.normalized_text.lower(), act.name.lower()) / 100.0
-            lex_score_sort = fuzz.token_sort_ratio(observation.normalized_text.lower(), act.name.lower()) / 100.0
-            lex_score_desc = (
-                fuzz.token_set_ratio(observation.normalized_text.lower(), (act.description or "").lower()) / 100.0
-            )
-            lex_score_code = fuzz.partial_ratio(observation.normalized_text.lower(), act.code.lower()) / 100.0
-
-            # Check exact code or equipment tag mention with word boundaries
-            raw_lower = observation.raw_text.lower()
-            norm_lower = observation.normalized_text.lower()
-            act_tag_clean = (
-                (act.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
-            )
-            obs_tag_clean = (
-                (observation.equipment_tag or "").lower().replace("line-", "").replace("pump-", "").replace("fnd-", "")
-            )
-
-            has_code_match = bool(
-                re.search(r"\b" + re.escape(act.code.lower()) + r"\b", raw_lower)
-                or re.search(r"\b" + re.escape(act.code.lower()) + r"\b", norm_lower)
-            )
-            has_tag_match = False
-            if act_tag_clean:
-                has_tag_match = bool(
-                    re.search(r"\b" + re.escape(act_tag_clean) + r"\b", raw_lower)
-                    or re.search(r"\b" + re.escape(act_tag_clean) + r"\b", norm_lower)
-                    or (obs_tag_clean and act_tag_clean == obs_tag_clean)
-                )
-
-            if has_code_match or has_tag_match:
-                lexical_score = 1.0
-            else:
-                lexical_score = max(lex_score_set, lex_score_sort, lex_score_desc, lex_score_code * 0.85)
-
-
-
-            # 4. Semantic vector scoring
-            act_embedding = act.embedding
-            if not act_embedding:
-                # Fallback — should have been pre-computed, but handle edge case
-                act_text = f"{act.code} {act.name} {act.description or ''} {act.equipment_tag or ''}"
-                act_embedding = compute_embeddings([act_text])[0]
-                act.embedding = act_embedding
-
-            semantic_score = cosine_similarity(obs_embedding, act_embedding)
-
-            # 5. Contextual score boost
-            context_boost = 0.0
-            # Discipline match (+0.10)
-            if observation.discipline and observation.discipline == act.discipline:
-                context_boost += 0.10
-            # Equipment tag match (+0.15)
-            if has_tag_match:
-                context_boost += 0.15
-            # Location/zone match (+0.05)
-            if observation.location and act.location and observation.location.lower() in act.location.lower():
-                context_boost += 0.05
-
-            context_boost = min(context_boost, 0.30)
-
-            # 6. Quantity plausibility signal
-            qty_signal = _quantity_plausibility_signal(
-                observation.reported_quantity,
-                observation.unit_of_measure,
-                act.planned_quantity,
-                act.unit_of_measure,
-            )
-
-            # 7. Combined Hybrid Confidence Score
-            w_lex = settings.WEIGHT_LEXICAL
-            w_sem = settings.WEIGHT_SEMANTIC
-            w_ctx = settings.WEIGHT_CONTEXT
-
-            if lexical_score >= 0.80 and context_boost >= 0.10:
-                combined_score = 0.55 * lexical_score + 0.25 * semantic_score + 0.20 * min(1.0, context_boost / 0.15)
-            elif lexical_score >= 0.65 and context_boost >= 0.10:
-                combined_score = 0.50 * lexical_score + 0.35 * semantic_score + 0.15 * min(1.0, context_boost / 0.15)
-            else:
-                combined_score = (w_lex * lexical_score) + (w_sem * semantic_score) + (w_ctx * min(1.0, context_boost / 0.15))
-
-            # Apply quantity plausibility
-            combined_score += qty_signal
-
-            combined_score = min(1.0, max(0.0, combined_score))
-
-            # 8. Determine Match Tier
-            if combined_score >= settings.MATCH_HIGH_CONFIDENCE_THRESHOLD:
-                match_tier = MatchTierEnum.HIGH
-            elif combined_score >= settings.MATCH_REVIEW_THRESHOLD:
-                match_tier = MatchTierEnum.MEDIUM
-            elif combined_score >= 0.35:
-                match_tier = MatchTierEnum.LOW
-            else:
-                match_tier = MatchTierEnum.UNMATCHED
-
-            # 9. Explanation & Evidence Snippet
-            explanation = (
-                f"Confidence {combined_score * 100:.1f}%: "
-                f"Lexical={lexical_score * 100:.0f}%, "
-                f"Semantic={semantic_score * 100:.0f}%, "
-                f"Context boost={context_boost * 100:.0f}%"
-            )
-            if qty_signal != 0.0:
-                explanation += f", Qty signal={'+' if qty_signal > 0 else ''}{qty_signal * 100:.0f}%"
-
-            evidence_snippet = f'Obs: "{observation.raw_text}" -> Activity [{act.code}] "{act.name}"'
-
-            candidate = MatchCandidate(
-                activity_id=act.id,
-                activity_code=act.code,
-                activity_name=act.name,
-                candidate_rank=1,
-                lexical_score=round(lexical_score, 4),
-                semantic_score=round(semantic_score, 4),
-                context_boost=round(context_boost, 4),
-                confidence_score=round(combined_score, 4),
-                match_tier=match_tier,
-                explanation=explanation,
-                evidence_snippet=evidence_snippet,
-            )
-            scored_candidates.append(candidate)
-
-        # 10. Sort candidates with deterministic tie-breaking
-        scored_candidates.sort(key=lambda c: cls._sort_key(c, observation), reverse=True)
-
-        # Assign ranks
-        for rank, cand in enumerate(scored_candidates[:top_k], start=1):
-            cand.candidate_rank = rank
-
+        retrieved = cls.retrieve_activities(observation, activities, observation_embedding)
+        scored_candidates = [
+            cls._score_candidate(observation, activity, observation_embedding, policy) for activity in retrieved
+        ]
+        scored_candidates.sort(key=cls._sort_key, reverse=True)
         top_candidates = scored_candidates[:top_k]
-        top_match = (
-            top_candidates[0] if top_candidates and top_candidates[0].match_tier != MatchTierEnum.UNMATCHED else None
-        )
+        for rank, candidate in enumerate(top_candidates, start=1):
+            candidate.candidate_rank = rank
 
-        # Auto-link eligibility: High confidence and clear separation from 2nd candidate
-        auto_link_eligible = False
-        if top_match and top_match.match_tier == MatchTierEnum.HIGH:
-            if len(top_candidates) > 1:
-                # If gap is > 0.08, auto-link; otherwise route to review to resolve ambiguity
-                score_gap = top_match.confidence_score - top_candidates[1].confidence_score
-                auto_link_eligible = score_gap >= 0.08
-            else:
-                auto_link_eligible = True
+        raw_top = top_candidates[0] if top_candidates else None
+        score_gap = None
+        if raw_top is not None:
+            score_gap = (
+                raw_top.confidence_score - top_candidates[1].confidence_score
+                if len(top_candidates) > 1
+                else 1.0
+            )
+        decision = policy.decide(raw_top, observation, score_gap)
+        top_match = raw_top if raw_top and raw_top.confidence_score >= policy.rejection else None
 
         return MatchProposalPayload(
             observation=observation,
             candidates=top_candidates,
             top_match=top_match,
-            auto_link_eligible=auto_link_eligible,
+            auto_link_eligible=decision.auto_link_eligible,
+            decision=decision.decision,
+            review_required=decision.review_required,
+            decision_reason=decision.reason,
+            score_gap=round(score_gap, 4) if score_gap is not None else None,
+            policy_version=policy.version,
         )
-
-    # =========================================================================
-    # Deterministic Tie-Breaking
-    # =========================================================================
 
     @classmethod
-    def _sort_key(cls, candidate: MatchCandidate, observation: NormalizedObservation) -> tuple:
-        """
-        Build a deterministic sort key for candidates. When confidence_score is
-        equal to 4 decimal places, we break ties in this order:
-          1. Higher lexical score wins.
-          2. Higher semantic score wins.
-          3. Discipline-matching candidate wins.
-          4. Activity code sorted lexicographically ascending (lower code wins).
-        """
-        discipline_match = 1 if (
-            observation.discipline
-            and candidate.activity_code  # just need a signal; we use discipline from the explanation
-        ) else 0
+    def retrieve_activities(
+        cls,
+        observation: NormalizedObservation,
+        activities: list[ScheduleActivity],
+        observation_embedding: list[float] | None = None,
+        limit: int | None = None,
+    ) -> list[ScheduleActivity]:
+        """Return vector-nearest activities plus exact context candidates so identifiers are never pruned."""
+        if not activities:
+            return []
+        cls._ensure_activity_embeddings(activities)
+        observation_embedding = observation_embedding or compute_embeddings(
+            [build_observation_embedding_text(observation)]
+        )[0]
+        retrieval_limit = min(limit or settings.VECTOR_RETRIEVAL_LIMIT, len(activities))
+        semantic_rank = sorted(
+            activities,
+            key=lambda activity: cosine_similarity(observation_embedding, activity.embedding or []),
+            reverse=True,
+        )
+        selected = semantic_rank[:retrieval_limit]
 
-        # We can't directly compare discipline from MatchCandidate (it's not stored),
-        # so we use a heuristic: if the candidate's activity_code prefix matches
-        # the discipline's common prefix, it's a discipline match.
-        disc_prefix_map = {
-            "PIPING": "PIP",
-            "CIVIL": "CIV",
-            "MECHANICAL": "MEC",
-            "ELECTRICAL": "ELE",
-            "INSTRUMENTATION": "INS",
-            "HSE": "HSE",
-        }
-        if observation.discipline:
-            expected_prefix = disc_prefix_map.get(observation.discipline.value, "")
-            discipline_match = 1 if candidate.activity_code.startswith(expected_prefix) else 0
+        lexical_rank = sorted(
+            activities,
+            key=lambda activity: fuzz.token_set_ratio(
+                observation.normalized_text.lower(),
+                f"{activity.name} {activity.description or ''}".lower(),
+            ),
+            reverse=True,
+        )[: min(10, len(activities))]
 
-        return (
-            candidate.confidence_score,
-            candidate.lexical_score,
-            candidate.semantic_score,
-            discipline_match,
-            # Invert code so that ascending code wins (smaller code = larger sort key)
-            tuple(-ord(c) for c in candidate.activity_code),
+        raw_lower = observation.raw_text.lower()
+        observation_tag = normalize_equipment_tag(observation.equipment_tag)
+        selected_ids = {activity.id for activity in selected}
+        for activity in lexical_rank:
+            if activity.id not in selected_ids:
+                selected.append(activity)
+                selected_ids.add(activity.id)
+        for activity in activities:
+            activity_tag = normalize_equipment_tag(activity.equipment_tag)
+            exact_context = (
+                bool(re.search(rf"(?<!\w){re.escape(activity.code.lower())}(?!\w)", raw_lower))
+                or bool(observation_tag and activity_tag and observation_tag == activity_tag)
+            )
+            if exact_context and activity.id not in selected_ids:
+                selected.append(activity)
+                selected_ids.add(activity.id)
+        return selected
+
+    @classmethod
+    def _score_candidate(
+        cls,
+        observation: NormalizedObservation,
+        activity: ScheduleActivity,
+        observation_embedding: list[float],
+        thresholds: MatchingThresholds,
+    ) -> MatchCandidate:
+        normalized_lower = observation.normalized_text.lower()
+        raw_lower = observation.raw_text.lower()
+        activity_text = " ".join(filter(None, (activity.name, activity.description or ""))).lower()
+
+        lexical_scores = (
+            fuzz.token_set_ratio(normalized_lower, activity.name.lower()) / 100.0,
+            fuzz.token_sort_ratio(normalized_lower, activity.name.lower()) / 100.0,
+            fuzz.token_set_ratio(normalized_lower, activity_text) / 100.0,
+            fuzz.partial_ratio(normalized_lower, activity.code.lower()) / 100.0 * 0.85,
+        )
+        code_match = bool(
+            re.search(rf"(?<!\w){re.escape(activity.code.lower())}(?!\w)", raw_lower)
+            or re.search(rf"(?<!\w){re.escape(activity.code.lower())}(?!\w)", normalized_lower)
+        )
+        observation_tag = normalize_equipment_tag(observation.equipment_tag)
+        activity_tag = normalize_equipment_tag(activity.equipment_tag)
+        equipment_match = bool(observation_tag and activity_tag and observation_tag == activity_tag)
+        lexical_score = 1.0 if code_match or equipment_match else max(lexical_scores)
+
+        semantic_score = cosine_similarity(observation_embedding, activity.embedding or [])
+        discipline_match = bool(observation.discipline and observation.discipline == activity.discipline)
+        location_match = bool(
+            observation.location
+            and activity.location
+            and (
+                observation.location.lower() in activity.location.lower()
+                or activity.location.lower() in observation.location.lower()
+            )
+        )
+        zone_match = bool(
+            observation.zone and activity.zone and observation.zone.casefold() == activity.zone.casefold()
         )
 
-    # =========================================================================
-    # Batch Embedding Pre-computation
-    # =========================================================================
+        context_boost = 0.0
+        context_boost += 0.10 if discipline_match else 0.0
+        context_boost += 0.15 if code_match else 0.0
+        context_boost += 0.20 if equipment_match else 0.0
+        context_boost += 0.05 if location_match else 0.0
+        context_boost += 0.03 if zone_match else 0.0
+        context_boost = min(context_boost, 0.35)
+
+        if lexical_score >= 0.80 and context_boost >= 0.10:
+            confidence = 0.55 * lexical_score + 0.25 * semantic_score + 0.20 * min(1.0, context_boost / 0.15)
+        elif lexical_score >= 0.65 and context_boost >= 0.10:
+            confidence = 0.50 * lexical_score + 0.35 * semantic_score + 0.15 * min(1.0, context_boost / 0.15)
+        else:
+            confidence = (
+                settings.WEIGHT_LEXICAL * lexical_score
+                + settings.WEIGHT_SEMANTIC * semantic_score
+                + settings.WEIGHT_CONTEXT * min(1.0, context_boost / 0.15)
+            )
+        quantity_signal = _quantity_plausibility_signal(
+            observation.reported_quantity,
+            observation.unit_of_measure,
+            activity.planned_quantity,
+            activity.unit_of_measure,
+        )
+        date_signal = _date_plausibility_signal(observation, activity)
+        identifier_signal = 0.03 if code_match else 0.0
+        confidence = max(0.0, min(1.0, confidence + quantity_signal + date_signal + identifier_signal))
+
+        if confidence >= thresholds.high_confidence:
+            tier = MatchTierEnum.HIGH
+        elif confidence >= thresholds.review:
+            tier = MatchTierEnum.MEDIUM
+        elif confidence >= thresholds.rejection:
+            tier = MatchTierEnum.LOW
+        else:
+            tier = MatchTierEnum.UNMATCHED
+
+        explanation = (
+            f"Confidence {confidence * 100:.1f}%: lexical={lexical_score * 100:.0f}%, "
+            f"semantic={semantic_score * 100:.0f}%, context={context_boost * 100:.0f}%, "
+            f"quantity={quantity_signal * 100:+.0f}%, date={date_signal * 100:+.0f}%, "
+            f"identifier={identifier_signal * 100:+.0f}%"
+        )
+        return MatchCandidate(
+            activity_id=activity.id,
+            activity_code=activity.code,
+            activity_name=activity.name,
+            lexical_score=round(lexical_score, 4),
+            semantic_score=round(semantic_score, 4),
+            context_boost=round(context_boost, 4),
+            discipline_match=discipline_match,
+            equipment_match=equipment_match,
+            location_match=location_match,
+            confidence_score=round(confidence, 4),
+            match_tier=tier,
+            explanation=explanation,
+            evidence_snippet=f'Obs: "{observation.raw_text}" -> Activity [{activity.code}] "{activity.name}"',
+        )
+
+    @staticmethod
+    def _sort_key(candidate: MatchCandidate) -> tuple:
+        return (
+            candidate.confidence_score,
+            candidate.equipment_match,
+            candidate.discipline_match,
+            candidate.lexical_score,
+            candidate.semantic_score,
+            tuple(-ord(character) for character in candidate.activity_code),
+        )
 
     @classmethod
     def _ensure_activity_embeddings(cls, activities: list[ScheduleActivity]) -> None:
-        """
-        Pre-compute embeddings for all activities that don't have one yet,
-        in a single batch call. This avoids calling the embedding model N times
-        per observation when processing a list of activities.
-        """
-        texts_to_embed: list[str] = []
-        indices_to_fill: list[int] = []
-
-        for i, act in enumerate(activities):
-            if not act.embedding:
-                act_text = f"{act.code} {act.name} {act.description or ''} {act.equipment_tag or ''}"
-                texts_to_embed.append(act_text)
-                indices_to_fill.append(i)
-
-        if texts_to_embed:
-            embeddings = compute_embeddings(texts_to_embed)
-            for idx, emb in zip(indices_to_fill, embeddings, strict=False):
-                activities[idx].embedding = emb
-
-    # =========================================================================
-    # Near-Duplicate Observation Deduplication
-    # =========================================================================
+        missing = [(index, activity) for index, activity in enumerate(activities) if not activity.embedding]
+        if not missing:
+            return
+        embeddings = compute_embeddings([build_activity_embedding_text(activity) for _, activity in missing])
+        for (index, _), embedding in zip(missing, embeddings, strict=False):
+            activities[index].embedding = embedding
 
     @classmethod
     def deduplicate_observations(
-        cls, observations: list[NormalizedObservation], threshold: float = 0.92
+        cls,
+        observations: list[NormalizedObservation],
+        threshold: float = 0.92,
     ) -> list[NormalizedObservation]:
-        """
-        Detect near-duplicate observations using normalized text similarity
-        (RapidFuzz token_sort_ratio >= threshold). Keeps the observation with
-        the highest extraction confidence from each cluster.
-
-        Returns a deduplicated list.
-        """
         if len(observations) <= 1:
             return observations
-
-        # Track which observations have been merged into another
         merged: set[int] = set()
         result: list[NormalizedObservation] = []
-
-        for i, obs_a in enumerate(observations):
-            if i in merged:
+        for index, observation in enumerate(observations):
+            if index in merged:
                 continue
-
-            best = obs_a
-            for j in range(i + 1, len(observations)):
-                if j in merged:
+            best = observation
+            for other_index in range(index + 1, len(observations)):
+                if other_index in merged:
                     continue
-                obs_b = observations[j]
-
+                other = observations[other_index]
                 similarity = fuzz.token_sort_ratio(
-                    obs_a.normalized_text.lower(),
-                    obs_b.normalized_text.lower(),
+                    observation.normalized_text.lower(), other.normalized_text.lower()
                 ) / 100.0
-
                 if similarity >= threshold:
-                    merged.add(j)
-                    # Keep the one with higher extraction confidence
-                    if obs_b.extraction_confidence > best.extraction_confidence:
-                        best = obs_b
-
+                    merged.add(other_index)
+                    if other.extraction_confidence > best.extraction_confidence:
+                        best = other
             result.append(best)
-
-        if len(observations) != len(result):
-            logger.info(
-                f"Deduplicated {len(observations)} observations down to {len(result)} "
-                f"(removed {len(observations) - len(result)} near-duplicates)"
-            )
-
         return result

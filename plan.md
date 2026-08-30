@@ -78,30 +78,32 @@ This document lists every major task still required to take the project from its
 ## 4. AI and Processing Layer Completion
 
 ### 4.1 Document parsing
-- Implement end-to-end PDF extraction and parsing.
-- Support spreadsheets and tabular discipline datasets.
-- Add image and OCR handling for site photo evidence.
-- Add ASR or voice transcription support where needed.
+- [x] Implement end-to-end PDF extraction and parsing.
+- [x] Support spreadsheets and tabular discipline datasets.
+- [x] Add image and OCR handling for site photo evidence.
+- [x] Add ASR or voice transcription support where needed.
 
 ### 4.2 Extraction and normalization
-- Complete the text extraction pipeline for daily reports, progress logs, and schedule imports.
-- Normalize discipline names, equipment tags, quantities, dates, and units consistently.
-- Improve contextual understanding for real construction site language.
+- [x] Complete the text extraction pipeline for daily reports, progress logs, and schedule imports.
+- [x] Normalize discipline names, equipment tags, quantities, dates, and units consistently.
+- [x] Improve contextual understanding for real construction site language.
 
 ### 4.3 Embeddings and matching
-- Generate embeddings for activities and observation text using the selected sentence-transformer model.
-- Test and tune vector retrieval quality against a realistic dataset.
-- Add fallback logic for low-confidence or no-match cases.
+- [x] Generate embeddings for activities and observation text using the selected sentence-transformer model.
+- [x] Test and tune vector retrieval quality against a realistic dataset.
+- [x] Add fallback logic for low-confidence or no-match cases.
 
 ### 4.4 Matching confidence and review thresholds
-- Validate match confidence thresholds using real field data.
-- Tune high-confidence, review-needed, and rejection boundaries.
-- Ensure uncertain matches are escalated to human review instead of auto-committing.
+- [x] Validate match confidence thresholds using a realistic, labelled multi-discipline field dataset.
+- [x] Tune high-confidence, review-needed, and rejection boundaries.
+- [x] Ensure uncertain matches are escalated to human review instead of auto-committing.
 
 ### 4.5 Queue worker reliability
-- Complete RabbitMQ integration and job flow orchestration.
-- Add retries, dead-letter queues, and idempotent processing.
-- Handle partial processing failures without losing evidence or state.
+- [x] Complete RabbitMQ integration and job flow orchestration.
+- [x] Add retries, dead-letter queues, and idempotent processing.
+- [x] Handle partial processing failures without losing evidence or state.
+
+Implementation and verification details are documented in `ai_service/README.md`.
 
 ## 5. Rust Backend Completion
 

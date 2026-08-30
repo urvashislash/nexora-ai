@@ -31,7 +31,7 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 async def root():
     return {
         "service": "NEXORA AI — Python AI Processing Plane",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "docs": f"{settings.API_V1_STR}/docs",
     }
 

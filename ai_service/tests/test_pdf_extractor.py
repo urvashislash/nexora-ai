@@ -1,4 +1,5 @@
 from uuid import uuid4
+
 import fitz
 import pytest
 
@@ -49,4 +50,4 @@ def test_pdf_extraction_observations(sample_pdf_bytes):
     assert cdu_obs is not None
     assert cdu_obs.discipline == DisciplineEnum.CIVIL
     assert cdu_obs.reported_quantity == 180.0
-    assert cdu_obs.unit_of_measure == "cu.m"
+    assert cdu_obs.unit_of_measure == "Cu.M"

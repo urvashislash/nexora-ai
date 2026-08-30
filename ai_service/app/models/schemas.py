@@ -32,6 +32,12 @@ class MatchTierEnum(str, Enum):
     UNMATCHED = "UNMATCHED"
 
 
+class MatchDecisionEnum(str, Enum):
+    AUTO_LINK = "AUTO_LINK"
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    REJECTED = "REJECTED"
+
+
 class DocumentJobType(str, Enum):
     PARSE = "PARSE"
     OCR = "OCR"
@@ -53,8 +59,8 @@ class RawObservation(BaseModel):
     zone: str | None = None
     equipment_tag: str | None = None
     event_type: EventTypeEnum | None = None
-    reported_progress: float | None = None
-    reported_quantity: float | None = None
+    reported_progress: float | None = Field(default=None, ge=0.0, le=100.0)
+    reported_quantity: float | None = Field(default=None, ge=0.0)
     unit_of_measure: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -98,6 +104,9 @@ class MatchCandidate(BaseModel):
     lexical_score: float = 0.0
     semantic_score: float = 0.0
     context_boost: float = 0.0
+    discipline_match: bool = False
+    equipment_match: bool = False
+    location_match: bool = False
     confidence_score: float
     match_tier: MatchTierEnum
     explanation: str
@@ -109,6 +118,11 @@ class MatchProposalPayload(BaseModel):
     candidates: list[MatchCandidate]
     top_match: MatchCandidate | None = None
     auto_link_eligible: bool = False
+    decision: MatchDecisionEnum = MatchDecisionEnum.REVIEW_REQUIRED
+    review_required: bool = True
+    decision_reason: str = "Match requires human review"
+    score_gap: float | None = None
+    policy_version: str = "construction-v1"
 
 
 # -----------------------------------------------------------------------------
@@ -148,9 +162,14 @@ class ProcessDocumentMessage(BaseModel):
     document_id: UUID
     job_id: UUID
     storage_key: str
+    storage_bucket: str = "evidence-documents"
     source_type: str
     filename: str
+    mime_type: str | None = None
     text_content: str | None = None
+    content_base64: str | None = None
+    activities: list[ScheduleActivity] = Field(default_factory=list)
+    attempt: int = Field(default=0, ge=0)
 
 
 # -----------------------------------------------------------------------------
@@ -167,6 +186,7 @@ class PipelineProcessRequest(BaseModel):
     project_id: UUID
     document_id: UUID | None = None
     text_content: str | None = None
+    source_type: str = "DAILY_REPORT"
     activities: list[ScheduleActivity] = Field(default_factory=list)
 
 
@@ -180,3 +200,14 @@ class PipelineProcessResult(BaseModel):
     review_required_count: int
     unmatched_count: int
 
+
+class ScheduleImportIssue(BaseModel):
+    row_number: int
+    field: str | None = None
+    message: str
+
+
+class ScheduleImportResult(BaseModel):
+    activities: list[ScheduleActivity]
+    issues: list[ScheduleImportIssue] = Field(default_factory=list)
+    rows_processed: int = 0

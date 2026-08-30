@@ -1,39 +1,42 @@
-import logging
+import json
 import time
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.models.schemas import (
     EmbedRequest,
     EmbedResponse,
     ExtractRequest,
+    MatchDecisionEnum,
     MatchProposalPayload,
     MatchRequest,
-    MatchTierEnum,
     NormalizedObservation,
     NormalizeRequest,
     PipelineProcessRequest,
     PipelineProcessResult,
     PipelineStageStatus,
+    ScheduleActivity,
+    ScheduleImportResult,
 )
-from app.services.embeddings import compute_embeddings
+from app.services.embeddings import compute_embeddings, embedding_backend_info
 from app.services.extractor import DocumentExtractor
 from app.services.matcher import HybridMatcher
+from app.services.media import MediaProcessingError
 from app.services.normalizer import default_normalizer
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
 @router.get("/health")
 async def health_check():
+    embedding_info = embedding_backend_info()
     return {
         "status": "healthy",
         "service": "ai_service",
-        "model": "sentence-transformers/all-MiniLM-L6-v2",
-        "dimension": 384,
+        "model": embedding_info["model"],
+        "dimension": embedding_info["dimension"],
+        "embeddings": embedding_info,
     }
 
 
@@ -46,35 +49,49 @@ async def extract_observations(payload: ExtractRequest):
         return []
 
     observations = DocumentExtractor.extract_from_text(
-        text=payload.text_content, project_id=payload.project_id, document_id=payload.document_id
+        text=payload.text_content,
+        project_id=payload.project_id,
+        document_id=payload.document_id,
+        source_type=payload.source_type,
     )
     return observations
 
 
 @router.post("/extract-file", response_model=list[NormalizedObservation])
 async def extract_observations_from_file(
-    project_id: UUID = Form(...), document_id: UUID = Form(default_factory=uuid4), file: UploadFile = File(...)
+    project_id: UUID = Form(...),
+    document_id: UUID | None = Form(None),
+    source_type: str = Form("DAILY_REPORT"),
+    file: UploadFile = File(...),
 ):
     """
     Ingests binary file (PDF, Excel, CSV, or Text) and extracts observations.
     """
     content = await file.read()
-    filename = (file.filename or "").lower()
-    content_type = (file.content_type or "").lower()
-
-    if filename.endswith(".pdf") or "pdf" in content_type:
-        observations = DocumentExtractor.extract_from_pdf_bytes(
-            content=content, project_id=project_id, document_id=document_id
+    try:
+        return DocumentExtractor.extract_document(
+            content,
+            project_id,
+            document_id or uuid4(),
+            filename=file.filename or "evidence.bin",
+            mime_type=file.content_type,
+            source_type=source_type,
         )
-    elif filename.endswith((".xlsx", ".xls", ".csv")):
-        observations = DocumentExtractor.extract_from_excel_bytes(
-            content=content, project_id=project_id, document_id=document_id
-        )
-    else:
-        text = content.decode("utf-8", errors="ignore")
-        observations = DocumentExtractor.extract_from_text(text=text, project_id=project_id, document_id=document_id)
+    except MediaProcessingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    return observations
+
+@router.post("/schedule/import-file", response_model=ScheduleImportResult)
+async def import_schedule_file(project_id: UUID = Form(...), file: UploadFile = File(...)):
+    """Parse P6/MS Project-style CSV, XLS, or XLSX exports into normalized schedule activities."""
+    try:
+        return DocumentExtractor.extract_schedule_from_tabular_bytes(
+            await file.read(),
+            project_id,
+            filename=file.filename or "schedule.xlsx",
+        )
+    except MediaProcessingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/normalize")
@@ -120,7 +137,10 @@ async def process_pipeline(payload: PipelineProcessRequest):
     # Stage 1: Extraction & Normalization
     if payload.text_content:
         observations = DocumentExtractor.extract_from_text(
-            text=payload.text_content, project_id=payload.project_id, document_id=payload.document_id
+            text=payload.text_content,
+            project_id=payload.project_id,
+            document_id=payload.document_id,
+            source_type=payload.source_type,
         )
     else:
         observations = []
@@ -146,9 +166,9 @@ async def process_pipeline(payload: PipelineProcessRequest):
         proposal = HybridMatcher.match_observation(observation=obs, activities=payload.activities)
         proposals.append(proposal)
 
-        if proposal.auto_link_eligible:
+        if proposal.decision == MatchDecisionEnum.AUTO_LINK:
             auto_link_count += 1
-        elif proposal.top_match and proposal.top_match.match_tier != MatchTierEnum.UNMATCHED:
+        elif proposal.decision == MatchDecisionEnum.REVIEW_REQUIRED:
             review_required_count += 1
         else:
             unmatched_count += 1
@@ -174,3 +194,62 @@ async def process_pipeline(payload: PipelineProcessRequest):
         unmatched_count=unmatched_count,
     )
 
+
+@router.post("/pipeline/process-file", response_model=PipelineProcessResult)
+async def process_file_pipeline(
+    project_id: UUID = Form(...),
+    document_id: UUID | None = Form(None),
+    source_type: str = Form("DAILY_REPORT"),
+    activities_json: str = Form("[]"),
+    file: UploadFile = File(...),
+):
+    """Execute parse/OCR/ASR, normalization, embedding, matching, and review routing for a file."""
+    try:
+        raw_activities = json.loads(activities_json)
+        activities = [ScheduleActivity.model_validate(item) for item in raw_activities]
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid activities_json: {exc}") from exc
+
+    resolved_document_id = document_id or uuid4()
+    start = time.perf_counter()
+    try:
+        observations = DocumentExtractor.extract_document(
+            await file.read(),
+            project_id,
+            resolved_document_id,
+            filename=file.filename or "evidence.bin",
+            mime_type=file.content_type,
+            source_type=source_type,
+        )
+    except MediaProcessingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    extracted_at = time.perf_counter()
+    observations = HybridMatcher.deduplicate_observations(observations)
+    proposals = [HybridMatcher.match_observation(observation, activities) for observation in observations]
+    completed_at = time.perf_counter()
+
+    return PipelineProcessResult(
+        project_id=project_id,
+        document_id=resolved_document_id,
+        observations=observations,
+        proposals=proposals,
+        stages=[
+            PipelineStageStatus(
+                stage="PARSE_EXTRACT_NORMALIZE",
+                status="COMPLETED",
+                items_processed=len(observations),
+                duration_ms=round((extracted_at - start) * 1000, 2),
+            ),
+            PipelineStageStatus(
+                stage="EMBED_MATCH_ROUTE",
+                status="COMPLETED",
+                items_processed=len(proposals),
+                duration_ms=round((completed_at - extracted_at) * 1000, 2),
+            ),
+        ],
+        auto_link_count=sum(proposal.decision == MatchDecisionEnum.AUTO_LINK for proposal in proposals),
+        review_required_count=sum(
+            proposal.decision == MatchDecisionEnum.REVIEW_REQUIRED for proposal in proposals
+        ),
+        unmatched_count=sum(proposal.decision == MatchDecisionEnum.REJECTED for proposal in proposals),
+    )
