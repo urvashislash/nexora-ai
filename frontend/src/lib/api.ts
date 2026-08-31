@@ -219,12 +219,14 @@ export const api = {
    * Approve a proposal
    */
   async approveProposal(proposalId: string, payload: { selected_activity_id?: string; comments?: string; reviewed_by?: string } = {}): Promise<{ success: boolean; event_id?: string; error?: string }> {
+    const reviewerId = payload.reviewed_by || DEFAULT_USER_ID;
     const { data, error } = await request<{ success: boolean; event_id: string }>(`/api/v1/proposals/${proposalId}/approve`, {
       method: 'POST',
       body: JSON.stringify({
         selected_activity_id: payload.selected_activity_id,
         comments: payload.comments || 'Approved by Lead Planner via Field Ledger console',
-        reviewed_by: payload.reviewed_by || DEFAULT_USER_ID,
+        reviewer_id: reviewerId,
+        reviewed_by: reviewerId,
       }),
     });
 
@@ -238,11 +240,14 @@ export const api = {
    * Reject a proposal
    */
   async rejectProposal(proposalId: string, payload: { reason: string; reviewed_by?: string }): Promise<{ success: boolean; error?: string }> {
+    const reviewerId = payload.reviewed_by || DEFAULT_USER_ID;
     const { error } = await request<{ success: boolean }>(`/api/v1/proposals/${proposalId}/reject`, {
       method: 'POST',
       body: JSON.stringify({
+        comments: payload.reason,
         reason: payload.reason,
-        reviewed_by: payload.reviewed_by || DEFAULT_USER_ID,
+        reviewer_id: reviewerId,
+        reviewed_by: reviewerId,
       }),
     });
 
@@ -256,12 +261,14 @@ export const api = {
    * Override a proposal with another activity
    */
   async overrideProposal(proposalId: string, payload: { new_activity_id: string; reason: string; reviewed_by?: string }): Promise<{ success: boolean; event_id?: string; error?: string }> {
+    const reviewerId = payload.reviewed_by || DEFAULT_USER_ID;
     const { data, error } = await request<{ success: boolean; event_id: string }>(`/api/v1/proposals/${proposalId}/override`, {
       method: 'POST',
       body: JSON.stringify({
-        new_activity_id: payload.new_activity_id,
-        reason: payload.reason,
-        reviewed_by: payload.reviewed_by || DEFAULT_USER_ID,
+        selected_activity_id: payload.new_activity_id,
+        comments: payload.reason,
+        reviewer_id: reviewerId,
+        reviewed_by: reviewerId,
       }),
     });
 

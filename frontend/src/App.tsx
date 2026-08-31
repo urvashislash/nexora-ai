@@ -230,9 +230,9 @@ function App() {
     safeReadStorage<ReviewQueueItem[]>(`${STORAGE_KEY}:reviewQueue`, [
       {
         proposal: {
-          id: 'prop-init-01',
+          id: '20000000-0000-0000-0000-000000000005',
           project_id: PROJECT_ID,
-          observation_id: 'obs-init-01',
+          observation_id: '10000000-0000-0000-0000-000000000005',
           activity_id: 'd0000000-0000-0000-0000-000000000002',
           candidate_rank: 1,
           lexical_score: 0.72,
@@ -246,7 +246,7 @@ function App() {
           created_at: new Date().toISOString(),
         },
         observation: {
-          id: 'obs-init-01',
+          id: '10000000-0000-0000-0000-000000000005',
           project_id: PROJECT_ID,
           raw_text: 'Hydrostatic testing completed along Pipe Rack B headers yesterday afternoon.',
           normalized_text: 'Hydrostatic Testing completed along Pipe Rack B headers',
@@ -366,9 +366,10 @@ function App() {
 
     // Check if it should go to review queue or auto-link
     if (rawText.toLowerCase().includes('headers') || rawText.includes('Pipe Rack B')) {
+      const dynamicProposalId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '20000000-0000-0000-0000-000000000005';
       const newProposal: ReviewQueueItem = {
         proposal: {
-          id: `prop-${Date.now()}`,
+          id: dynamicProposalId,
           project_id: PROJECT_ID,
           observation_id: newObs[0].id,
           activity_id: activities[1].activity.id,

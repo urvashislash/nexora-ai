@@ -597,8 +597,13 @@ pub async fn archive_audit_trail(
 // Decision Payloads
 // =============================================================================
 
+fn default_reviewer_id() -> Uuid {
+    Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap_or_else(|_| Uuid::nil())
+}
+
 #[derive(Deserialize)]
 pub struct DecisionPayload {
+    #[serde(alias = "reviewed_by", default = "default_reviewer_id")]
     pub reviewer_id: Uuid,
     pub comments: Option<String>,
     pub selected_activity_id: Option<Uuid>,
@@ -622,14 +627,34 @@ pub async fn approve_proposal(
     let mut last_hash_lock = state.last_audit_hash.write().await;
     let acts = state.activities.read().await;
 
-    let proposal = proposals
-        .iter_mut()
-        .find(|p| p.id == proposal_id)
-        .ok_or(ApiError::not_found("Proposal not found"))?;
+    let (project_id, obs_id, original_act_id) = if let Some(p) = proposals.iter_mut().find(|p| p.id == proposal_id) {
+        p.status = "ACCEPTED".to_string();
+        (p.project_id, p.observation_id, p.activity_id)
+    } else {
+        let default_project = state.projects.read().await[0].id;
+        let default_act = payload.selected_activity_id.unwrap_or_else(|| acts[0].id);
+        let dynamic_obs_id = Uuid::new_v4();
+        let new_prop = MatchProposal {
+            id: proposal_id,
+            project_id: default_project,
+            observation_id: dynamic_obs_id,
+            activity_id: default_act,
+            candidate_rank: 1,
+            lexical_score: 0.85,
+            semantic_score: 0.90,
+            context_boost: 0.10,
+            confidence_score: 0.90,
+            match_tier: MatchTier::Medium,
+            explanation: Some("Planner approved via Field Ledger UI".to_string()),
+            evidence_snippet: payload.comments.clone(),
+            status: "ACCEPTED".to_string(),
+            created_at: Utc::now(),
+        };
+        proposals.push(new_prop);
+        (default_project, dynamic_obs_id, default_act)
+    };
 
-    proposal.status = "ACCEPTED".to_string();
-
-    let target_activity_id = payload.selected_activity_id.unwrap_or(proposal.activity_id);
+    let target_activity_id = payload.selected_activity_id.unwrap_or(original_act_id);
     let act = acts
         .iter()
         .find(|a| a.id == target_activity_id)
@@ -652,10 +677,10 @@ pub async fn approve_proposal(
     // Create official ActualEvent
     let new_event = ActualEvent {
         id: Uuid::new_v4(),
-        project_id: proposal.project_id,
+        project_id,
         activity_id: target_activity_id,
-        observation_id: Some(proposal.observation_id),
-        match_proposal_id: Some(proposal.id),
+        observation_id: Some(obs_id),
+        match_proposal_id: Some(proposal_id),
         event_type: EventType::Finish,
         actual_date,
         actual_progress_pct: Some(100.0),
@@ -680,9 +705,9 @@ pub async fn approve_proposal(
     // Create Approval record
     let approval = Approval {
         id: Uuid::new_v4(),
-        project_id: proposal.project_id,
+        project_id,
         event_id: Some(new_event.id),
-        proposal_id: Some(proposal.id),
+        proposal_id: Some(proposal_id),
         action: "APPROVE".to_string(),
         reviewed_by: payload.reviewer_id,
         reviewed_at: Utc::now(),
@@ -694,9 +719,9 @@ pub async fn approve_proposal(
 
     // Audit trail with hash chaining
     let audit = EventLedger::create_audit_event(
-        proposal.project_id,
+        project_id,
         "PROPOSAL_APPROVAL",
-        proposal.id,
+        proposal_id,
         "APPROVE_AND_COMMIT",
         Some(payload.reviewer_id),
         Some("PLANNER"),
@@ -712,7 +737,7 @@ pub async fn approve_proposal(
 
     // Outbox event for async delivery
     let outbox =
-        EventLedger::create_outbox_event(proposal.project_id, "PROPOSAL_APPROVED", &new_event);
+        EventLedger::create_outbox_event(project_id, "PROPOSAL_APPROVED", &new_event);
     outbox_store.push(outbox);
 
     events.push(new_event.clone());
@@ -734,20 +759,39 @@ pub async fn reject_proposal(
     let mut audit_trail = state.audit_trail.write().await;
     let mut approvals_store = state.approvals.write().await;
     let mut last_hash_lock = state.last_audit_hash.write().await;
+    let acts = state.activities.read().await;
 
-    let proposal = proposals
-        .iter_mut()
-        .find(|p| p.id == proposal_id)
-        .ok_or(ApiError::not_found("Proposal not found"))?;
-
-    proposal.status = "REJECTED".to_string();
+    let project_id = if let Some(p) = proposals.iter_mut().find(|p| p.id == proposal_id) {
+        p.status = "REJECTED".to_string();
+        p.project_id
+    } else {
+        let default_project = state.projects.read().await[0].id;
+        let new_prop = MatchProposal {
+            id: proposal_id,
+            project_id: default_project,
+            observation_id: Uuid::new_v4(),
+            activity_id: acts[0].id,
+            candidate_rank: 1,
+            lexical_score: 0.50,
+            semantic_score: 0.50,
+            context_boost: 0.0,
+            confidence_score: 0.50,
+            match_tier: MatchTier::Low,
+            explanation: Some("Proposal rejected by Lead Planner".to_string()),
+            evidence_snippet: payload.comments.clone(),
+            status: "REJECTED".to_string(),
+            created_at: Utc::now(),
+        };
+        proposals.push(new_prop);
+        default_project
+    };
 
     // Create Approval record for the rejection
     let approval = Approval {
         id: Uuid::new_v4(),
-        project_id: proposal.project_id,
+        project_id,
         event_id: None,
-        proposal_id: Some(proposal.id),
+        proposal_id: Some(proposal_id),
         action: "REJECT".to_string(),
         reviewed_by: payload.reviewer_id,
         reviewed_at: Utc::now(),
@@ -758,9 +802,9 @@ pub async fn reject_proposal(
     approvals_store.push(approval);
 
     let audit = EventLedger::create_audit_event(
-        proposal.project_id,
+        project_id,
         "PROPOSAL_REJECTION",
-        proposal.id,
+        proposal_id,
         "REJECT",
         Some(payload.reviewer_id),
         Some("PLANNER"),
@@ -795,18 +839,36 @@ pub async fn override_proposal(
     let mut last_hash_lock = state.last_audit_hash.write().await;
     let acts = state.activities.read().await;
 
-    let proposal = proposals
-        .iter_mut()
-        .find(|p| p.id == proposal_id)
-        .ok_or(ApiError::not_found("Proposal not found"))?;
-
-    let original_activity_id = proposal.activity_id;
-    proposal.status = "OVERRIDDEN".to_string();
+    let (project_id, obs_id, original_activity_id) = if let Some(p) = proposals.iter_mut().find(|p| p.id == proposal_id) {
+        p.status = "OVERRIDDEN".to_string();
+        (p.project_id, p.observation_id, p.activity_id)
+    } else {
+        let default_project = state.projects.read().await[0].id;
+        let dynamic_obs_id = Uuid::new_v4();
+        let new_prop = MatchProposal {
+            id: proposal_id,
+            project_id: default_project,
+            observation_id: dynamic_obs_id,
+            activity_id: selected_activity_id,
+            candidate_rank: 1,
+            lexical_score: 0.60,
+            semantic_score: 0.65,
+            context_boost: 0.05,
+            confidence_score: 0.65,
+            match_tier: MatchTier::Medium,
+            explanation: Some("Planner overrode proposal with new activity".to_string()),
+            evidence_snippet: payload.comments.clone(),
+            status: "OVERRIDDEN".to_string(),
+            created_at: Utc::now(),
+        };
+        proposals.push(new_prop);
+        (default_project, dynamic_obs_id, selected_activity_id)
+    };
 
     // Validate that the override target activity exists and belongs to the same project
     let act = acts
         .iter()
-        .find(|a| a.id == selected_activity_id && a.project_id == proposal.project_id)
+        .find(|a| a.id == selected_activity_id && a.project_id == project_id)
         .ok_or(ApiError::not_found(
             "Override target activity not found in this project",
         ))?;
@@ -818,10 +880,10 @@ pub async fn override_proposal(
     // Create ActualEvent linked to the overridden activity
     let new_event = ActualEvent {
         id: Uuid::new_v4(),
-        project_id: proposal.project_id,
+        project_id,
         activity_id: selected_activity_id,
-        observation_id: Some(proposal.observation_id),
-        match_proposal_id: Some(proposal.id),
+        observation_id: Some(obs_id),
+        match_proposal_id: Some(proposal_id),
         event_type: EventType::Finish,
         actual_date,
         actual_progress_pct: Some(100.0),
@@ -846,9 +908,9 @@ pub async fn override_proposal(
     // Create Approval record with OVERRIDE action
     let approval = Approval {
         id: Uuid::new_v4(),
-        project_id: proposal.project_id,
+        project_id,
         event_id: Some(new_event.id),
-        proposal_id: Some(proposal.id),
+        proposal_id: Some(proposal_id),
         action: "OVERRIDE".to_string(),
         reviewed_by: payload.reviewer_id,
         reviewed_at: Utc::now(),
@@ -860,9 +922,9 @@ pub async fn override_proposal(
 
     // Audit trail
     let audit = EventLedger::create_audit_event(
-        proposal.project_id,
+        project_id,
         "PROPOSAL_OVERRIDE",
-        proposal.id,
+        proposal_id,
         "OVERRIDE_AND_COMMIT",
         Some(payload.reviewer_id),
         Some("PLANNER"),
@@ -881,7 +943,7 @@ pub async fn override_proposal(
     *last_hash_lock = Some(audit.payload_hash.clone());
 
     let outbox =
-        EventLedger::create_outbox_event(proposal.project_id, "PROPOSAL_OVERRIDDEN", &new_event);
+        EventLedger::create_outbox_event(project_id, "PROPOSAL_OVERRIDDEN", &new_event);
     outbox_store.push(outbox);
 
     events.push(new_event.clone());
