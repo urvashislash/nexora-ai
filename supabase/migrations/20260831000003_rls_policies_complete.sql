@@ -18,6 +18,11 @@
 CREATE OR REPLACE FUNCTION fn_user_has_project_access(p_project_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
+    -- Allow read for demo project when unauthenticated
+    IF auth.uid() IS NULL AND p_project_id = 'a0000000-0000-0000-0000-000000000001'::uuid THEN
+        RETURN TRUE;
+    END IF;
+
     RETURN EXISTS (
         SELECT 1 FROM project_members
         WHERE project_id = p_project_id
@@ -25,7 +30,7 @@ BEGIN
           AND is_active = true
     );
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION fn_user_project_role(p_project_id UUID)
 RETURNS TEXT AS $$
@@ -38,7 +43,7 @@ BEGIN
         LIMIT 1
     );
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public;
 
 -- ─────────────────────────────────────────────────
 -- 1. project_members — users see only their own projects' members
@@ -47,10 +52,9 @@ DROP POLICY IF EXISTS project_members_select_policy ON project_members;
 CREATE POLICY project_members_select_policy ON project_members
     FOR SELECT
     USING (
-        project_id IN (
-            SELECT pm.project_id FROM project_members pm
-            WHERE pm.user_id = auth.uid() AND pm.is_active = true
-        )
+        user_id = auth.uid()
+        OR
+        fn_user_has_project_access(project_id)
     );
 
 -- Only ADMIN can insert/update/delete members
