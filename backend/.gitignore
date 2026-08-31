@@ -1,0 +1,4 @@
+# Backend-specific overrides
+# Cargo.lock MUST be committed for binary crates (Rust best practice).
+# This overrides the root .gitignore rule that excludes Cargo.lock.
+!Cargo.lock
