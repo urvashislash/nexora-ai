@@ -53,6 +53,13 @@ $$\text{AI Proposes} \longrightarrow \text{Rust Validates} \longrightarrow \text
 
 ---
 
+## 🌐 Live Deployments
+
+- **Backend API (Railway)**: [https://nexora-ai-production-8b54.up.railway.app](https://nexora-ai-production-8b54.up.railway.app)
+- **AI Processing Plane (Render)**: [https://nexora-ai-service-rof3.onrender.com](https://nexora-ai-service-rof3.onrender.com)
+
+---
+
 ## 🚀 Key Platform Capabilities
 
 ### 1. Heterogeneous Field Evidence Ingestion
@@ -215,7 +222,6 @@ nexora-ai/
 
 ## 📚 Technical Documentation Index
 
-- **[SIH Judge Q&A & Interview Guide](docs/sih_judge_qa_guide.md)**: Master evaluation questions, plain-English answers, analogies, and defense tips for SIH jury rounds.
 - **[100% Free-Tier Deployment Guide](docs/free_tier_deployment_guide.md)**: Zero-cost deployment blueprint (Vercel, Render, HF Spaces, Supabase, CloudAMQP, Upstash).
 - **[Developer Onboarding Guide](docs/developer_onboarding.md)**: Local setup, environment configuration, and troubleshooting.
 - **[Product Overview & Demo Guide](docs/product_overview_and_demo.md)**: End-to-end user flows and SIH demo walkthrough.

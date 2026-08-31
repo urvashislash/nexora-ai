@@ -18,7 +18,7 @@ This guide provides a comprehensive, step-by-step blueprint for deploying the en
 ┌──────────────────────────────┐ ┌───────────────────────────────────────────┐
 │     RUST TRUST PLANE API     │ │         PYTHON AI PROCESSING PLANE        │
 │   Render / Koyeb Free Tier   │ │      Render / Koyeb Free Web Service      │
-│  https://api.onrender.com    │ │    https://nexora-ai.onrender.com         │
+│  https://api.onrender.com    │ │ https://nexora-ai-service-rof3.onrender.com │
 └──────────────┬───────────────┘ └─────────────────────┬─────────────────────┘
                │                                       │
                ├───────────────────┬───────────────────┤
@@ -127,7 +127,7 @@ Render offers free Web Services with native Python and Docker runtimes, automati
 6. Set Health Check Path:
    - **Health Check Path**: `/health`
 7. Click **"Create Web Service"**.
-8. Your public AI Service URL will be: `https://nexora-ai-service.onrender.com`
+8. Your public AI Service URL will be: `https://nexora-ai-service-rof3.onrender.com`
 
 ---
 
@@ -167,7 +167,7 @@ If you prefer using Render's native Python runtime:
    | `PORT` | `3000` | Render routing port |
    | `BACKEND_PORT` | `3000` | Axum internal port |
    | `DATABASE_URL` | `postgresql://postgres:<password>@db.vitxgshrjpyvczidzvto.supabase.co:5432/postgres?sslmode=require` | Supabase Postgres URL |
-   | `AI_SERVICE_URL` | `https://nexora-ai-service.onrender.com` | Deployed Render AI URL from Step 4 |
+   | `AI_SERVICE_URL` | `https://nexora-ai-service-rof3.onrender.com` | Deployed Render AI URL from Step 4 |
    | `RABBITMQ_URL` | `amqps://<user>:<password>@<host>.cloudamqp.com/<vhost>` | CloudAMQP URL |
    | `REDIS_URL` | `rediss://default:<password>@<host>.upstash.io:6379` | Upstash Redis URL |
    | `RUST_LOG` | `info,backend=info` | Production log level |
@@ -205,7 +205,7 @@ Free tier instances on Render go into a sleep state after 15 minutes of inactivi
 1. Register at [Cron-Job.org](https://cron-job.org) or [UptimeRobot](https://uptimerobot.com) (100% Free).
 2. Create an automated HTTP GET ping every **10 minutes**:
    - **Ping URL 1 (Backend)**: `https://nexora-backend.onrender.com/api/v1/health`
-   - **Ping URL 2 (AI Service)**: `https://nexora-ai-service.onrender.com/health`
+   - **Ping URL 2 (AI Service)**: `https://nexora-ai-service-rof3.onrender.com/health`
 3. This keeps both container instances active and eliminates cold start latency during demonstrations.
 
 ---
@@ -216,7 +216,7 @@ Once deployed, verify the entire live ecosystem using the automated health probe
 
 ```bash
 BACKEND_URL="https://nexora-backend.onrender.com" \
-AI_URL="https://nexora-ai-service.onrender.com" \
+AI_URL="https://nexora-ai-service-rof3.onrender.com" \
 FRONTEND_URL="https://nexora-ai.vercel.app" \
 ./scripts/health_probe.sh production
 ```
@@ -227,7 +227,7 @@ Expected Output:
  NEXORA AI — System Health & Availability Probe [production]
 =============================================================================
 • Probing Rust Backend API (https://nexora-backend.onrender.com/api/v1/health)... ✅ HEALTHY
-• Probing Python AI Service (https://nexora-ai-service.onrender.com/health)... ✅ HEALTHY
+• Probing Python AI Service (https://nexora-ai-service-rof3.onrender.com/health)... ✅ HEALTHY
 • Probing Frontend Web App (https://nexora-ai.vercel.app)... ✅ HEALTHY
 • Probing Supabase / PostgreSQL Connection... ✅ CONNECTED
 =============================================================================
@@ -246,7 +246,7 @@ Expected Output:
 | `SUPABASE_SERVICE_ROLE_KEY` | AI Service / Worker | `eyJhbGciOi...` | Supabase Settings |
 | `RABBITMQ_URL` | Backend / AI Service | `amqps://user:pass@host.cloudamqp.com/vhost` | CloudAMQP Dashboard |
 | `REDIS_URL` | Backend / AI Service | `rediss://default:pass@host.upstash.io:6379` | Upstash Dashboard |
-| `AI_SERVICE_URL` | Backend | `https://nexora-ai-service.onrender.com` | Render Dashboard |
+| `AI_SERVICE_URL` | Backend | `https://nexora-ai-service-rof3.onrender.com` | Render Dashboard |
 | `VITE_API_URL` | Frontend | `https://nexora-backend.onrender.com` | Render Dashboard |
 
 ---
