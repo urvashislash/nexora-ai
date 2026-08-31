@@ -33,9 +33,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /app/target/release/backend /app/backend
 
-EXPOSE 3000
+ENV PORT=3000
+EXPOSE ${PORT}
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://127.0.0.1:3000/api/v1/health || exit 1
+  CMD curl -f http://127.0.0.1:${PORT}/api/v1/health || exit 1
 
 CMD ["/app/backend"]
