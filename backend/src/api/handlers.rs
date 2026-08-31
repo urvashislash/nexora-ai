@@ -601,11 +601,23 @@ fn default_reviewer_id() -> Uuid {
     Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap_or_else(|_| Uuid::nil())
 }
 
+fn empty_string_is_none<'de, D>(deserializer: D) -> Result<Option<Uuid>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    match opt.as_deref() {
+        None | Some("") => Ok(None),
+        Some(s) => Uuid::parse_str(s).map(Some).map_err(serde::de::Error::custom),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct DecisionPayload {
     #[serde(alias = "reviewed_by", default = "default_reviewer_id")]
     pub reviewer_id: Uuid,
     pub comments: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_is_none")]
     pub selected_activity_id: Option<Uuid>,
 }
 

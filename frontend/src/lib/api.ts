@@ -220,14 +220,18 @@ export const api = {
    */
   async approveProposal(proposalId: string, payload: { selected_activity_id?: string; comments?: string; reviewed_by?: string } = {}): Promise<{ success: boolean; event_id?: string; error?: string }> {
     const reviewerId = payload.reviewed_by || DEFAULT_USER_ID;
+    const body: Record<string, any> = {
+      comments: payload.comments || 'Approved by Lead Planner via Field Ledger console',
+      reviewer_id: reviewerId,
+      reviewed_by: reviewerId,
+    };
+    if (payload.selected_activity_id && payload.selected_activity_id.trim().length > 0) {
+      body.selected_activity_id = payload.selected_activity_id.trim();
+    }
+
     const { data, error } = await request<{ success: boolean; event_id: string }>(`/api/v1/proposals/${proposalId}/approve`, {
       method: 'POST',
-      body: JSON.stringify({
-        selected_activity_id: payload.selected_activity_id,
-        comments: payload.comments || 'Approved by Lead Planner via Field Ledger console',
-        reviewer_id: reviewerId,
-        reviewed_by: reviewerId,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (error) {
@@ -262,14 +266,18 @@ export const api = {
    */
   async overrideProposal(proposalId: string, payload: { new_activity_id: string; reason: string; reviewed_by?: string }): Promise<{ success: boolean; event_id?: string; error?: string }> {
     const reviewerId = payload.reviewed_by || DEFAULT_USER_ID;
+    const body: Record<string, any> = {
+      comments: payload.reason,
+      reviewer_id: reviewerId,
+      reviewed_by: reviewerId,
+    };
+    if (payload.new_activity_id && payload.new_activity_id.trim().length > 0) {
+      body.selected_activity_id = payload.new_activity_id.trim();
+    }
+
     const { data, error } = await request<{ success: boolean; event_id: string }>(`/api/v1/proposals/${proposalId}/override`, {
       method: 'POST',
-      body: JSON.stringify({
-        selected_activity_id: payload.new_activity_id,
-        comments: payload.reason,
-        reviewer_id: reviewerId,
-        reviewed_by: reviewerId,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (error) {
