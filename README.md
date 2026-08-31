@@ -24,6 +24,7 @@ NEXORA AI is an industrial-grade project intelligence platform that converts uns
 | :--- | :--- | :--- | :--- |
 | **Frontend Web App** (Field Ledger UI) | Cloudflare Workers / Pages | [https://nexora-ai.uspali212.workers.dev](https://nexora-ai.uspali212.workers.dev) | `🟢 Live` |
 | **Trust Plane API** (Rust Axum Engine) | Railway Cloud | [https://nexora-ai-production-8b54.up.railway.app](https://nexora-ai-production-8b54.up.railway.app/api/v1/health) | `🟢 Healthy` |
+| **AI Processing Plane** (FastAPI Engine) | Render | [https://nexora-ai-service-rof3.onrender.com](https://nexora-ai-service-rof3.onrender.com/health) | `🟢 Healthy` |
 | **Cloud Database** (PostgreSQL 16 + pgvector) | Supabase Cloud (AP-South-1) | [`vitxgshrjpyvczidzvto.supabase.co`](https://vitxgshrjpyvczidzvto.supabase.co) | `🟢 Connected` |
 | **Message Broker** (RabbitMQ Topic Exchange) | CloudAMQP (TLS) | `amqps://warthog.lmq.cloudamqp.com` | `🟢 Operational` |
 | **Distributed Cache & Locks** (Redis) | Upstash Serverless (TLS) | `rediss://sharp-sawfish-250673.upstash.io` | `🟢 Operational` |
@@ -66,12 +67,7 @@ $$\text{AI Proposes} \longrightarrow \text{Rust Validates} \longrightarrow \text
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
 
-## 🌐 Live Deployments
-
-- **Backend API (Railway)**: [https://nexora-ai-production-8b54.up.railway.app](https://nexora-ai-production-8b54.up.railway.app)
-- **AI Processing Plane (Render)**: [https://nexora-ai-service-rof3.onrender.com](https://nexora-ai-service-rof3.onrender.com)
 
 ---
 
