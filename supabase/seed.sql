@@ -31,7 +31,8 @@ VALUES (
     'ACTIVE',
     'Asia/Kolkata',
     'INR'
-) ON CONFLICT (code) DO UPDATE SET
+) ON CONFLICT (id) DO UPDATE SET
+    code = EXCLUDED.code,
     name = EXCLUDED.name,
     description = EXCLUDED.description,
     client_name = EXCLUDED.client_name,
@@ -45,7 +46,7 @@ VALUES
 (
     'a1000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
-    'u0000000-0000-0000-0000-000000000001',
+    'e0000000-0000-0000-0000-000000000001',
     'rajesh.sharma@nexora.infra',
     'Rajesh Sharma (Lead Planner)',
     'PLANNER',
@@ -54,7 +55,7 @@ VALUES
 (
     'a1000000-0000-0000-0000-000000000002',
     'a0000000-0000-0000-0000-000000000001',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     'amit.verma@nexora.infra',
     'Amit Verma (Site Supervisor - Piping)',
     'SUPERVISOR',
@@ -63,7 +64,7 @@ VALUES
 (
     'a1000000-0000-0000-0000-000000000003',
     'a0000000-0000-0000-0000-000000000001',
-    'u0000000-0000-0000-0000-000000000003',
+    'e0000000-0000-0000-0000-000000000003',
     'priya.nair@nexora.infra',
     'Priya Nair (Project Manager)',
     'ADMIN',
@@ -287,7 +288,7 @@ INSERT INTO documents (
     'evidence-documents', 'PRD-HYD-PKG04/reports/DPR_PipeRackB_2026-08-28.pdf',
     'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6abcd',
     'DAILY_REPORT', 'Daily Progress Report', 'INTERNAL',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     'COMPLETED'
 ),
 (
@@ -298,7 +299,7 @@ INSERT INTO documents (
     'evidence-documents', 'PRD-HYD-PKG04/spreadsheets/CompressorFoundation_Rebar_Completion.xlsx',
     'b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6bcde',
     'DISCIPLINE_SPREADSHEET', 'Discipline Tracker', 'INTERNAL',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     'COMPLETED'
 ),
 (
@@ -309,7 +310,7 @@ INSERT INTO documents (
     'evidence-documents', 'PRD-HYD-PKG04/reports/CableTray_Delay_SiteNote_2026-08-29.pdf',
     'c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6cdef',
     'SITE_DIARY', 'Site Diary / Delay Note', 'INTERNAL',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     'COMPLETED'
 ) ON CONFLICT DO NOTHING;
 
@@ -323,10 +324,10 @@ INSERT INTO work_observations (
 ) VALUES
 -- Obs 1: Spool erection progress from DPR
 (
-    'g0000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
     'f0000000-0000-0000-0000-000000000001',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     '2026-08-28 17:00:00+05:30',
     'PIPING', 'Pipe Rack B', 'Zone 2', 'RACK-B-CS',
     'Spool erection on Rack B Grid B5-B8 completed today. 45 inch-dia erected. Total cumulative 360 inch-dia. Alignment checks passed for all spools up to B6.',
@@ -335,10 +336,10 @@ INSERT INTO work_observations (
 ),
 -- Obs 2: Rebar completion from spreadsheet
 (
-    'g0000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000002',
     'a0000000-0000-0000-0000-000000000001',
     'f0000000-0000-0000-0000-000000000002',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     '2026-08-24 18:00:00+05:30',
     'CIVIL', 'Compressor House', 'Zone 1', 'FND-C-101',
     'Rebar tying for C-101 compressor foundation fully complete. All 35.5 MT placed. QC inspection passed. Shuttering removed.',
@@ -347,10 +348,10 @@ INSERT INTO work_observations (
 ),
 -- Obs 3: Concrete pour started
 (
-    'g0000000-0000-0000-0000-000000000003',
+    '10000000-0000-0000-0000-000000000003',
     'a0000000-0000-0000-0000-000000000001',
     'f0000000-0000-0000-0000-000000000002',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     '2026-08-25 09:00:00+05:30',
     'CIVIL', 'CDU Area 100', 'Zone 1', 'COL-FTG-100',
     'Concrete pouring started for column footings C1 to C4 in CDU area. 81 cu.m poured today using M35 grade RMC.',
@@ -359,10 +360,10 @@ INSERT INTO work_observations (
 ),
 -- Obs 4: Cable tray delay observation
 (
-    'g0000000-0000-0000-0000-000000000004',
+    '10000000-0000-0000-0000-000000000004',
     'a0000000-0000-0000-0000-000000000001',
     'f0000000-0000-0000-0000-000000000003',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     '2026-08-29 16:30:00+05:30',
     'ELECTRICAL', 'Pipe Rack B', 'Zone 2', 'TRAY-RACK-B3',
     'Cable tray work on Tier 3 delayed by 3 days. Material shortage — galvanized brackets not delivered. Only 186 meters installed out of 620.',
@@ -371,10 +372,10 @@ INSERT INTO work_observations (
 ),
 -- Obs 5: Ambiguous observation (needs planner review)
 (
-    'g0000000-0000-0000-0000-000000000005',
+    '10000000-0000-0000-0000-000000000005',
     'a0000000-0000-0000-0000-000000000001',
     'f0000000-0000-0000-0000-000000000001',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     '2026-08-28 15:00:00+05:30',
     'PIPING', 'Pipe Rack B', 'Zone 2', NULL,
     'Hydrotest prep work started on Rack B area. Test manifold installed near P-101 location. Nitrogen purging completed.',
@@ -383,10 +384,10 @@ INSERT INTO work_observations (
 ),
 -- Obs 6: Equipment alignment not yet started observation
 (
-    'g0000000-0000-0000-0000-000000000006',
+    '10000000-0000-0000-0000-000000000006',
     'a0000000-0000-0000-0000-000000000001',
     'f0000000-0000-0000-0000-000000000001',
-    'u0000000-0000-0000-0000-000000000002',
+    'e0000000-0000-0000-0000-000000000002',
     '2026-08-28 14:00:00+05:30',
     'MECHANICAL', 'CDU Area 100', 'Zone 1', 'PUMP-P-101A',
     'P-101A pump baseplate grouting material received on site. Alignment jig checked. Work to begin after hydrotest of P-101 line.',
@@ -404,9 +405,9 @@ INSERT INTO match_proposals (
 ) VALUES
 -- HIGH confidence: Obs 1 → PIP-2400 (exact match)
 (
-    'h0000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
-    'g0000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
     'd0000000-0000-0000-0000-000000000001',
     1, 0.92, 0.95, 0.05, 0.94,
     'HIGH',
@@ -417,9 +418,9 @@ INSERT INTO match_proposals (
 ),
 -- HIGH confidence: Obs 2 → CIV-1100 (exact match)
 (
-    'h0000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000002',
     'a0000000-0000-0000-0000-000000000001',
-    'g0000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000002',
     'd0000000-0000-0000-0000-000000000004',
     1, 0.88, 0.93, 0.04, 0.91,
     'HIGH',
@@ -430,9 +431,9 @@ INSERT INTO match_proposals (
 ),
 -- HIGH confidence: Obs 3 → CIV-1101 (start event)
 (
-    'h0000000-0000-0000-0000-000000000003',
+    '20000000-0000-0000-0000-000000000003',
     'a0000000-0000-0000-0000-000000000001',
-    'g0000000-0000-0000-0000-000000000003',
+    '10000000-0000-0000-0000-000000000003',
     'd0000000-0000-0000-0000-000000000005',
     1, 0.85, 0.90, 0.03, 0.88,
     'HIGH',
@@ -443,9 +444,9 @@ INSERT INTO match_proposals (
 ),
 -- HIGH confidence: Obs 4 → ELE-4100 (delay event)
 (
-    'h0000000-0000-0000-0000-000000000004',
+    '20000000-0000-0000-0000-000000000004',
     'a0000000-0000-0000-0000-000000000001',
-    'g0000000-0000-0000-0000-000000000004',
+    '10000000-0000-0000-0000-000000000004',
     'd0000000-0000-0000-0000-000000000007',
     1, 0.80, 0.87, 0.06, 0.86,
     'HIGH',
@@ -456,9 +457,9 @@ INSERT INTO match_proposals (
 ),
 -- MEDIUM confidence: Obs 5 → PIP-2401 (ambiguous — could be P-101 or P-102)
 (
-    'h0000000-0000-0000-0000-000000000005',
+    '20000000-0000-0000-0000-000000000005',
     'a0000000-0000-0000-0000-000000000001',
-    'g0000000-0000-0000-0000-000000000005',
+    '10000000-0000-0000-0000-000000000005',
     'd0000000-0000-0000-0000-000000000002',
     1, 0.60, 0.72, 0.08, 0.68,
     'MEDIUM',
@@ -469,9 +470,9 @@ INSERT INTO match_proposals (
 ),
 -- LOW confidence: Obs 5 → PIP-2402 (second candidate for same observation)
 (
-    'h0000000-0000-0000-0000-000000000006',
+    '20000000-0000-0000-0000-000000000006',
     'a0000000-0000-0000-0000-000000000001',
-    'g0000000-0000-0000-0000-000000000005',
+    '10000000-0000-0000-0000-000000000005',
     'd0000000-0000-0000-0000-000000000003',
     2, 0.55, 0.65, 0.05, 0.58,
     'LOW',
@@ -492,55 +493,55 @@ INSERT INTO actual_events (
 ) VALUES
 -- Event 1: PIP-2400 progress (auto-linked, system verified)
 (
-    'i0000000-0000-0000-0000-000000000001',
+    '30000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
     'd0000000-0000-0000-0000-000000000001',
-    'g0000000-0000-0000-0000-000000000001',
-    'h0000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
     'PROGRESS', '2026-08-28', 80.0, 360.0,
     NULL, NULL, 'COMMITTED', 'SYSTEM_VERIFIED',
-    'evt-pip2400-prog-20260828', 'u0000000-0000-0000-0000-000000000001'
+    'evt-pip2400-prog-20260828', 'e0000000-0000-0000-0000-000000000001'
 ),
 -- Event 2: CIV-1100 finish (auto-linked, system verified)
 (
-    'i0000000-0000-0000-0000-000000000002',
+    '30000000-0000-0000-0000-000000000002',
     'a0000000-0000-0000-0000-000000000001',
     'd0000000-0000-0000-0000-000000000004',
-    'g0000000-0000-0000-0000-000000000002',
-    'h0000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000002',
     'FINISH', '2026-08-24', 100.0, 35.5,
     NULL, NULL, 'COMMITTED', 'SYSTEM_VERIFIED',
-    'evt-civ1100-fin-20260824', 'u0000000-0000-0000-0000-000000000001'
+    'evt-civ1100-fin-20260824', 'e0000000-0000-0000-0000-000000000001'
 ),
 -- Event 3: CIV-1101 start (auto-linked, system verified)
 (
-    'i0000000-0000-0000-0000-000000000003',
+    '30000000-0000-0000-0000-000000000003',
     'a0000000-0000-0000-0000-000000000001',
     'd0000000-0000-0000-0000-000000000005',
-    'g0000000-0000-0000-0000-000000000003',
-    'h0000000-0000-0000-0000-000000000003',
+    '10000000-0000-0000-0000-000000000003',
+    '20000000-0000-0000-0000-000000000003',
     'START', '2026-08-25', 45.0, 81.0,
     NULL, NULL, 'COMMITTED', 'SYSTEM_VERIFIED',
-    'evt-civ1101-start-20260825', 'u0000000-0000-0000-0000-000000000001'
+    'evt-civ1101-start-20260825', 'e0000000-0000-0000-0000-000000000001'
 ),
 -- Event 4: ELE-4100 delay (human verified after planner approval)
 (
-    'i0000000-0000-0000-0000-000000000004',
+    '30000000-0000-0000-0000-000000000004',
     'a0000000-0000-0000-0000-000000000001',
     'd0000000-0000-0000-0000-000000000007',
-    'g0000000-0000-0000-0000-000000000004',
-    'h0000000-0000-0000-0000-000000000004',
+    '10000000-0000-0000-0000-000000000004',
+    '20000000-0000-0000-0000-000000000004',
     'DELAY', '2026-08-29', 30.0, 186.0,
     'Material shortage — galvanized brackets not delivered by vendor', 3,
     'APPROVED', 'HUMAN_VERIFIED',
-    'evt-ele4100-delay-20260829', 'u0000000-0000-0000-0000-000000000001'
+    'evt-ele4100-delay-20260829', 'e0000000-0000-0000-0000-000000000001'
 ) ON CONFLICT DO NOTHING;
 
 -- Link last events to activity_current_state
-UPDATE activity_current_state SET last_event_id = 'i0000000-0000-0000-0000-000000000001', last_event_date = '2026-08-28' WHERE activity_id = 'd0000000-0000-0000-0000-000000000001';
-UPDATE activity_current_state SET last_event_id = 'i0000000-0000-0000-0000-000000000002', last_event_date = '2026-08-24' WHERE activity_id = 'd0000000-0000-0000-0000-000000000004';
-UPDATE activity_current_state SET last_event_id = 'i0000000-0000-0000-0000-000000000003', last_event_date = '2026-08-25' WHERE activity_id = 'd0000000-0000-0000-0000-000000000005';
-UPDATE activity_current_state SET last_event_id = 'i0000000-0000-0000-0000-000000000004', last_event_date = '2026-08-29' WHERE activity_id = 'd0000000-0000-0000-0000-000000000007';
+UPDATE activity_current_state SET last_event_id = '30000000-0000-0000-0000-000000000001', last_event_date = '2026-08-28' WHERE activity_id = 'd0000000-0000-0000-0000-000000000001';
+UPDATE activity_current_state SET last_event_id = '30000000-0000-0000-0000-000000000002', last_event_date = '2026-08-24' WHERE activity_id = 'd0000000-0000-0000-0000-000000000004';
+UPDATE activity_current_state SET last_event_id = '30000000-0000-0000-0000-000000000003', last_event_date = '2026-08-25' WHERE activity_id = 'd0000000-0000-0000-0000-000000000005';
+UPDATE activity_current_state SET last_event_id = '30000000-0000-0000-0000-000000000004', last_event_date = '2026-08-29' WHERE activity_id = 'd0000000-0000-0000-0000-000000000007';
 
 -- ─────────────────────────────────────────────────
 -- 12. Approvals (Planner review actions)
@@ -551,34 +552,34 @@ INSERT INTO approvals (
 ) VALUES
 -- Approval 1: Planner approved cable tray delay event
 (
-    'j0000000-0000-0000-0000-000000000001',
+    '40000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
-    'i0000000-0000-0000-0000-000000000004',
-    'h0000000-0000-0000-0000-000000000004',
+    '30000000-0000-0000-0000-000000000004',
+    '20000000-0000-0000-0000-000000000004',
     'APPROVE',
-    'u0000000-0000-0000-0000-000000000001',
+    'e0000000-0000-0000-0000-000000000001',
     'Confirmed with site — vendor delay is genuine. Material expected by Sep 1.',
     NULL
 ),
 -- Approval 2: Planner approved auto-linked spool erection (manual confirmation)
 (
-    'j0000000-0000-0000-0000-000000000002',
+    '40000000-0000-0000-0000-000000000002',
     'a0000000-0000-0000-0000-000000000001',
-    'i0000000-0000-0000-0000-000000000001',
-    'h0000000-0000-0000-0000-000000000001',
+    '30000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
     'APPROVE',
-    'u0000000-0000-0000-0000-000000000001',
+    'e0000000-0000-0000-0000-000000000001',
     'Verified quantity with DPR. All alignment checks passed.',
     0.96
 ),
 -- Approval 3: Planner approved rebar completion
 (
-    'j0000000-0000-0000-0000-000000000003',
+    '40000000-0000-0000-0000-000000000003',
     'a0000000-0000-0000-0000-000000000001',
-    'i0000000-0000-0000-0000-000000000002',
-    'h0000000-0000-0000-0000-000000000002',
+    '30000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000002',
     'APPROVE',
-    'u0000000-0000-0000-0000-000000000001',
+    'e0000000-0000-0000-0000-000000000001',
     'QC clearance obtained. Foundation ready for concrete.',
     NULL
 ) ON CONFLICT DO NOTHING;
@@ -593,9 +594,9 @@ INSERT INTO audit_events (
 ) VALUES
 -- Audit 1: Spool erection auto-linked
 (
-    'k0000000-0000-0000-0000-000000000001',
+    '50000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
-    'ACTUAL_EVENT', 'i0000000-0000-0000-0000-000000000001',
+    'ACTUAL_EVENT', '30000000-0000-0000-0000-000000000001',
     'AUTO_LINK_COMMIT',
     NULL, 'SYSTEM',
     '{"lifecycle_status": "PROPOSED"}'::jsonb,
@@ -605,9 +606,9 @@ INSERT INTO audit_events (
 ),
 -- Audit 2: Rebar completion auto-linked
 (
-    'k0000000-0000-0000-0000-000000000002',
+    '50000000-0000-0000-0000-000000000002',
     'a0000000-0000-0000-0000-000000000001',
-    'ACTUAL_EVENT', 'i0000000-0000-0000-0000-000000000002',
+    'ACTUAL_EVENT', '30000000-0000-0000-0000-000000000002',
     'AUTO_LINK_COMMIT',
     NULL, 'SYSTEM',
     '{"lifecycle_status": "PROPOSED"}'::jsonb,
@@ -617,9 +618,9 @@ INSERT INTO audit_events (
 ),
 -- Audit 3: Concrete pour auto-linked
 (
-    'k0000000-0000-0000-0000-000000000003',
+    '50000000-0000-0000-0000-000000000003',
     'a0000000-0000-0000-0000-000000000001',
-    'ACTUAL_EVENT', 'i0000000-0000-0000-0000-000000000003',
+    'ACTUAL_EVENT', '30000000-0000-0000-0000-000000000003',
     'AUTO_LINK_COMMIT',
     NULL, 'SYSTEM',
     '{"lifecycle_status": "PROPOSED"}'::jsonb,
@@ -629,11 +630,11 @@ INSERT INTO audit_events (
 ),
 -- Audit 4: Cable tray delay — planner approved
 (
-    'k0000000-0000-0000-0000-000000000004',
+    '50000000-0000-0000-0000-000000000004',
     'a0000000-0000-0000-0000-000000000001',
-    'ACTUAL_EVENT', 'i0000000-0000-0000-0000-000000000004',
+    'ACTUAL_EVENT', '30000000-0000-0000-0000-000000000004',
     'HUMAN_APPROVE',
-    'u0000000-0000-0000-0000-000000000001', 'PLANNER',
+    'e0000000-0000-0000-0000-000000000001', 'PLANNER',
     '{"lifecycle_status": "REVIEW_REQUIRED"}'::jsonb,
     '{"lifecycle_status": "APPROVED", "verification_status": "HUMAN_VERIFIED", "comments": "Vendor delay confirmed"}'::jsonb,
     'd4e5f6789012345678901234567890123456789012345678901234defg',
@@ -641,11 +642,11 @@ INSERT INTO audit_events (
 ),
 -- Audit 5: Spool erection planner manual confirmation
 (
-    'k0000000-0000-0000-0000-000000000005',
+    '50000000-0000-0000-0000-000000000005',
     'a0000000-0000-0000-0000-000000000001',
-    'APPROVAL', 'j0000000-0000-0000-0000-000000000002',
+    'APPROVAL', '40000000-0000-0000-0000-000000000002',
     'PLANNER_CONFIRMATION',
-    'u0000000-0000-0000-0000-000000000001', 'PLANNER',
+    'e0000000-0000-0000-0000-000000000001', 'PLANNER',
     '{"confidence": 0.94}'::jsonb,
     '{"confidence_override": 0.96, "comments": "Verified quantity with DPR"}'::jsonb,
     'e5f6789012345678901234567890123456789012345678901234efgh',
