@@ -7,10 +7,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml Cargo.lock ./
+# Copy manifests first for Docker layer caching.
+# Cargo.lock is committed for reproducible builds (Rust binary best practice).
+COPY Cargo.toml ./
+COPY Cargo.lock* ./
+
+# Pre-build dependencies in a dummy crate for layer caching
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release || true
+RUN rm -rf src
 
+# Copy actual source and build
 COPY . .
 RUN cargo build --release
 
