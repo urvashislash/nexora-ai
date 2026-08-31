@@ -33,10 +33,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /app/target/release/backend /app/backend
 
-ENV PORT=3000
-EXPOSE ${PORT}
+# Railway automatically assigns the PORT environment variable.
+# We expose it dynamically if needed by some platforms, but it's optional.
+# Removing ENV PORT=3000 to prevent conflicts with Railway's load balancer.
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://127.0.0.1:${PORT}/api/v1/health || exit 1
+  CMD curl -f http://127.0.0.1:${PORT:-3000}/api/v1/health || exit 1
 
 CMD ["/app/backend"]
