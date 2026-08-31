@@ -18,6 +18,19 @@ NEXORA AI is an industrial-grade project intelligence platform that converts uns
 
 ---
 
+## 🌐 Live Deployments & Cloud Infrastructure
+
+| Service Layer | Cloud Provider | Endpoint / Reference | Status |
+| :--- | :--- | :--- | :--- |
+| **Frontend Web App** (Field Ledger UI) | Cloudflare Workers / Pages | [https://nexora-ai.uspali212.workers.dev](https://nexora-ai.uspali212.workers.dev) | `🟢 Live` |
+| **Trust Plane API** (Rust Axum Engine) | Railway Cloud | [https://nexora-ai-production-8b54.up.railway.app](https://nexora-ai-production-8b54.up.railway.app/api/v1/health) | `🟢 Healthy` |
+| **Cloud Database** (PostgreSQL 16 + pgvector) | Supabase Cloud (AP-South-1) | [`vitxgshrjpyvczidzvto.supabase.co`](https://vitxgshrjpyvczidzvto.supabase.co) | `🟢 Connected` |
+| **Message Broker** (RabbitMQ Topic Exchange) | CloudAMQP (TLS) | `amqps://warthog.lmq.cloudamqp.com` | `🟢 Operational` |
+| **Distributed Cache & Locks** (Redis) | Upstash Serverless (TLS) | `rediss://sharp-sawfish-250673.upstash.io` | `🟢 Operational` |
+| **GitHub Monorepo** | GitHub | [https://github.com/urvashislash/nexora-ai](https://github.com/urvashislash/nexora-ai) | `🟢 Main` |
+
+---
+
 ## 🏛️ Core Trust Architecture
 
 NEXORA AI enforces a **zero-hallucination trust protocol**:
@@ -28,7 +41,8 @@ $$\text{AI Proposes} \longrightarrow \text{Rust Validates} \longrightarrow \text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              NEXORA FRONTEND                                │
 │                     (React 19 + TypeScript + Vite + Tailwind 4)             │
-│                       Field Ledger UI — http://localhost:5173               │
+│            Live: https://nexora-ai.uspali212.workers.dev                    │
+│            Local Dev: http://localhost:5173                                 │
 └───────────────────────┬─────────────────────────────────────────────────────┘
                         │
          ┌──────────────┴──────────────┐
@@ -36,10 +50,11 @@ $$\text{AI Proposes} \longrightarrow \text{Rust Validates} \longrightarrow \text
 ┌──────────────────────────────┐ ┌───────────────────────────────────────────┐
 │     RUST TRUST PLANE API     │ │         PYTHON AI PROCESSING PLANE        │
 │   (Axum + Tokio + SHA-256)   │ │  (FastAPI + RapidFuzz + all-MiniLM-L6-v2) │
-│    http://localhost:3000     │ │           http://localhost:8000           │
-│   • Predecessor validation   │ │  • PDF/Audio/Spreadsheet extraction       │
-│   • Monotonic progress rules │ │  • 384-dim semantic embedding search      │
-│   • Cryptographic audit logs │ │  • Normalized entity parsing              │
+│ Live: up.railway.app         │ │ Local: http://localhost:8000              │
+│ Local: http://localhost:3000 │ │ • Multi-format evidence extraction        │
+│ • Predecessor validation     │ │ • 384-dim semantic embedding search       │
+│ • Monotonic progress rules   │ │ • Normalized entity parsing               │
+│ • Cryptographic audit logs   │ │ • RabbitMQ async reliable worker          │
 └──────────────┬───────────────┘ └─────────────────────┬─────────────────────┘
                │                                       │
                └───────────────────┬───────────────────┘
