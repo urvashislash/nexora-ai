@@ -113,9 +113,8 @@ $$\text{AI Proposes} \longrightarrow \text{Rust Validates} \longrightarrow \text
 git clone https://github.com/urvashislash/nexora-ai.git
 cd nexora-ai
 
-# Copy environment configurations
+# Copy environment configuration
 cp .env.example .env
-cp frontend/.env.example frontend/.env
 ```
 
 ### 3. Start Local Services
