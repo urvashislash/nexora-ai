@@ -195,18 +195,6 @@ nexora-ai/
 │   ├── backup_db.sh                 # Database backup utility
 │   ├── restore_db.sh                # Database restore utility
 │   └── rollback.sh                  # Emergency container rollback script
-├── docs/                            # Comprehensive Technical Documentation
-│   ├── specs/                       # PRD, TRD, Schema, Application Flow, UI & Implementation Plans
-│   ├── developer_onboarding.md       # Local setup & troubleshooting guide
-│   ├── product_overview_and_demo.md # Product architecture & SIH demo script
-│   ├── support_and_operations_checklist.md # Production support & escalation
-│   ├── project_readiness_checklist.md # Final release gate sign-off matrix
-│   ├── monitoring_and_alerts.md     # SLIs, SLOs & alerting thresholds
-│   ├── deployment_runbook.md        # Zero-downtime deployment procedure
-│   ├── incident_runbook.md          # Disaster recovery runbook
-│   ├── rbac_and_access_control.md   # Role-based access specifications
-│   ├── secrets_management.md        # Vault & environment security
-│   └── audit_retention_policy.md    # Cryptographic audit governance
 ├── docker-compose.yml               # Local orchestration
 └── docker-compose.prod.yml          # Hardened production orchestration
 ```
