@@ -601,6 +601,21 @@ fn default_reviewer_id() -> Uuid {
     Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap_or_else(|_| Uuid::nil())
 }
 
+pub fn parse_uuid_or_derive(id_str: &str) -> Uuid {
+    if let Ok(u) = Uuid::parse_str(id_str) {
+        return u;
+    }
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(id_str.as_bytes());
+    let hash = hasher.finalize();
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&hash[0..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
+}
+
 fn empty_string_is_none<'de, D>(deserializer: D) -> Result<Option<Uuid>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -608,7 +623,7 @@ where
     let opt = Option::<String>::deserialize(deserializer)?;
     match opt.as_deref() {
         None | Some("") => Ok(None),
-        Some(s) => Uuid::parse_str(s).map(Some).map_err(serde::de::Error::custom),
+        Some(s) => Ok(Some(parse_uuid_or_derive(s))),
     }
 }
 
@@ -627,9 +642,10 @@ pub struct DecisionPayload {
 
 pub async fn approve_proposal(
     State(state): State<AppState>,
-    Path(proposal_id): Path<Uuid>,
+    Path(proposal_id_raw): Path<String>,
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
     let mut proposals = state.proposals.write().await;
     let mut events = state.events.write().await;
     let mut act_states = state.activity_states.write().await;
@@ -639,32 +655,33 @@ pub async fn approve_proposal(
     let mut last_hash_lock = state.last_audit_hash.write().await;
     let acts = state.activities.read().await;
 
-    let (project_id, obs_id, original_act_id) = if let Some(p) = proposals.iter_mut().find(|p| p.id == proposal_id) {
-        p.status = "ACCEPTED".to_string();
-        (p.project_id, p.observation_id, p.activity_id)
-    } else {
-        let default_project = state.projects.read().await[0].id;
-        let default_act = payload.selected_activity_id.unwrap_or_else(|| acts[0].id);
-        let dynamic_obs_id = Uuid::new_v4();
-        let new_prop = MatchProposal {
-            id: proposal_id,
-            project_id: default_project,
-            observation_id: dynamic_obs_id,
-            activity_id: default_act,
-            candidate_rank: 1,
-            lexical_score: 0.85,
-            semantic_score: 0.90,
-            context_boost: 0.10,
-            confidence_score: 0.90,
-            match_tier: MatchTier::Medium,
-            explanation: Some("Planner approved via Field Ledger UI".to_string()),
-            evidence_snippet: payload.comments.clone(),
-            status: "ACCEPTED".to_string(),
-            created_at: Utc::now(),
+    let (project_id, obs_id, original_act_id) =
+        if let Some(p) = proposals.iter_mut().find(|p| p.id == proposal_id) {
+            p.status = "ACCEPTED".to_string();
+            (p.project_id, p.observation_id, p.activity_id)
+        } else {
+            let default_project = state.projects.read().await[0].id;
+            let default_act = payload.selected_activity_id.unwrap_or_else(|| acts[0].id);
+            let dynamic_obs_id = Uuid::new_v4();
+            let new_prop = MatchProposal {
+                id: proposal_id,
+                project_id: default_project,
+                observation_id: dynamic_obs_id,
+                activity_id: default_act,
+                candidate_rank: 1,
+                lexical_score: 0.85,
+                semantic_score: 0.90,
+                context_boost: 0.10,
+                confidence_score: 0.90,
+                match_tier: MatchTier::Medium,
+                explanation: Some("Planner approved via Field Ledger UI".to_string()),
+                evidence_snippet: payload.comments.clone(),
+                status: "ACCEPTED".to_string(),
+                created_at: Utc::now(),
+            };
+            proposals.push(new_prop);
+            (default_project, dynamic_obs_id, default_act)
         };
-        proposals.push(new_prop);
-        (default_project, dynamic_obs_id, default_act)
-    };
 
     let target_activity_id = payload.selected_activity_id.unwrap_or(original_act_id);
     let act = acts
@@ -748,8 +765,7 @@ pub async fn approve_proposal(
     *last_hash_lock = Some(audit.payload_hash.clone());
 
     // Outbox event for async delivery
-    let outbox =
-        EventLedger::create_outbox_event(project_id, "PROPOSAL_APPROVED", &new_event);
+    let outbox = EventLedger::create_outbox_event(project_id, "PROPOSAL_APPROVED", &new_event);
     outbox_store.push(outbox);
 
     events.push(new_event.clone());
@@ -764,9 +780,10 @@ pub async fn approve_proposal(
 
 pub async fn reject_proposal(
     State(state): State<AppState>,
-    Path(proposal_id): Path<Uuid>,
+    Path(proposal_id_raw): Path<String>,
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
     let mut proposals = state.proposals.write().await;
     let mut audit_trail = state.audit_trail.write().await;
     let mut approvals_store = state.approvals.write().await;
@@ -835,9 +852,10 @@ pub async fn reject_proposal(
 /// Override a proposal — planner selects a different target activity
 pub async fn override_proposal(
     State(state): State<AppState>,
-    Path(proposal_id): Path<Uuid>,
+    Path(proposal_id_raw): Path<String>,
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
     let selected_activity_id = payload.selected_activity_id.ok_or(ApiError::bad_request(
         "selected_activity_id is required for override",
     ))?;
@@ -851,31 +869,32 @@ pub async fn override_proposal(
     let mut last_hash_lock = state.last_audit_hash.write().await;
     let acts = state.activities.read().await;
 
-    let (project_id, obs_id, original_activity_id) = if let Some(p) = proposals.iter_mut().find(|p| p.id == proposal_id) {
-        p.status = "OVERRIDDEN".to_string();
-        (p.project_id, p.observation_id, p.activity_id)
-    } else {
-        let default_project = state.projects.read().await[0].id;
-        let dynamic_obs_id = Uuid::new_v4();
-        let new_prop = MatchProposal {
-            id: proposal_id,
-            project_id: default_project,
-            observation_id: dynamic_obs_id,
-            activity_id: selected_activity_id,
-            candidate_rank: 1,
-            lexical_score: 0.60,
-            semantic_score: 0.65,
-            context_boost: 0.05,
-            confidence_score: 0.65,
-            match_tier: MatchTier::Medium,
-            explanation: Some("Planner overrode proposal with new activity".to_string()),
-            evidence_snippet: payload.comments.clone(),
-            status: "OVERRIDDEN".to_string(),
-            created_at: Utc::now(),
+    let (project_id, obs_id, original_activity_id) =
+        if let Some(p) = proposals.iter_mut().find(|p| p.id == proposal_id) {
+            p.status = "OVERRIDDEN".to_string();
+            (p.project_id, p.observation_id, p.activity_id)
+        } else {
+            let default_project = state.projects.read().await[0].id;
+            let dynamic_obs_id = Uuid::new_v4();
+            let new_prop = MatchProposal {
+                id: proposal_id,
+                project_id: default_project,
+                observation_id: dynamic_obs_id,
+                activity_id: selected_activity_id,
+                candidate_rank: 1,
+                lexical_score: 0.60,
+                semantic_score: 0.65,
+                context_boost: 0.05,
+                confidence_score: 0.65,
+                match_tier: MatchTier::Medium,
+                explanation: Some("Planner overrode proposal with new activity".to_string()),
+                evidence_snippet: payload.comments.clone(),
+                status: "OVERRIDDEN".to_string(),
+                created_at: Utc::now(),
+            };
+            proposals.push(new_prop);
+            (default_project, dynamic_obs_id, selected_activity_id)
         };
-        proposals.push(new_prop);
-        (default_project, dynamic_obs_id, selected_activity_id)
-    };
 
     // Validate that the override target activity exists and belongs to the same project
     let act = acts
@@ -954,8 +973,7 @@ pub async fn override_proposal(
     );
     *last_hash_lock = Some(audit.payload_hash.clone());
 
-    let outbox =
-        EventLedger::create_outbox_event(project_id, "PROPOSAL_OVERRIDDEN", &new_event);
+    let outbox = EventLedger::create_outbox_event(project_id, "PROPOSAL_OVERRIDDEN", &new_event);
     outbox_store.push(outbox);
 
     events.push(new_event.clone());
@@ -973,28 +991,31 @@ pub async fn override_proposal(
 /// Add a comment to a proposal without changing its status
 #[derive(Deserialize)]
 pub struct CommentPayload {
+    #[serde(alias = "reviewed_by", default = "default_reviewer_id")]
     pub reviewer_id: Uuid,
     pub comments: String,
 }
 
 pub async fn add_proposal_comment(
     State(state): State<AppState>,
-    Path(proposal_id): Path<Uuid>,
+    Path(proposal_id_raw): Path<String>,
     Json(payload): Json<CommentPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
     let proposals = state.proposals.read().await;
     let mut audit_trail = state.audit_trail.write().await;
     let mut last_hash_lock = state.last_audit_hash.write().await;
 
-    let proposal = proposals
-        .iter()
-        .find(|p| p.id == proposal_id)
-        .ok_or(ApiError::not_found("Proposal not found"))?;
+    let project_id = if let Some(p) = proposals.iter().find(|p| p.id == proposal_id) {
+        p.project_id
+    } else {
+        state.projects.read().await[0].id
+    };
 
     let audit = EventLedger::create_audit_event(
-        proposal.project_id,
+        project_id,
         "PROPOSAL_COMMENT",
-        proposal.id,
+        proposal_id,
         "COMMENT",
         Some(payload.reviewer_id),
         Some("PLANNER"),
@@ -1010,10 +1031,20 @@ pub async fn add_proposal_comment(
     ))
 }
 
+fn deserialize_string_or_uuid_vec<'de, D>(deserializer: D) -> Result<Vec<Uuid>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let list = Vec::<String>::deserialize(deserializer)?;
+    Ok(list.into_iter().map(|s| parse_uuid_or_derive(&s)).collect())
+}
+
 /// Batch approve multiple proposals
 #[derive(Deserialize)]
 pub struct BatchApprovePayload {
+    #[serde(alias = "reviewed_by", default = "default_reviewer_id")]
     pub reviewer_id: Uuid,
+    #[serde(default, deserialize_with = "deserialize_string_or_uuid_vec")]
     pub proposal_ids: Vec<Uuid>,
     pub comments: Option<String>,
 }
