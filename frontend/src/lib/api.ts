@@ -66,14 +66,14 @@ export const api = {
     const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/dashboard`);
     if (isLive && data) {
       return {
-        total_observations: data.summary?.total_observations ?? 0,
-        extracted_events: data.summary?.extracted_events ?? 0,
-        auto_linked_events: data.summary?.auto_linked_events ?? 0,
-        review_queue_count: data.summary?.pending_reviews ?? 0,
-        unmatched_count: data.summary?.unmatched_observations ?? 0,
-        completed_activities: data.summary?.completed_activities ?? 0,
-        in_progress_activities: data.summary?.in_progress_activities ?? 0,
-        overall_progress_pct: data.summary?.overall_progress_pct ?? 0,
+        total_observations: data.total_observations ?? data.summary?.total_observations ?? 0,
+        extracted_events: data.extracted_events ?? data.summary?.extracted_events ?? 0,
+        auto_linked_events: data.auto_linked_events ?? data.summary?.auto_linked_events ?? 0,
+        review_queue_count: data.review_queue_count ?? data.summary?.pending_reviews ?? 0,
+        unmatched_count: data.unmatched_count ?? data.summary?.unmatched_observations ?? 0,
+        completed_activities: data.completed_activities ?? data.summary?.completed_activities ?? 0,
+        in_progress_activities: data.in_progress_activities ?? data.summary?.in_progress_activities ?? 0,
+        overall_progress_pct: data.overall_progress_pct ?? data.summary?.overall_progress_pct ?? 0,
       };
     }
 
@@ -111,9 +111,10 @@ export const api = {
    * Fetch Activities with Current State
    */
   async getActivities(projectId: string): Promise<ActivityWithState[] | null> {
-    const { data, isLive } = await request<{ activities: ActivityWithState[] }>(`/api/v1/projects/${projectId}/activities`);
-    if (isLive && data?.activities) {
-      return data.activities;
+    const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/activities`);
+    if (isLive && data) {
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.activities)) return data.activities;
     }
 
     // Try Supabase direct fetch
@@ -121,7 +122,8 @@ export const api = {
       const { data: activities, error: actErr } = await supabase
         .from('activities')
         .select('*')
-        .eq('project_id', projectId);
+        .eq('project_id', projectId)
+        .order('planned_start_date', { ascending: true });
 
       const { data: states } = await supabase
         .from('activity_current_state')
@@ -148,9 +150,10 @@ export const api = {
    * Fetch Observations
    */
   async getObservations(projectId: string): Promise<WorkObservation[] | null> {
-    const { data, isLive } = await request<{ observations: WorkObservation[] }>(`/api/v1/projects/${projectId}/observations`);
-    if (isLive && data?.observations) {
-      return data.observations;
+    const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/observations`);
+    if (isLive && data) {
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.observations)) return data.observations;
     }
 
     try {
@@ -185,9 +188,10 @@ export const api = {
    * Fetch Review Queue
    */
   async getReviewQueue(projectId: string): Promise<ReviewQueueItem[] | null> {
-    const { data, isLive } = await request<{ items: ReviewQueueItem[] }>(`/api/v1/projects/${projectId}/review-queue`);
-    if (isLive && data?.items) {
-      return data.items;
+    const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/review-queue`);
+    if (isLive && data) {
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.items)) return data.items;
     }
 
     try {
@@ -286,9 +290,10 @@ export const api = {
    * Fetch Audit Trail
    */
   async getAuditTrail(projectId: string): Promise<AuditEvent[] | null> {
-    const { data, isLive } = await request<{ events: AuditEvent[] }>(`/api/v1/projects/${projectId}/audit-trail`);
-    if (isLive && data?.events) {
-      return data.events;
+    const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/audit-trail`);
+    if (isLive && data) {
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.events)) return data.events;
     }
 
     try {
