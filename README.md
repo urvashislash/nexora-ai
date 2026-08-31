@@ -9,12 +9,12 @@ NEXORA AI is an industrial-grade project intelligence platform that converts uns
 
 ## 👥 Team Kasukabe
 
-- **Sirwagya Shekhar** — Team Leader, Full-Stack Architecture & DevOps (Monorepo, Database & Supabase Cloud, React Field Ledger UI, Deployment & CI/CD)
-- **Shravanee Yadav** — AI/ML Lead & Rust Backend Systems (Multi-Format Extraction, Semantic Embeddings, Queue Reliability, Rust Trust Plane & RBAC)
-- **Urvashi Pali** — NLP Matching Engine & Integration Testing (Domain Normalization & Synonym Ontologies, Matcher Pipeline, End-to-End Integration Test Suite)
-- **Divyanshi Mewara** — Security, QA & Planner UX (Security Hardening & Governance, Golden Dataset & Regression Test Suites, Planner Review Queue UX)
-- **Aditya Shende** — Trust Plane & Cryptographic Ledger Engineer (Rust Axum Trust Plane, SHA-256 Audit Chain Integrity, State Machine Validation)
-- **Avika Mishra** — Systems & Infrastructure Engineering
+- Sirwagya Shekhar
+- Shravanee Yadav
+- Urvashi Pali
+- Divyanshi Mewara
+- Aditya Shende
+- Avika Mishra
 
 ---
 
@@ -210,23 +210,6 @@ nexora-ai/
 ├── docker-compose.yml               # Local orchestration
 └── docker-compose.prod.yml          # Hardened production orchestration
 ```
-
----
-
-## 📚 Technical Documentation Index
-
-- **[SIH Judge Q&A & Interview Guide](docs/sih_judge_qa_guide.md)**: Master evaluation questions, plain-English answers, analogies, and defense tips for SIH jury rounds.
-- **[100% Free-Tier Deployment Guide](docs/free_tier_deployment_guide.md)**: Zero-cost deployment blueprint (Vercel, Render, HF Spaces, Supabase, CloudAMQP, Upstash).
-- **[Developer Onboarding Guide](docs/developer_onboarding.md)**: Local setup, environment configuration, and troubleshooting.
-- **[Product Overview & Demo Guide](docs/product_overview_and_demo.md)**: End-to-end user flows and SIH demo walkthrough.
-- **[Production Readiness Checklist](docs/project_readiness_checklist.md)**: Formal audit and release gate sign-off.
-- **[Support & Operations Checklist](docs/support_and_operations_checklist.md)**: Routine maintenance, escalation matrix, and SLAs.
-- **[Monitoring & Alerting Guide](docs/monitoring_and_alerts.md)**: Telemetry metrics, SLIs/SLOs, and alerting rules.
-- **[Deployment Runbook](docs/deployment_runbook.md)**: Zero-downtime container and database deployment steps.
-- **[Incident Response Runbook](docs/incident_runbook.md)**: Recovery protocols for queues, storage, and trust violations.
-- **[RBAC & Access Control](docs/rbac_and_access_control.md)**: Project authorization and RLS governance.
-- **[Secrets Management Guide](docs/secrets_management.md)**: Secure credential isolation policies.
-- **[Audit Retention Policy](docs/audit_retention_policy.md)**: Cryptographic ledger retention and partitioning.
 
 ---
 
