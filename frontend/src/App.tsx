@@ -6,6 +6,9 @@ import { ReviewQueue } from './pages/ReviewQueue';
 import { ScheduleExplorer } from './pages/ScheduleExplorer';
 import { AuditTrail } from './pages/AuditTrail';
 import { ScheduleExport } from './pages/ScheduleExport';
+import { ThankYou } from './pages/ThankYou';
+import { NotFound } from './pages/NotFound';
+import { DashboardSkeleton } from './components/SkeletonLoader';
 import { supabase } from './lib/supabase';
 import { api } from './lib/api';
 import type { 
@@ -580,50 +583,68 @@ function App() {
 
         {/* Dynamic Tab Surface */}
         <div className="max-w-7xl mx-auto px-8 pt-8 pb-12">
-          {activeTab === 'dashboard' && (
-            <Dashboard 
-              kpis={kpis} 
-              activities={activities} 
-              onNavigateTab={setActiveTab} 
-            />
-          )}
+          {isLoading && activities.length === 0 ? (
+            <DashboardSkeleton />
+          ) : (
+            <>
+              {activeTab === 'dashboard' && (
+                <Dashboard 
+                  kpis={kpis} 
+                  activities={activities} 
+                  onNavigateTab={setActiveTab} 
+                />
+              )}
 
-          {activeTab === 'upload' && (
-            <DocumentUpload 
-              observations={observations}
-              onAddObservations={handleAddObservations} 
-              onNavigateTab={setActiveTab} 
-            />
-          )}
+              {activeTab === 'upload' && (
+                <DocumentUpload 
+                  observations={observations}
+                  onAddObservations={handleAddObservations} 
+                  onNavigateTab={setActiveTab} 
+                />
+              )}
 
-          {activeTab === 'review' && (
-            <ReviewQueue 
-              items={reviewQueue} 
-              activities={activities.map(a => a.activity)} 
-              onApprove={handleApproveProposal} 
-              onReject={handleRejectProposal} 
-              onOverride={handleOverrideProposal} 
-            />
-          )}
+              {activeTab === 'review' && (
+                <ReviewQueue 
+                  items={reviewQueue} 
+                  activities={activities.map(a => a.activity)} 
+                  onApprove={handleApproveProposal} 
+                  onReject={handleRejectProposal} 
+                  onOverride={handleOverrideProposal} 
+                />
+              )}
 
-          {activeTab === 'schedule' && (
-            <ScheduleExplorer 
-              activities={activities} 
-            />
-          )}
+              {activeTab === 'schedule' && (
+                <ScheduleExplorer 
+                  activities={activities} 
+                />
+              )}
 
-          {activeTab === 'audit' && (
-            <AuditTrail 
-              events={auditEvents} 
-            />
-          )}
+              {activeTab === 'audit' && (
+                <AuditTrail 
+                  events={auditEvents} 
+                />
+              )}
 
-          {activeTab === 'export' && (
-            <ScheduleExport 
-              activities={activities} 
-              observations={observations}
-              onRefreshData={loadData}
-            />
+              {activeTab === 'export' && (
+                <ScheduleExport 
+                  activities={activities} 
+                  observations={observations}
+                  onRefreshData={loadData}
+                />
+              )}
+
+              {activeTab === 'thank-you' && (
+                <ThankYou 
+                  onNavigateTab={setActiveTab as any}
+                />
+              )}
+
+              {!['dashboard', 'upload', 'review', 'schedule', 'audit', 'export', 'thank-you'].includes(activeTab) && (
+                <NotFound 
+                  onNavigateHome={() => setActiveTab('dashboard')}
+                />
+              )}
+            </>
           )}
         </div>
       </main>

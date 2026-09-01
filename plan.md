@@ -367,13 +367,23 @@ flowchart TD
 - In-browser **"Verify Chain Integrity"** button recomputing root hashes.
 - Legal Hold toggle modal with reason specification.
 
-#### H. System Health & Interoperability (`frontend/src/pages/ScheduleExport.tsx`)
-- 4-Card Export HUD:
-  1. **Oracle Primavera P6 (XML):** Standard Primavera schema v24 export.
-  2. **Actualized Schedule (CSV):** UTF-8 BOM formatted spreadsheet for Excel / PowerBI.
-  3. **Field Observations (CSV):** Complete field evidence log with direct cloud audio links.
-  4. **PMIS JSON Payload:** Machine-readable API synchronization payload.
-- One-click **"Sync Cloud DB"** button for fresh database pulls.
+#### I. Custom 404 Diagnostic Page (`frontend/src/pages/NotFound.tsx`)
+- High-tech HUD signal loss alert with technical telemetry diagnostic box.
+- One-click navigation back to Command Centre and reload triggers.
+
+#### J. Thank You & Provenance Confirmation Page (`frontend/src/pages/ThankYou.tsx`)
+- Cryptographic confirmation receipt for field reports, voice notes, and review sign-offs.
+- Displays record identifier, UTC timestamp, and policy verification badge with quick navigation to Review Queue or Ingestion Inbox.
+
+#### K. Skeleton Loading Architecture (`frontend/src/components/SkeletonLoader.tsx`)
+- **`DashboardSkeleton`:** Pulsing HUD KPI cards, chart placeholder, and live telemetry feeds.
+- **`TableSkeleton`:** Shimmering table rows for Review Queue and Schedule Explorer.
+- **`LedgerSkeleton`:** Cryptographic block placeholders for Audit Trail.
+
+#### L. Search Engine Optimization & Crawler Directives
+- **`index.html`:** Complete OpenGraph cards, Twitter preview metadata, and rich description tags.
+- **`public/robots.txt`:** Crawler access rules protecting API/storage paths while indexing public pages.
+- **`public/sitemap.xml`:** Structured XML sitemap indexing all primary module anchors.
 
 ---
 
@@ -394,10 +404,11 @@ gantt
     Rust AMQP Result Consumer          :         p3_2, after p2_2, 1d
     section Phase 4: Frontend UI
     Obsidian Force-Directed Graph      :active,  p4_1, after p1_1, 2d
-    Command Palette & HUD Polish       :         p4_2, after p4_1, 1d
-    Audio Waveform & S-Curve           :         p4_3, after p4_2, 1d
+    SEO, 404, ThankYou & Skeletons     :done,    p4_2, 2026-09-02, 1d
+    Command Palette & HUD Polish       :         p4_3, after p4_2, 1d
+    Audio Waveform & S-Curve           :         p4_4, after p4_3, 1d
     section Phase 5: Testing & Scenarios
-    Automated Benchmark & SIH E2E      :         p5_1, after p4_3, 1d
+    Automated Benchmark & SIH E2E      :         p5_1, after p4_4, 1d
 ```
 
 ### Phase 1: Database & Cloud Persistence Completion
@@ -418,6 +429,9 @@ gantt
 - [ ] Implement Rust AMQP consumer (`backend/src/messaging/consumer.rs`) to consume results from `ai_result_queue`.
 
 ### Phase 4: Frontend UI/UX Master Polish
+- [x] Implement SEO metadata, OpenGraph cards, `robots.txt`, and `sitemap.xml`.
+- [x] Implement reusable Skeleton Loaders (`DashboardSkeleton`, `TableSkeleton`, `LedgerSkeleton`).
+- [x] Implement Custom 404 Route (`NotFound.tsx`) and Confirmation Page (`ThankYou.tsx`).
 - [ ] Implement Obsidian-style Force-Directed Graph Visualizer (`frontend/src/pages/ProjectGraph.tsx`).
 - [ ] Implement Global Command Palette `Cmd+K` (`frontend/src/components/CommandPalette.tsx`).
 - [ ] Implement HTML5 Canvas real-time audio waveform recorder in `DocumentUpload.tsx`.
