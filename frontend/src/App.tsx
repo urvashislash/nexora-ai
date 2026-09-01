@@ -291,52 +291,44 @@ function App() {
     ])
   );
 
-  // Initial Load from Live APIs
-  useEffect(() => {
-    let mounted = true;
+  // Load from live APIs / Supabase DB
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // 1. Check Supabase
+      const { error } = await supabase.auth.getSession();
+      setSupabaseConnected(!error);
 
-    async function loadData() {
-      setIsLoading(true);
-      try {
-        // 1. Check Supabase
-        const { error } = await supabase.auth.getSession();
-        if (mounted) setSupabaseConnected(!error);
+      // 2. Fetch live data from backend or Supabase
+      const [liveActivities, liveQueue, liveObs, liveAudit] = await Promise.all([
+        api.getActivities(PROJECT_ID),
+        api.getReviewQueue(PROJECT_ID),
+        api.getObservations(PROJECT_ID),
+        api.getAuditTrail(PROJECT_ID),
+      ]);
 
-        // 2. Fetch live data from backend or Supabase
-        const [liveActivities, liveQueue, liveObs, liveAudit] = await Promise.all([
-          api.getActivities(PROJECT_ID),
-          api.getReviewQueue(PROJECT_ID),
-          api.getObservations(PROJECT_ID),
-          api.getAuditTrail(PROJECT_ID),
-        ]);
-
-        if (mounted) {
-          if (liveActivities && liveActivities.length > 0) {
-            setActivities(liveActivities);
-          }
-          if (liveQueue && liveQueue.length > 0) {
-            setReviewQueue(liveQueue);
-          }
-          if (liveObs && liveObs.length > 0) {
-            setObservations(liveObs);
-          }
-          if (liveAudit && liveAudit.length > 0) {
-            setAuditEvents(liveAudit);
-          }
-        }
-      } catch (err) {
-        console.warn('[NEXORA] Live fetch error, using local fallback:', err);
-      } finally {
-        if (mounted) setIsLoading(false);
+      if (liveActivities && liveActivities.length > 0) {
+        setActivities(liveActivities);
       }
+      if (liveQueue && liveQueue.length > 0) {
+        setReviewQueue(liveQueue);
+      }
+      if (liveObs && liveObs.length > 0) {
+        setObservations(liveObs);
+      }
+      if (liveAudit && liveAudit.length > 0) {
+        setAuditEvents(liveAudit);
+      }
+    } catch (err) {
+      console.warn('[NEXORA] Live fetch error, using local fallback:', err);
+    } finally {
+      setIsLoading(false);
     }
-
-    loadData();
-
-    return () => {
-      mounted = false;
-    };
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -629,6 +621,8 @@ function App() {
           {activeTab === 'export' && (
             <ScheduleExport 
               activities={activities} 
+              observations={observations}
+              onRefreshData={loadData}
             />
           )}
         </div>

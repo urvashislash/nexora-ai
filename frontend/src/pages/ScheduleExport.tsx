@@ -8,20 +8,28 @@ import {
   ShieldCheck, 
   Server, 
   RefreshCw, 
-  Code 
+  Code,
+  FileAudio
 } from 'lucide-react';
-import type { ActivityWithState } from '../types';
+import type { ActivityWithState, WorkObservation } from '../types';
 import { api } from '../lib/api';
 import { getSupabaseStatus } from '../lib/supabase';
 
 interface ScheduleExportProps {
   activities: ActivityWithState[];
+  observations?: WorkObservation[];
+  onRefreshData?: () => Promise<void>;
 }
 
-export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) => {
+export const ScheduleExport: React.FC<ScheduleExportProps> = ({ 
+  activities, 
+  observations = [],
+  onRefreshData 
+}) => {
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
   const [backendHealth, setBackendHealth] = useState<{ status: string; service?: string } | null>(null);
   const [isProbing, setIsProbing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const supabaseStatus = getSupabaseStatus();
 
@@ -34,6 +42,19 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
       setBackendHealth({ status: 'offline' });
     } finally {
       setIsProbing(false);
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    if (onRefreshData) {
+      setIsRefreshing(true);
+      try {
+        await onRefreshData();
+        setDownloadSuccess('Live data refreshed from Cloud DB successfully!');
+        setTimeout(() => setDownloadSuccess(null), 3000);
+      } finally {
+        setIsRefreshing(false);
+      }
     }
   };
 
@@ -66,7 +87,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
       xmlContent += `  </Activities>\n</APBO:Project>`;
     }
 
-    const blob = new Blob([xmlContent], { type: 'application/xml' });
+    const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -88,10 +109,11 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
       const status = state?.execution_status || 'NOT_STARTED';
       const actualStart = state?.actual_start_date || '';
       const actualFinish = state?.actual_finish_date || '';
-      csv += `"${activity.code}","${activity.name}","${activity.discipline}","${activity.planned_start_date}","${activity.planned_finish_date}","${actualStart}","${actualFinish}",${progress},"${status}",${activity.critical_path ? 'YES' : 'NO'}\n`;
+      csv += `"${activity.code}","${activity.name.replace(/"/g, '""')}","${activity.discipline}","${activity.planned_start_date}","${activity.planned_finish_date}","${actualStart}","${actualFinish}",${progress},"${status}",${activity.critical_path ? 'YES' : 'NO'}\n`;
     });
 
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // \uFEFF BOM ensures full UTF-8 support in Excel on Windows and Mac
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -105,16 +127,41 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
     setTimeout(() => setDownloadSuccess(null), 4000);
   };
 
+  const handleDownloadObservationsCSV = () => {
+    let csv = 'Observation ID,Recorded At,Discipline,Event Type,Progress %,Location,Equipment Tag,Raw Fact / Voice Transcript,Audio Stored\n';
+
+    observations.forEach((obs) => {
+      const rawTextClean = (obs.raw_text || '').replace(/"/g, '""');
+      const hasAudio = (obs as any).metadata?.has_audio ? 'YES' : 'NO';
+      csv += `"${obs.id}","${obs.recorded_at}","${obs.discipline || 'GENERAL'}","${obs.event_type || 'FINISH'}",${obs.reported_progress ?? 100},"${obs.location || ''}","${obs.equipment_tag || ''}","${rawTextClean}","${hasAudio}"\n`;
+    });
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `NEXORA_Field_Observations_Ledger_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setDownloadSuccess(`Exported ${observations.length} field observations & voice memos to CSV!`);
+    setTimeout(() => setDownloadSuccess(null), 4000);
+  };
+
   const handleDownloadJSON = () => {
     const payload = {
       project_id: 'a0000000-0000-0000-0000-000000000001',
       project_code: 'PRD-HYD-PKG04',
       exported_at: new Date().toISOString(),
       activities_count: activities.length,
+      observations_count: observations.length,
       activities: activities.map(({ activity, state }) => ({
         ...activity,
         current_state: state,
       })),
+      observations: observations,
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -150,14 +197,27 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
           </p>
         </div>
 
-        <button
-          onClick={checkHealth}
-          disabled={isProbing}
-          className="flex items-center gap-2 rounded bg-slate-900 px-3.5 py-2 text-xs font-mono font-medium text-white hover:bg-slate-800 disabled:opacity-50 transition"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isProbing ? 'animate-spin' : ''}`} />
-          <span>Probe System Health</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onRefreshData && (
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-2 text-xs font-mono font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition shadow-xs"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 text-[#C38B4B] ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>Sync Cloud DB</span>
+            </button>
+          )}
+
+          <button
+            onClick={checkHealth}
+            disabled={isProbing}
+            className="flex items-center gap-2 rounded bg-slate-900 px-3.5 py-2 text-xs font-mono font-medium text-white hover:bg-slate-800 disabled:opacity-50 transition"
+          >
+            <Server className={`h-3.5 w-3.5 ${isProbing ? 'animate-pulse' : ''}`} />
+            <span>Probe Health</span>
+          </button>
+        </div>
       </div>
 
       {/* Success Notification */}
@@ -179,11 +239,11 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
           </div>
           <div className="flex items-baseline gap-2 mt-2">
             <span className="text-lg font-bold font-mono text-slate-900">
-              {backendHealth?.status === 'ok' || backendHealth?.status === 'healthy' ? 'Online' : 'Standby / Local Fallback'}
+              {backendHealth?.status === 'ok' || backendHealth?.status === 'healthy' ? 'Online' : 'Standby / Cloud Fallback'}
             </span>
           </div>
           <p className="text-[11px] font-mono text-slate-500">
-            {backendHealth?.service ? `Service: ${backendHealth.service}` : 'Port 3000 • Axum + Tokio'}
+            {backendHealth?.service ? `Service: ${backendHealth.service}` : 'Axum Trust Plane Engine'}
           </p>
         </div>
 
@@ -195,7 +255,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
           </div>
           <div className="flex items-baseline gap-2 mt-2">
             <span className="text-lg font-bold font-mono text-emerald-700">
-              {supabaseStatus.configured ? 'Connected' : 'Local Mocked'}
+              {supabaseStatus.configured ? 'Connected & Persistent' : 'Local Fallback'}
             </span>
           </div>
           <p className="text-[11px] font-mono text-slate-500 truncate">
@@ -220,7 +280,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
       </div>
 
       {/* Export Options Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* Primavera P6 XML Card */}
         <div className="glass-card p-6 space-y-4 flex flex-col justify-between">
@@ -230,19 +290,19 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
                 <FileCode className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Oracle Primavera P6 (XML)</h3>
-                <span className="text-[10px] font-mono text-slate-500">Standard Primavera Schema v24</span>
+                <h3 className="text-sm font-bold text-slate-900">Primavera P6 (XML)</h3>
+                <span className="text-[10px] font-mono text-slate-500">Oracle Schema v24</span>
               </div>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Export actualized start/finish dates, percent completions, and activity codes compatible with Oracle Primavera P6 Enterprise Project Portfolio Management.
+              Export actualized start/finish dates, percent completions, and activity codes compatible with Oracle Primavera P6 Enterprise.
             </p>
           </div>
 
           <div className="pt-4 border-t border-slate-100">
             <button
               onClick={handleDownloadP6XML}
-              className="w-full flex items-center justify-center space-x-2 rounded bg-slate-900 py-2 text-xs font-mono font-bold text-white hover:bg-slate-800 transition"
+              className="w-full flex items-center justify-center space-x-2 rounded bg-slate-900 py-2 text-xs font-mono font-bold text-white hover:bg-slate-800 transition cursor-pointer"
             >
               <Download className="h-3.5 w-3.5" />
               <span>Export P6 XML</span>
@@ -250,7 +310,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
           </div>
         </div>
 
-        {/* CSV Spreadsheet Card */}
+        {/* Schedule CSV Spreadsheet Card */}
         <div className="glass-card p-6 space-y-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center space-x-3 mb-3">
@@ -258,22 +318,50 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
                 <FileSpreadsheet className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Actualized CSV Report</h3>
-                <span className="text-[10px] font-mono text-slate-500">Excel / PowerBI Compatible</span>
+                <h3 className="text-sm font-bold text-slate-900">Schedule CSV Report</h3>
+                <span className="text-[10px] font-mono text-slate-500">Excel / PowerBI (UTF-8)</span>
               </div>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Standard comma-separated table containing all {activities.length} schedule activities, variance days, progress percentages, and critical path indicators.
+              Comma-separated table containing all {activities.length} schedule activities, variance days, progress %, and critical path flags.
             </p>
           </div>
 
           <div className="pt-4 border-t border-slate-100">
             <button
               onClick={handleDownloadCSV}
-              className="w-full flex items-center justify-center space-x-2 rounded bg-slate-900 py-2 text-xs font-mono font-bold text-white hover:bg-slate-800 transition"
+              className="w-full flex items-center justify-center space-x-2 rounded bg-slate-900 py-2 text-xs font-mono font-bold text-white hover:bg-slate-800 transition cursor-pointer"
             >
               <Download className="h-3.5 w-3.5" />
-              <span>Export CSV</span>
+              <span>Export Schedule CSV</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Observations & Voice Memos CSV Card */}
+        <div className="glass-card p-6 space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="rounded p-2 bg-purple-50 text-purple-700 border border-purple-200">
+                <FileAudio className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Observations CSV</h3>
+                <span className="text-[10px] font-mono text-slate-500">Field Voice & Reports</span>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Full ledger of {observations.length} field observations, audio memo links, disciplines, timestamps, and progress actualizations.
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100">
+            <button
+              onClick={handleDownloadObservationsCSV}
+              className="w-full flex items-center justify-center space-x-2 rounded bg-slate-900 py-2 text-xs font-mono font-bold text-white hover:bg-slate-800 transition cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Export Observations CSV</span>
             </button>
           </div>
         </div>
@@ -286,22 +374,22 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({ activities }) =>
                 <Code className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">PMIS JSON Webhook Sync</h3>
-                <span className="text-[10px] font-mono text-slate-500">REST / Kafka Event Payload</span>
+                <h3 className="text-sm font-bold text-slate-900">PMIS JSON Sync</h3>
+                <span className="text-[10px] font-mono text-slate-500">REST / Kafka Event</span>
               </div>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Machine-readable structured JSON payload containing full activity states, metadata, and timestamps for programmatic synchronization into corporate PMIS.
+              Machine-readable structured JSON payload containing full activity states, metadata, and timestamps for ERP/PMIS synchronization.
             </p>
           </div>
 
           <div className="pt-4 border-t border-slate-100">
             <button
               onClick={handleDownloadJSON}
-              className="w-full flex items-center justify-center space-x-2 rounded bg-slate-900 py-2 text-xs font-mono font-bold text-white hover:bg-slate-800 transition"
+              className="w-full flex items-center justify-center space-x-2 rounded bg-slate-900 py-2 text-xs font-mono font-bold text-white hover:bg-slate-800 transition cursor-pointer"
             >
               <Download className="h-3.5 w-3.5" />
-              <span>Download JSON Payload</span>
+              <span>Download JSON</span>
             </button>
           </div>
         </div>

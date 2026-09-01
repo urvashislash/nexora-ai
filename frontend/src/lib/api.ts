@@ -5,7 +5,13 @@ import type {
   ReviewQueueItem, 
   WorkObservation
 } from '../types';
-import { supabase } from './supabase';
+import { 
+  supabase, 
+  insertObservation, 
+  fetchObservationsFromDB, 
+  fetchActivitiesWithState, 
+  fetchAuditEventsFromDB 
+} from './supabase';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -28,7 +34,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<{
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout for fast fallback
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout for cloud/cold-start backends
 
     const response = await fetch(url, {
       ...options,
@@ -113,34 +119,18 @@ export const api = {
   async getActivities(projectId: string): Promise<ActivityWithState[] | null> {
     const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/activities`);
     if (isLive && data) {
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data.activities)) return data.activities;
+      if (Array.isArray(data) && data.length > 0) return data;
+      if (Array.isArray(data.activities) && data.activities.length > 0) return data.activities;
     }
 
-    // Try Supabase direct fetch
+    // Direct Supabase DB query
     try {
-      const { data: activities, error: actErr } = await supabase
-        .from('activities')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('planned_start_date', { ascending: true });
-
-      const { data: states } = await supabase
-        .from('activity_current_state')
-        .select('*')
-        .eq('project_id', projectId);
-
-      if (!actErr && activities && activities.length > 0) {
-        return activities.map(act => {
-          const state = states?.find(s => s.activity_id === act.id);
-          return {
-            activity: act,
-            state: state || undefined,
-          };
-        });
+      const dbActivities = await fetchActivitiesWithState(projectId);
+      if (dbActivities && dbActivities.length > 0) {
+        return dbActivities;
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn('[NEXORA] Supabase fetchActivitiesWithState fallback error:', e);
     }
 
     return null;
@@ -152,36 +142,54 @@ export const api = {
   async getObservations(projectId: string): Promise<WorkObservation[] | null> {
     const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/observations`);
     if (isLive && data) {
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data.observations)) return data.observations;
+      if (Array.isArray(data) && data.length > 0) return data;
+      if (Array.isArray(data.observations) && data.observations.length > 0) return data.observations;
     }
 
     try {
-      const { data: obs, error } = await supabase
-        .from('work_observations')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('recorded_at', { ascending: false });
-
-      if (!error && obs && obs.length > 0) {
-        return obs;
+      const dbObs = await fetchObservationsFromDB(projectId);
+      if (dbObs && dbObs.length > 0) {
+        return dbObs;
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn('[NEXORA] Supabase fetchObservationsFromDB fallback error:', e);
     }
 
     return null;
   },
 
   /**
-   * Ingest a single or multiple observations
+   * Ingest a single or multiple observations with dual-write persistence
    */
   async createObservation(projectId: string, obs: Partial<WorkObservation>): Promise<WorkObservation | null> {
+    // 1. Persist directly to Supabase DB so it is permanently saved in Cloud DB
+    try {
+      await insertObservation({
+        id: obs.id,
+        project_id: projectId,
+        raw_text: obs.raw_text || '',
+        normalized_text: obs.normalized_text,
+        discipline: obs.discipline,
+        location: obs.location,
+        zone: obs.zone,
+        equipment_tag: obs.equipment_tag,
+        event_type: obs.event_type,
+        reported_progress: obs.reported_progress,
+        reported_quantity: obs.reported_quantity,
+        unit_of_measure: obs.unit_of_measure,
+        observed_at: obs.observed_at,
+        metadata: (obs as any).metadata || {},
+      });
+    } catch (e) {
+      console.warn('[NEXORA] Supabase direct insertObservation error:', e);
+    }
+
+    // 2. Also forward to Rust backend if online for verification & outbox queueing
     const { data } = await request<WorkObservation>(`/api/v1/projects/${projectId}/observations`, {
       method: 'POST',
       body: JSON.stringify(obs),
     });
-    return data;
+    return data || (obs as WorkObservation);
   },
 
   /**
@@ -307,22 +315,17 @@ export const api = {
   async getAuditTrail(projectId: string): Promise<AuditEvent[] | null> {
     const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/audit-trail`);
     if (isLive && data) {
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data.events)) return data.events;
+      if (Array.isArray(data) && data.length > 0) return data;
+      if (Array.isArray(data.events) && data.events.length > 0) return data.events;
     }
 
     try {
-      const { data: audit, error } = await supabase
-        .from('audit_events')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
-
-      if (!error && audit && audit.length > 0) {
-        return audit;
+      const dbAudit = await fetchAuditEventsFromDB(projectId);
+      if (dbAudit && dbAudit.length > 0) {
+        return dbAudit as unknown as AuditEvent[];
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn('[NEXORA] Supabase fetchAuditEventsFromDB error:', e);
     }
 
     return null;

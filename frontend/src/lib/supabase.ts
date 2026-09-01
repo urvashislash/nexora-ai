@@ -45,7 +45,7 @@ export function getSupabaseStatus() {
 export async function uploadEvidenceFile(
   projectId: string,
   file: File,
-  type: 'reports' | 'spreadsheets' | 'images' = 'reports'
+  type: 'reports' | 'spreadsheets' | 'images' | 'audio' | 'voice' = 'reports'
 ): Promise<string | null> {
   if (!supabaseInstance) {
     console.warn('[NEXORA] Cannot upload file — Supabase not configured.');
@@ -71,6 +71,141 @@ export async function uploadEvidenceFile(
   }
 
   return data.path;
+}
+
+// =========================================================================
+// Direct Supabase DB Persistence (bypasses Rust backend for reliability)
+// =========================================================================
+
+/**
+ * Inserts a work observation directly into the Supabase `work_observations` table.
+ * This ensures data persists even when the Rust backend is sleeping/offline.
+ */
+export async function insertObservation(obs: {
+  id?: string;
+  project_id: string;
+  raw_text: string;
+  normalized_text?: string;
+  discipline?: string;
+  location?: string;
+  zone?: string;
+  equipment_tag?: string;
+  event_type?: string;
+  reported_progress?: number;
+  reported_quantity?: number;
+  unit_of_measure?: string;
+  observed_at?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<{ id: string } | null> {
+  if (!supabaseInstance) {
+    console.warn('[NEXORA] Cannot insert observation — Supabase not configured.');
+    return null;
+  }
+
+  const row: Record<string, unknown> = {
+    project_id: obs.project_id,
+    raw_text: obs.raw_text,
+    normalized_text: obs.normalized_text || obs.raw_text,
+    discipline: obs.discipline || null,
+    location: obs.location || null,
+    zone: obs.zone || null,
+    equipment_tag: obs.equipment_tag || null,
+    event_type: obs.event_type || null,
+    reported_progress: obs.reported_progress ?? null,
+    reported_quantity: obs.reported_quantity ?? null,
+    unit_of_measure: obs.unit_of_measure || null,
+    observed_at: obs.observed_at || new Date().toISOString(),
+    recorded_at: new Date().toISOString(),
+    metadata: obs.metadata || {},
+  };
+
+  // Use the caller-supplied ID if it's a valid UUID, otherwise let Supabase generate one
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (obs.id && uuidRegex.test(obs.id)) {
+    row.id = obs.id;
+  }
+
+  const { data, error } = await supabaseInstance
+    .from('work_observations')
+    .insert(row)
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('[NEXORA] Error inserting observation:', error.message);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Fetches all work observations for a project from Supabase.
+ */
+export async function fetchObservationsFromDB(projectId: string) {
+  if (!supabaseInstance) return null;
+
+  const { data, error } = await supabaseInstance
+    .from('work_observations')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('recorded_at', { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error('[NEXORA] Error fetching observations:', error.message);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Fetches activities joined with their current state from Supabase.
+ */
+export async function fetchActivitiesWithState(projectId: string) {
+  if (!supabaseInstance) return null;
+
+  const { data: activities, error: actErr } = await supabaseInstance
+    .from('activities')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('planned_start_date', { ascending: true });
+
+  if (actErr || !activities || activities.length === 0) {
+    return null;
+  }
+
+  const { data: states } = await supabaseInstance
+    .from('activity_current_state')
+    .select('*')
+    .eq('project_id', projectId);
+
+  return activities.map((act: any) => {
+    const state = states?.find((s: any) => s.activity_id === act.id);
+    return { activity: act, state: state || undefined };
+  });
+}
+
+/**
+ * Fetches audit events from Supabase.
+ */
+export async function fetchAuditEventsFromDB(projectId: string) {
+  if (!supabaseInstance) return null;
+
+  const { data, error } = await supabaseInstance
+    .from('audit_events')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[NEXORA] Error fetching audit events:', error.message);
+    return null;
+  }
+
+  return data;
 }
 
 /**
