@@ -39,9 +39,7 @@ impl RedisCache {
 
         // Verify connectivity
         let mut conn = pool.get().await?;
-        let pong: String = redis::cmd("PING")
-            .query_async(&mut conn)
-            .await?;
+        let pong: String = redis::cmd("PING").query_async(&mut conn).await?;
         tracing::info!("Redis cache connected — PING returned: {}", pong);
 
         Ok(Self { pool })
@@ -155,7 +153,11 @@ impl RedisCache {
                 true
             }
             Err(e) => {
-                tracing::warn!("Redis cache invalidation error for project {}: {}", project_id, e);
+                tracing::warn!(
+                    "Redis cache invalidation error for project {}: {}",
+                    project_id,
+                    e
+                );
                 false
             }
         }
@@ -188,9 +190,7 @@ impl RedisCache {
             Err(_) => return false,
         };
         // Use AsyncCommands trait which is implemented for deadpool_redis::Connection
-        let result: Result<String, _> = redis::cmd("PING")
-            .query_async(&mut conn)
-            .await;
+        let result: Result<String, _> = redis::cmd("PING").query_async(&mut conn).await;
         result.is_ok()
     }
 }

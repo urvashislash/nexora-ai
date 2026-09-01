@@ -1,5 +1,5 @@
-pub mod publisher;
 pub mod consumer;
+pub mod publisher;
 
 use deadpool_lapin::{Manager, Pool};
 use lapin::ConnectionProperties;

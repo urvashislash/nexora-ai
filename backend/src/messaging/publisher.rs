@@ -105,15 +105,25 @@ impl RabbitPublisher {
             )
             .await?;
 
-        tracing::info!("RabbitMQ topology declared: exchange={}, queues=[{}, {}]", EXCHANGE, QUEUE_PROCESSING, QUEUE_RESULT);
+        tracing::info!(
+            "RabbitMQ topology declared: exchange={}, queues=[{}, {}]",
+            EXCHANGE,
+            QUEUE_PROCESSING,
+            QUEUE_RESULT
+        );
         Ok(())
     }
 
     /// Publishes a document processing job to the AI worker queue.
-    pub async fn publish_document_job(&self, job: &ProcessDocumentJob) -> Result<(), anyhow::Error> {
+    pub async fn publish_document_job(
+        &self,
+        job: &ProcessDocumentJob,
+    ) -> Result<(), anyhow::Error> {
         let conn = self.pool.get().await?;
         let channel = conn.create_channel().await?;
-        channel.confirm_select(lapin::options::ConfirmSelectOptions::default()).await?;
+        channel
+            .confirm_select(lapin::options::ConfirmSelectOptions::default())
+            .await?;
 
         let payload = serde_json::to_vec(job)?;
         let confirm = channel
@@ -140,13 +150,12 @@ impl RabbitPublisher {
     }
 
     /// Publishes a generic outbox event payload to RabbitMQ.
-    pub async fn publish_outbox_event(
-        &self,
-        event: &OutboxEvent,
-    ) -> Result<(), anyhow::Error> {
+    pub async fn publish_outbox_event(&self, event: &OutboxEvent) -> Result<(), anyhow::Error> {
         let conn = self.pool.get().await?;
         let channel = conn.create_channel().await?;
-        channel.confirm_select(lapin::options::ConfirmSelectOptions::default()).await?;
+        channel
+            .confirm_select(lapin::options::ConfirmSelectOptions::default())
+            .await?;
 
         let routing_key = match event.event_type.as_str() {
             "PROPOSAL_APPROVED" | "BATCH_PROPOSAL_APPROVED" => "document.result",
@@ -236,9 +245,7 @@ impl OutboxRelay {
             let event = &outbox[idx];
             match self.publisher.publish_outbox_event(event).await {
                 Ok(()) => {
-                    crate::domain::ledger::EventLedger::mark_outbox_processed(
-                        &mut outbox[idx],
-                    );
+                    crate::domain::ledger::EventLedger::mark_outbox_processed(&mut outbox[idx]);
                 }
                 Err(e) => {
                     tracing::error!("Outbox relay failed for event {}: {}", outbox[idx].id, e);

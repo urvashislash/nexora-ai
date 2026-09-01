@@ -344,7 +344,10 @@ pub async fn get_dashboard(
 ) -> impl IntoResponse {
     // Try Redis cache first
     if let Some(cache) = &state.redis_cache {
-        if let Some(cached) = cache.get::<DashboardKPIs>("dashboard", Some(project_id)).await {
+        if let Some(cached) = cache
+            .get::<DashboardKPIs>("dashboard", Some(project_id))
+            .await
+        {
             tracing::debug!("Dashboard cache HIT for project {}", project_id);
             return Json(cached);
         }
@@ -396,7 +399,14 @@ pub async fn get_dashboard(
 
     // Cache the result
     if let Some(cache) = &state.redis_cache {
-        cache.set("dashboard", Some(project_id), &kpis, state.cache_ttl.dashboard_secs).await;
+        cache
+            .set(
+                "dashboard",
+                Some(project_id),
+                &kpis,
+                state.cache_ttl.dashboard_secs,
+            )
+            .await;
     }
 
     Json(kpis)
@@ -408,7 +418,10 @@ pub async fn get_activities(
 ) -> impl IntoResponse {
     // Try Redis cache first
     if let Some(cache) = &state.redis_cache {
-        if let Some(cached) = cache.get::<serde_json::Value>("activities", Some(project_id)).await {
+        if let Some(cached) = cache
+            .get::<serde_json::Value>("activities", Some(project_id))
+            .await
+        {
             tracing::debug!("Activities cache HIT for project {}", project_id);
             return Json(cached);
         }
@@ -439,7 +452,14 @@ pub async fn get_activities(
 
     // Cache the result
     if let Some(cache) = &state.redis_cache {
-        cache.set("activities", Some(project_id), &value, state.cache_ttl.activities_secs).await;
+        cache
+            .set(
+                "activities",
+                Some(project_id),
+                &value,
+                state.cache_ttl.activities_secs,
+            )
+            .await;
     }
 
     Json(value)
@@ -451,7 +471,10 @@ pub async fn get_review_queue(
 ) -> impl IntoResponse {
     // Try Redis cache first
     if let Some(cache) = &state.redis_cache {
-        if let Some(cached) = cache.get::<serde_json::Value>("review_queue", Some(project_id)).await {
+        if let Some(cached) = cache
+            .get::<serde_json::Value>("review_queue", Some(project_id))
+            .await
+        {
             tracing::debug!("Review queue cache HIT for project {}", project_id);
             return Json(cached);
         }
@@ -486,7 +509,14 @@ pub async fn get_review_queue(
 
     // Cache the result
     if let Some(cache) = &state.redis_cache {
-        cache.set("review_queue", Some(project_id), &value, state.cache_ttl.review_queue_secs).await;
+        cache
+            .set(
+                "review_queue",
+                Some(project_id),
+                &value,
+                state.cache_ttl.review_queue_secs,
+            )
+            .await;
     }
 
     Json(value)

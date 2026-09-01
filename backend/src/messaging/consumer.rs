@@ -125,10 +125,7 @@ impl ResultConsumer {
     async fn handle_delivery(&self, data: &[u8]) -> Result<(), anyhow::Error> {
         let message: AIResultMessage = serde_json::from_slice(data)?;
 
-        let job_id = message
-            .job_id
-            .as_deref()
-            .unwrap_or("unknown");
+        let job_id = message.job_id.as_deref().unwrap_or("unknown");
 
         if message.status == "FAILED" {
             tracing::warn!(
@@ -145,10 +142,7 @@ impl ResultConsumer {
             return Ok(());
         }
 
-        let project_id_str = message
-            .project_id
-            .as_deref()
-            .unwrap_or_default();
+        let project_id_str = message.project_id.as_deref().unwrap_or_default();
         let project_id = project_id_str
             .parse::<Uuid>()
             .unwrap_or_else(|_| crate::api::handlers::parse_uuid_or_derive(project_id_str));
