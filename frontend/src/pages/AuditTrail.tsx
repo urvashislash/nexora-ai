@@ -121,14 +121,17 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
           <p className="text-xs text-slate-500 font-mono mt-1">Audit entries are automatically emitted whenever observations are ingested, matched, or approved.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 relative">
+          {/* Visual Vertical Blockchain Spine Line */}
+          <div className="absolute top-8 bottom-8 left-6 w-[2px] bg-slate-200 hidden sm:block pointer-events-none" />
+
           {filtered.map((evt, idx) => (
-            <div key={evt.id} className="glass-card p-5 space-y-4">
+            <div key={evt.id} className="glass-card p-5 space-y-4 relative z-10 ml-0 sm:ml-4 border-l-4 border-l-emerald-500">
               
               {/* Event Card Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                 <div className="flex items-center space-x-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-900 text-white text-xs font-bold font-mono">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-white text-xs font-bold font-mono shadow-xs">
                     #{idx + 1}
                   </span>
                   <div>
@@ -168,8 +171,8 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
                     {evt.payload_hash}
                   </div>
                   {evt.previous_hash && (
-                    <div className="text-[10px] text-slate-400 truncate">
-                      Prev: {evt.previous_hash}
+                    <div className="text-[10px] text-slate-500 font-mono pt-1">
+                      <span className="text-slate-400">Chained to Prev:</span> {evt.previous_hash.slice(0, 24)}...
                     </div>
                   )}
                 </div>

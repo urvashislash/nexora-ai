@@ -4,9 +4,12 @@ import {
   FileText, 
   Cpu, 
   CheckCircle2, 
-  Clock
+  Clock,
+  FileAudio,
+  ExternalLink
 } from 'lucide-react';
 import type { WorkObservation } from '../types';
+import { getEvidencePublicUrl } from '../lib/supabase';
 
 interface EvidenceDrawerProps {
   observation: WorkObservation | null;
@@ -16,6 +19,10 @@ interface EvidenceDrawerProps {
 
 export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isOpen, onClose }) => {
   if (!isOpen || !observation) return null;
+
+  const storagePath = (observation.metadata as any)?.storage_path;
+  const audioUrl = storagePath ? getEvidencePublicUrl(storagePath) : null;
+  const hasAudio = (observation.metadata as any)?.has_audio || (observation.metadata as any)?.source_type === 'VOICE';
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
@@ -45,7 +52,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
             </div>
             <button 
               onClick={onClose}
-              className="rounded p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition"
+              className="rounded p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
@@ -54,6 +61,32 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             
+            {/* Audio Memo Player if present */}
+            {hasAudio && (
+              <div className="space-y-2 p-4 rounded-lg bg-purple-50/70 border border-purple-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-purple-700">
+                    <FileAudio className="h-4 w-4 text-purple-600" />
+                    Audio Evidence Recording
+                  </div>
+                  {audioUrl && (
+                    <a 
+                      href={audioUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-[10px] font-mono text-purple-700 hover:underline flex items-center gap-1"
+                    >
+                      <span>Cloud File</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+                {audioUrl && (
+                  <audio controls src={audioUrl} className="w-full mt-2 h-8" />
+                )}
+              </div>
+            )}
+
             {/* Stage 1: Source */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">

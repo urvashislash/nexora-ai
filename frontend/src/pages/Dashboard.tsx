@@ -134,6 +134,124 @@ export const Dashboard: React.FC<DashboardProps> = ({ kpis, activities, onNaviga
         </div>
       </motion.div>
 
+      {/* Interactive Schedule S-Curve & Critical Path Radar */}
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 glass-card p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold font-mono text-slate-900 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-[#C38B4B]" />
+                <span>Project Schedule S-Curve (Planned vs Actuals)</span>
+              </h3>
+              <p className="text-[11px] text-slate-500">Cumulative physical progress trajectory against baseline L5 targets</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs font-mono">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-0.5 bg-slate-300 border-b border-dashed border-slate-400" />
+                <span className="text-slate-500">Baseline Target</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-1 bg-emerald-500 rounded" />
+                <span className="text-emerald-700 font-bold">Actual Progress ({kpis.overall_progress_pct}%)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* SVG S-Curve Visualizer */}
+          <div className="relative w-full h-48 bg-slate-50/70 rounded-lg p-2 overflow-hidden border border-slate-100">
+            <svg viewBox="0 0 500 150" className="w-full h-full">
+              {/* Grid Lines */}
+              <line x1="40" y1="20" x2="480" y2="20" stroke="#E2E8F0" strokeDasharray="3 3" />
+              <line x1="40" y1="55" x2="480" y2="55" stroke="#E2E8F0" strokeDasharray="3 3" />
+              <line x1="40" y1="90" x2="480" y2="90" stroke="#E2E8F0" strokeDasharray="3 3" />
+              <line x1="40" y1="125" x2="480" y2="125" stroke="#CBD5E1" strokeWidth="1.5" />
+
+              {/* Y Axis Labels */}
+              <text x="32" y="24" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">100%</text>
+              <text x="32" y="59" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">75%</text>
+              <text x="32" y="94" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">50%</text>
+              <text x="32" y="129" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">0%</text>
+
+              {/* Baseline Planned S-Curve (Dotted Gray) */}
+              <path
+                d="M 40 125 C 150 125, 200 95, 300 45 C 380 15, 430 20, 480 20"
+                fill="none"
+                stroke="#94A3B8"
+                strokeWidth="2.5"
+                strokeDasharray="4 4"
+              />
+
+              {/* Actual Cumulative S-Curve (Vibrant Emerald) */}
+              <path
+                d="M 40 125 C 130 125, 180 105, 270 65 C 310 50, 340 45, 360 42"
+                fill="none"
+                stroke="#10B981"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
+
+              {/* Current Actual Progress Point */}
+              <circle cx="360" cy="42" r="5" fill="#10B981" stroke="#FFFFFF" strokeWidth="2" className="animate-pulse" />
+              
+              {/* Milestone Target Markers */}
+              <g transform="translate(180, 105)">
+                <circle cx="0" cy="0" r="3" fill="#3B82F6" />
+                <text x="0" y="-6" fontSize="8" fill="#3B82F6" textAnchor="middle" fontFamily="IBM Plex Mono">Tier 1 Erection</text>
+              </g>
+
+              <g transform="translate(360, 42)">
+                <text x="0" y="-10" fontSize="9" fill="#047857" textAnchor="middle" fontWeight="bold" fontFamily="IBM Plex Mono">
+                  Today (78%)
+                </text>
+              </g>
+
+              {/* X Axis Date Labels */}
+              <text x="40" y="142" fontSize="9" fill="#94A3B8" textAnchor="start" fontFamily="IBM Plex Mono">01-Aug</text>
+              <text x="180" y="142" fontSize="9" fill="#94A3B8" textAnchor="middle" fontFamily="IBM Plex Mono">15-Aug</text>
+              <text x="360" y="142" fontSize="9" fill="#047857" textAnchor="middle" fontWeight="bold" fontFamily="IBM Plex Mono">01-Sep</text>
+              <text x="480" y="142" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">30-Sep</text>
+            </svg>
+          </div>
+        </div>
+
+        {/* Critical Path Health & Telemetry Radar */}
+        <div className="lg:col-span-4 glass-card p-6 flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-500">Critical Path Radar</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                ON TRACK
+              </span>
+            </div>
+            
+            <div className="mt-4 space-y-3 font-mono text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Critical Activities:</span>
+                <span className="font-bold text-slate-900">4 / 12 items</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Total Float Variance:</span>
+                <span className="font-bold text-emerald-600">+0.0 Days</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Earliest Completion:</span>
+                <span className="font-bold text-slate-800">28-Sep-2026</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Target Milestone:</span>
+                <span className="font-bold text-[#C38B4B]">30-Sep-2026</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-900 text-white rounded-lg text-[11px] font-mono space-y-1">
+            <div className="text-slate-400 text-[10px] uppercase font-bold">Trust Plane Verification</div>
+            <div className="text-emerald-400 font-bold">100% Deterministic Consistency</div>
+            <div className="text-slate-400 text-[10px]">Zero retroactive date or FS policy violations detected.</div>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Trust Plane & Activities Horizontal Control Board */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         

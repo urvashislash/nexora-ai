@@ -1,0 +1,12 @@
+# =============================================================================
+# NEXORA AI — Robots.txt & Web Crawler Directives
+# =============================================================================
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /storage/
+Disallow: /admin/
+
+# Sitemap Location
+Sitemap: https://nexora-ai.uspali212.workers.dev/sitemap.xml
