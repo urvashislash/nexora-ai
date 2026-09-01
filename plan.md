@@ -3,7 +3,7 @@
 > **Objective:** Deliver a production-grade, enterprise-ready, end-to-end intelligent data capture and schedule-linking platform for infrastructure projects (Smart India Hackathon / Ministry of Power & Industrial Infrastructure Standard).
 >
 > **Core Architecture:**
-> - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS + Framer Motion / Anime.js (shadcn/ui-inspired clean minimalist UI, Cloudflare Pages)
+> - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS + Force Graph (Obsidian-style D3 physics) + Framer Motion / Anime.js (shadcn/ui-inspired clean minimalist UI, Cloudflare Pages)
 > - **Trust Plane Backend:** Rust (Axum + Tokio + SQLx + JWT Auth + Deadpool RabbitMQ/Redis)
 > - **AI Extraction & Matching:** Python 3.11+ (FastAPI + PyTorch + SentenceTransformers + Whisper + RapidFuzz)
 > - **Database & Auth:** Supabase PostgreSQL (pgvector, RLS, Storage Buckets, Realtime WebSockets, GoTrue Auth)
@@ -22,6 +22,7 @@ flowchart TD
         UI_Inbox["Evidence Inbox (Audio/PDF/Excel)"]
         UI_Review["Planner Review Queue"]
         UI_Gantt["Interactive Schedule Gantt"]
+        UI_Graph["Obsidian-Style Force-Directed Graph"]
         UI_Audit["Cryptographic Audit Ledger"]
     end
 
@@ -194,6 +195,8 @@ flowchart TD
 - **Design Language:** shadcn/ui-inspired clean typography (Inter / JetBrains Mono), zinc/slate surfaces with subtle `#C38B4B` gold industrial accents.
 - **Animations:** Fluid state transitions, audio recording waveform analyzer (HTML5 Canvas), and micro-interactions powered by Anime.js / Framer Motion.
 
+---
+
 ### 6.2 Key Interface Modules
 
 #### A. Global Top Navigation & Command Bar
@@ -206,29 +209,50 @@ flowchart TD
 - **Critical Path Float Radar:** Visual indicator showing critical path health and variance days.
 - **Executive KPI Cards:** Total Observations, Extracted Events, Auto-Link Rate ($92.4\%$), Pending Review, Completed Activities.
 
-#### C. Evidence Inbox & Multimodal Ingestion (`DocumentUpload.tsx`)
+#### C. Obsidian-Style Interactive Force-Directed Graph (`ProjectGraph.tsx`)
+- **Visual Network Topology:** Interactive 2D/3D physics graph linking all project entities:
+  - **Project Root Node:** Central master project entity.
+  - **WBS Level Nodes:** Hierarchical grouping clusters (e.g. *Pipe Rack B*, *Substation 4*, *Compressor House*).
+  - **Activity Nodes:** Color-coded by execution status:
+    - `COMPLETED`: Emerald glow ($\bullet$).
+    - `IN_PROGRESS`: Cyan/Blue pulsing glow ($\bullet$).
+    - `NOT_STARTED`: Zinc/Slate dot ($\bullet$).
+    - `DELAYED` / `BLOCKED`: Rose red alert halo ($\bullet$).
+    - `CRITICAL_PATH`: Glowing gold/amber pulsing particle aura ($\bullet$).
+  - **Evidence Nodes:** Field voice recordings ($\text{\tiny VOICE}$), DPR PDFs, and spreadsheets linked directly to the activities they actualized!
+- **Edge Dynamics:**
+  - Solid directional arrows for Schedule Predecessor/Successor dependencies ($FS, SS, FF$).
+  - Animated particle pulses travelling along the Critical Path.
+  - Dotted glowing provenance lines connecting ingested audio memos and daily reports to target activities.
+- **Interactivity & Controls:**
+  - Smooth pan, zoom, node drag, and physics repulsion tuning (charge, collision, link distance).
+  - Hover spotlight: highlights 1st and 2nd degree dependency chains while dimming unrelated nodes.
+  - Click-to-inspect: clicking any node flies the camera in and opens the **Activity Drawer** or **Evidence Drawer**.
+  - Discipline & Status Filters: civil only, piping only, critical path only, or evidence links toggle.
+
+#### D. Evidence Inbox & Multimodal Ingestion (`DocumentUpload.tsx`)
 - Multi-file drag-and-drop zone with animated upload progress.
 - Live microphone recorder with **real-time audio frequency visualizer** and Web Speech transcription.
 - 5 Quick-Test SIH Demo Scenarios (A: Exact, B: Semantic, C: Ambiguous, D: Unmatched, E: Trust Violation).
 - Filterable observation table with live audio playback in the inspect drawer (`EvidenceDrawer.tsx`).
 
-#### D. Planner Review Queue (`ReviewQueue.tsx`)
+#### E. Planner Review Queue (`ReviewQueue.tsx`)
 - Side-by-side Diff HUD comparing Raw Field Evidence vs Proposed Baseline Activity.
 - Confidence Score Gauge Breakdown (Lexical, Semantic, Context Boost).
 - Quick Actions: **Accept (Enter)**, **Reject (Esc)**, **Override (O)** with searchable activity picker.
 - Batch approval bar for rapid multi-item sign-off.
 
-#### E. Interactive Schedule Explorer & Gantt (`ScheduleExplorer.tsx`)
+#### F. Interactive Schedule Explorer & Gantt (`ScheduleExplorer.tsx`)
 - Zoomable Gantt Timeline (Days / Weeks / Months) showing baseline bars vs actual progress fill.
 - Critical path highlighted with glowing amber/red borders.
 - WBS hierarchy collapsible tree with rollup progress percentages.
 
-#### F. Cryptographic Audit Ledger (`AuditTrail.tsx`)
+#### G. Cryptographic Audit Ledger (`AuditTrail.tsx`)
 - SHA-256 block chain visualizer showing verified link between sequential audit events.
 - One-click **"Verify Chain Integrity"** button running live cryptographic verification.
 - Legal Hold toggle modal with reason specification.
 
-#### G. System Health & Interoperability (`ScheduleExport.tsx`)
+#### H. System Health & Interoperability (`ScheduleExport.tsx`)
 - 4-Card Export HUD:
   1. **Oracle Primavera P6 (XML):** Standard Primavera schema v24 export.
   2. **Actualized Schedule (CSV):** UTF-8 BOM formatted spreadsheet for Excel / PowerBI.
