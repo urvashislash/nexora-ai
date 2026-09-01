@@ -250,6 +250,17 @@
 .dark svg text[fill="#047857"] { fill: #86efc2; }
 .dark svg circle[stroke="#FFFFFF"] { stroke: #162033; }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @layer components {
   .ledger-rule {
     @apply border-t border-slate-200/80 w-full;

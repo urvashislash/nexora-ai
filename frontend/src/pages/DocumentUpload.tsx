@@ -113,6 +113,8 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
   // Audio frequency waveform visualizer loop
   const drawWaveform = (analyser: AnalyserNode, dataArray: Uint8Array<ArrayBuffer>) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
     const canvas = visualizerCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -173,8 +175,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         setAudioBlob(blob);
-        const url = URL.createObjectURL(blob);
-        setAudioUrl(url);
+        setAudioPreview(blob);
 
         stream.getTracks().forEach((track) => track.stop());
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -216,6 +217,14 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     }
   };
 
+  const setAudioPreview = (blob: Blob) => {
+    const nextUrl = URL.createObjectURL(blob);
+    setAudioUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return nextUrl;
+    });
+  };
+
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
@@ -230,10 +239,18 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
   const clearRecording = () => {
     setAudioBlob(null);
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    setAudioUrl(null);
+    setAudioUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return null;
+    });
     setRecordingTime(0);
     setIsRecording(false);
   };
@@ -311,7 +328,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       if (file.type.startsWith('audio/')) {
         setSourceType('VOICE');
         setAudioBlob(file);
-        setAudioUrl(URL.createObjectURL(file));
+        setAudioPreview(file);
       } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.csv')) {
         setSourceType('DISCIPLINE_SPREADSHEET');
       } else {
@@ -327,7 +344,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       if (file.type.startsWith('audio/')) {
         setSourceType('VOICE');
         setAudioBlob(file);
-        setAudioUrl(URL.createObjectURL(file));
+        setAudioPreview(file);
       } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.csv')) {
         setSourceType('DISCIPLINE_SPREADSHEET');
       } else {
@@ -487,8 +504,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         {showDemoScenarios && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
             {demoPresets.map((preset) => (
-              <div 
+              <button
                 key={preset.id}
+                type="button"
                 onClick={() => {
                   setInputText(preset.text);
                   setDiscipline(preset.discipline);
@@ -497,7 +515,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   setReportedProgress(preset.progress);
                   handleProcess(preset.text, preset);
                 }}
-                className="demo-preset-card p-4 rounded-xl border border-slate-200/80 bg-white hover:border-[#C38B4B] hover:shadow-xs transition-all duration-150 cursor-pointer flex flex-col justify-between group"
+                className="demo-preset-card group flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4 text-left transition-all duration-150 hover:border-[#C38B4B] hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -512,7 +530,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   <span className="truncate max-w-[200px]">{preset.desc}</span>
                   <ArrowRight className="h-3.5 w-3.5 text-[#C38B4B] shrink-0 ml-1 group-hover:translate-x-0.5 transition" />
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -641,12 +659,12 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           )}
 
           {/* Drag & Drop File Upload Area */}
-          <div
+          <label
+            htmlFor="evidence-file"
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center space-y-2 ${
+            className={`flex cursor-pointer flex-col items-center justify-center space-y-2 rounded-xl border-2 border-dashed p-6 text-center transition focus-within:ring-2 focus-within:ring-slate-500 ${
               isDragging 
                 ? 'border-[#C38B4B] bg-amber-50/50' 
                 : selectedFile 
@@ -654,8 +672,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   : 'border-slate-200/80 hover:border-slate-300 bg-slate-50/50'
             }`}
           >
-            <input 
-              type="file" 
+            <input
+              id="evidence-file"
+              type="file"
               ref={fileInputRef}
               onChange={handleFileSelect}
               className="hidden" 
@@ -700,12 +719,12 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 <p className="text-[11px] text-slate-500 font-sans">Max upload size: 50 MB per payload</p>
               </div>
             )}
-          </div>
+          </label>
 
           {/* Text Area */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-500">
+              <label htmlFor="field-notes" className="block text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-500">
                 Field notes
               </label>
               {selectedFile && (
@@ -718,6 +737,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
               )}
             </div>
             <textarea
+              id="field-notes"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Enter site observation, e.g.: 'Completed hydro test on line P-101 at pipe rack B with 100% signoff from QA/QC inspection team.'"
@@ -744,8 +764,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
               <div className="p-4 space-y-3 border-t border-slate-200/80 bg-white">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">Discipline</label>
+                    <label htmlFor="observation-discipline" className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">Discipline</label>
                     <select
+                      id="observation-discipline"
                       value={discipline}
                       onChange={(e) => setDiscipline(e.target.value as Discipline)}
                       className="w-full text-xs font-sans rounded-lg border border-slate-200/80 p-2 bg-white text-slate-800"
@@ -762,8 +783,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">Event Type</label>
+                    <label htmlFor="observation-event-type" className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">Event type</label>
                     <select
+                      id="observation-event-type"
                       value={eventType}
                       onChange={(e) => setEventType(e.target.value as EventType)}
                       className="w-full text-xs font-sans rounded-lg border border-slate-200/80 p-2 bg-white text-slate-800"
@@ -778,8 +800,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">Equipment / Line Tag</label>
+                    <label htmlFor="equipment-tag" className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">Equipment tag</label>
                     <input
+                      id="equipment-tag"
                       type="text"
                       value={equipmentTag}
                       onChange={(e) => setEquipmentTag(e.target.value)}
@@ -789,9 +812,13 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">Location & Zone</label>
+                    <div className="mb-1 flex gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-500">
+                                          <label htmlFor="observation-location" className="w-1/2">Location</label>
+                                          <label htmlFor="observation-zone" className="w-1/2">Zone</label>
+                                        </div>
                     <div className="flex gap-1.5">
                       <input
+                        id="observation-location"
                         type="text"
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
@@ -799,6 +826,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                         className="w-1/2 text-xs font-sans rounded-lg border border-slate-200/80 p-2 text-slate-800"
                       />
                       <input
+                        id="observation-zone"
                         type="text"
                         value={zone}
                         onChange={(e) => setZone(e.target.value)}
@@ -809,10 +837,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">
+                    <label htmlFor="reported-progress" className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">
                       Progress: {reportedProgress}%
                     </label>
                     <input
+                      id="reported-progress"
                       type="range"
                       min="0"
                       max="100"
@@ -824,9 +853,13 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-sans uppercase text-slate-500 font-semibold mb-1">Quantity & Unit</label>
+                    <div className="mb-1 flex gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-500">
+                                          <label htmlFor="reported-quantity" className="w-1/2">Quantity</label>
+                                          <label htmlFor="unit-of-measure" className="w-1/2">Unit</label>
+                                        </div>
                     <div className="flex gap-1.5">
                       <input
+                        id="reported-quantity"
                         type="text"
                         value={reportedQuantity}
                         onChange={(e) => setReportedQuantity(e.target.value)}
@@ -834,6 +867,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                         className="w-1/2 text-xs font-mono rounded-lg border border-slate-200/80 p-2 text-slate-800"
                       />
                       <input
+                        id="unit-of-measure"
                         type="text"
                         value={unitOfMeasure}
                         onChange={(e) => setUnitOfMeasure(e.target.value)}
@@ -902,10 +936,12 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 const isPassed = activeStep > s.step || activeStep === 5;
 
                 return (
-                  <div 
+                  <button
                     key={s.step}
+                    type="button"
+                    aria-pressed={selectedPipelineStep === s.step}
                     onClick={() => setSelectedPipelineStep(s.step)}
-                    className={`flex items-start space-x-3 rounded-xl p-3 transition-all duration-150 border cursor-pointer hover:border-[#C38B4B] ${
+                    className={`flex w-full items-start space-x-3 rounded-xl border p-3 text-left transition-all duration-150 hover:border-[#C38B4B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
                       isCurrent ? 'bg-blue-50/70 border-blue-200 shadow-2xs' :
                       isPassed ? 'bg-emerald-50/40 border-emerald-200/80' :
                       'bg-slate-50/70 border-slate-200/70 opacity-90'
@@ -930,7 +966,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                       </div>
                       <div className="text-[11px] text-slate-500 font-sans">{s.desc}</div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -963,6 +999,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
               <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
               <input
                 type="text"
+                aria-label="Search evidence history"
                 placeholder="Search raw facts, locations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -973,6 +1010,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
             <div className="flex items-center gap-1">
               <Filter className="h-3.5 w-3.5 text-slate-400" />
               <select
+                aria-label="Filter evidence by discipline"
                 value={disciplineFilter}
                 onChange={(e) => setDisciplineFilter(e.target.value)}
                 className="text-xs font-sans rounded-lg border border-slate-200/80 px-2.5 py-1.5 bg-white text-slate-700"
@@ -1012,11 +1050,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 </TableRow>
               ) : (
                 filteredObservations.map((obs) => (
-                  <TableRow 
-                    key={obs.id} 
-                    onClick={() => setSelectedObsForDrawer(obs)}
-                    className="cursor-pointer"
-                  >
+                  <TableRow key={obs.id}>
                     <TableCell className="font-mono font-bold text-slate-900">
                       <span className="truncate block max-w-[90px]">{obs.id}</span>
                     </TableCell>
@@ -1037,13 +1071,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedObsForDrawer(obs);
-                        }}
+                        onClick={() => setSelectedObsForDrawer(obs)}
                         variant="ghost"
                         size="sm"
                         className="text-[#C38B4B] hover:text-[#B07A3E] font-medium"
+                        aria-label={`Inspect observation ${obs.id}`}
                       >
                         <Eye className="h-3.5 w-3.5 mr-1" />
                         <span>Inspect</span>

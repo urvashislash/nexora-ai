@@ -27,11 +27,11 @@ const Toast: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void }> 
   const isError = toast.type === 'error';
 
   return (
-    <div className={`border rounded-xl px-4 py-3 flex items-start gap-3 shadow-lg bg-white ${
+    <div className={`w-[calc(100vw-2rem)] min-w-0 max-w-md border rounded-xl px-4 py-3 flex items-start gap-3 shadow-lg bg-white ${
       isSuccess ? 'border-emerald-200 text-emerald-950' : 
       isError ? 'border-rose-200 text-rose-950' : 
       'border-slate-200 text-slate-900'
-    } min-w-[320px] max-w-md font-sans transition-all duration-200`}>
+    } font-sans transition-all duration-200`}>
       {isSuccess ? (
         <CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0 mt-0.5" />
       ) : isError ? (
@@ -158,10 +158,14 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === 'a' || e.key === 'A') {
-        if (selectedItem) handleApprove(selectedItem);
-      } else if (e.key === 'r' || e.key === 'R') {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.altKey || e.defaultPrevented) return;
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, button, [role="dialog"]')) return;
+
+      if (e.key.toLowerCase() === 'a' && selectedItem) {
+        e.preventDefault();
+        handleApprove(selectedItem);
+      } else if (e.key.toLowerCase() === 'r') {
+        e.preventDefault();
         setIsRejectModalOpen(true);
       }
     };
@@ -176,7 +180,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Notification Container */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 sm:bottom-6 sm:right-6">
         {toasts.map(toast => (
           <Toast key={toast.id} toast={toast} onDismiss={dismissToast} />
         ))}
@@ -200,10 +204,10 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
         {/* Hotkey Guide Pill */}
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs text-[11px] font-sans text-slate-600">
           <span className="text-slate-400">Hotkeys:</span>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-semibold font-sans text-[10px]">A</kbd>
+          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-semibold font-sans text-[10px]">⌘⇧A</kbd>
           <span>Approve</span>
           <span className="text-slate-300">&bull;</span>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-semibold font-sans text-[10px]">R</kbd>
+          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-semibold font-sans text-[10px]">⌘⇧R</kbd>
           <span>Reject</span>
         </div>
       </div>
@@ -217,6 +221,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
               <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-400" />
               <Input
                 type="text"
+                aria-label="Search pending proposals"
                 placeholder="Search proposals by WBS code, description, location..."
                 value={filters.searchQuery || ''}
                 onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
@@ -268,10 +273,12 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
               const confPct = Math.round(item.proposal.confidence_score * 100);
 
               return (
-                <div
+                <button
                   key={item.proposal.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => setSelectedItemId(item.proposal.id)}
-                  className={`review-queue-card p-4 rounded-2xl border transition-all duration-150 cursor-pointer shadow-2xs space-y-3 ${
+                  className={`review-queue-card w-full space-y-3 rounded-2xl border p-4 text-left shadow-2xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
                     isSelected 
                       ? 'bg-white border-slate-900 ring-2 ring-slate-900/10' 
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
@@ -294,7 +301,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                     <span>{item.observation?.discipline || 'GENERAL'}</span>
                     <span className="font-mono">{item.observation?.recorded_at ? new Date(item.observation.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -422,11 +429,12 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                   <div className="p-4 rounded-xl border border-amber-200/80 bg-amber-50/50 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-sans font-semibold text-amber-900">Select Alternate Schedule Activity</span>
-                      <button onClick={() => setShowOverridePanel(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                      <button type="button" onClick={() => setShowOverridePanel(false)} aria-label="Close alternate activity selector" className="text-slate-400 hover:text-slate-600 cursor-pointer">
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                     <select
+                      aria-label="Alternate schedule activity"
                       value={selectedOverrideActivityId || ''}
                       onChange={(e) => setSelectedOverrideActivityId(e.target.value)}
                       className="w-full p-2.5 rounded-lg border border-slate-300 bg-white text-xs font-sans"

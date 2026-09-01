@@ -288,10 +288,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
-                    Project Code *
+                  <label htmlFor="project-code" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
+                    Project code *
                   </label>
                   <Input
+                    id="project-code"
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -303,11 +304,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
-                    Currency & Timezone
-                  </label>
+                  <div className="mb-1.5 flex gap-2 text-[11px] font-sans font-semibold text-slate-700">
+                    <label htmlFor="project-currency" className="w-1/2">Currency</label>
+                    <label htmlFor="project-timezone" className="w-1/2">Timezone</label>
+                  </div>
                   <div className="flex gap-2">
                     <select
+                      id="project-currency"
                       value={currency}
                       onChange={(e) => setCurrency(e.target.value)}
                       className="w-1/2 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-sans text-slate-800 focus:border-[#C38B4B] focus:outline-hidden"
@@ -319,6 +322,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                       <option value="AED">AED (د.إ)</option>
                     </select>
                     <select
+                      id="project-timezone"
                       value={timezone}
                       onChange={(e) => setTimezone(e.target.value)}
                       className="w-1/2 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-sans text-slate-800 focus:border-[#C38B4B] focus:outline-hidden"
@@ -333,10 +337,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
-                  Project Package Name *
+                <label htmlFor="project-name" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
+                  Project name *
                 </label>
                 <Input
+                  id="project-name"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -346,10 +351,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
-                  Package Description & Scope Summary
+                <label htmlFor="project-description" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
+                  Project description
                 </label>
                 <Textarea
+                  id="project-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Briefly describe the contractual scope, WBS boundaries, and key civil/piping milestones..."

@@ -1,13 +1,12 @@
-# NEXORA AI — Intelligent Infrastructure Project Intelligence & Schedule-Linking Platform
+# NEXORA AI
 
-**Real-Time Actual Progress Tracking & Planning-to-Execution Bridge**  
-*Smart India Hackathon (SIH) — Hardware & Software Edition*
+**Construction evidence-to-schedule matching with planner review and an auditable trust-plane API.**
 
-NEXORA AI is an industrial-grade project intelligence platform that converts unstructured, fragmented field execution evidence (daily site reports, subcontractor spreadsheets, voice logs, and inspection sheets) into structured, auditable actual-progress events for EPC infrastructure projects. It bridges the critical divide between field execution reality and authoritative L5/L6 baseline schedules (Oracle Primavera P6 / MS Project).
+NEXORA AI helps EPC teams turn field reports, spreadsheets, images, and voice notes into normalized work observations and candidate schedule matches. The platform separates AI-assisted proposal generation from planner decisions and exposes audit, review, schedule, dependency, and export workflows in a React operations console.
 
----
+> **Implementation status:** the current Rust trust-plane API keeps its domain state and audit chain in process memory. PostgreSQL/pgvector, Supabase Storage, RabbitMQ, and Redis are configured in the local stack, but persistence and some end-to-end integrations remain work in progress. See [Current limitations](#current-limitations) before using this project for production records.
 
-## 👥 Team Kasukabe
+## Team Kasukabe
 
 - Sirwagya Shekhar
 - Shravanee Yadav
@@ -16,208 +15,244 @@ NEXORA AI is an industrial-grade project intelligence platform that converts uns
 - Aditya Shende
 - Avika Mishra
 
----
+## What the app provides
 
-## 🌐 Live Deployments & Cloud Infrastructure
+- **Evidence intake:** text, PDF, image, CSV/XLS/XLSX/XLSM, and audio processing through the AI service.
+- **Hybrid matching:** RapidFuzz lexical scoring, sentence-transformer embeddings when available, and construction context checks.
+- **Planner review:** approve, reject, comment on, or override proposed activity matches.
+- **Schedule workspace:** activity ledger, Gantt view, progress, variance, and dependency exploration.
+- **Audit workspace:** SHA-256 chained in-memory audit events and chain verification.
+- **Exports:** a basic P6-style XML export from the Rust API; the frontend also provides CSV exports.
+- **Responsive UI:** mobile navigation, keyboard focus support, reduced visual density, and a persistent light/dark theme preference.
 
-| Service Layer | Cloud Provider | Endpoint / Reference | Status |
-| :--- | :--- | :--- | :--- |
-| **Frontend Web App** (Field Ledger UI) | Cloudflare Workers / Pages | [https://nexora-ai.uspali212.workers.dev](https://nexora-ai.uspali212.workers.dev) | `🟢 Live` |
-| **Trust Plane API** (Rust Axum Engine) | Railway Cloud | [https://nexora-ai-production-8b54.up.railway.app](https://nexora-ai-production-8b54.up.railway.app/api/v1/health) | `🟢 Healthy` |
-| **AI Processing Plane** (FastAPI Engine) | Render | [https://nexora-ai-service-rof3.onrender.com](https://nexora-ai-service-rof3.onrender.com/health) | `🟢 Healthy` |
-| **Cloud Database** (PostgreSQL 16 + pgvector) | Supabase Cloud (AP-South-1) | [`vitxgshrjpyvczidzvto.supabase.co`](https://vitxgshrjpyvczidzvto.supabase.co) | `🟢 Connected` |
-| **Message Broker** (RabbitMQ Topic Exchange) | CloudAMQP (TLS) | `amqps://warthog.lmq.cloudamqp.com` | `🟢 Operational` |
-| **Distributed Cache & Locks** (Redis) | Upstash Serverless (TLS) | `rediss://sharp-sawfish-250673.upstash.io` | `🟢 Operational` |
-| **GitHub Monorepo** | GitHub | [https://github.com/urvashislash/nexora-ai](https://github.com/urvashislash/nexora-ai) | `🟢 Main` |
+## Architecture and flow map
 
----
+```mermaid
+flowchart TD
+    User[Planner or field team] --> UI[React 19 operations console]
 
-## 🏛️ Core Trust Architecture
+    UI -->|Synchronous evidence processing| AI[FastAPI AI service]
+    UI -->|Review, audit, activities, P6 export| Trust[Rust Axum trust-plane API]
+    UI -->|Evidence object upload| Storage[Supabase Storage]
 
-NEXORA AI enforces a **zero-hallucination trust protocol**:
+    AI -->|Publish document.process| MQ[RabbitMQ: nexora.jobs direct exchange]
+    MQ --> Worker[Python AI worker]
+    Worker -->|Lock, checkpoints, job result| Redis[Redis job-state store]
+    Worker -->|Fetch queued object when supplied| Storage
+    Worker -->|Extract, normalize, embed, match| Result[document.result]
+    Result --> MQ
+    MQ --> Trust
 
-$$\text{AI Proposes} \longrightarrow \text{Rust Validates} \longrightarrow \text{Planner Approves} \longrightarrow \text{PostgreSQL Records} \longrightarrow \text{Audit Proves}$$
+    Trust -->|Cache dashboard, activities, review queue| Redis
+    Trust -->|Current runtime state and SHA-256 audit chain| Memory[In-memory AppState]
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              NEXORA FRONTEND                                │
-│                     (React 19 + TypeScript + Vite + Tailwind 4)             │
-│            Live: https://nexora-ai.uspali212.workers.dev                    │
-│            Local Dev: http://localhost:5173                                 │
-└───────────────────────┬─────────────────────────────────────────────────────┘
-                        │
-         ┌──────────────┴──────────────┐
-         ▼                             ▼
-┌──────────────────────────────┐ ┌───────────────────────────────────────────┐
-│     RUST TRUST PLANE API     │ │         PYTHON AI PROCESSING PLANE        │
-│   (Axum + Tokio + SHA-256)   │ │  (FastAPI + RapidFuzz + all-MiniLM-L6-v2) │
-│ Live: up.railway.app         │ │ Local: http://localhost:8000              │
-│ Local: http://localhost:3000 │ │ • Multi-format evidence extraction        │
-│ • Predecessor validation     │ │ • 384-dim semantic embedding search       │
-│ • Monotonic progress rules   │ │ • Normalized entity parsing               │
-│ • Cryptographic audit logs   │ │ • RabbitMQ async reliable worker          │
-└──────────────┬───────────────┘ └─────────────────────┬─────────────────────┘
-               │                                       │
-               └───────────────────┬───────────────────┘
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    PERSISTENCE & STORAGE (SUPABASE CLOUD)                   │
-│             PostgreSQL 16 + pgvector • Storage Bucket: evidence-documents   │
-│                 Project: vitxgshrjpyvczidzvto.supabase.co                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+    DB[(PostgreSQL 16 + pgvector)]
+    Storage --- DB
 ```
 
+### RabbitMQ and Redis responsibilities
 
+| Service | Current responsibility |
+| --- | --- |
+| **RabbitMQ** | Durable **direct** exchange (`nexora.jobs`) for async document jobs and results. It routes `document.process` to `ai_processing_queue`, `document.result` to `ai_result_queue`, retries to `ai_processing_retry_queue`, and failures to `ai_processing_dlq`. |
+| **Redis** | AI-worker job locks, checkpoints, and seven-day job state; optional 15–60 second backend response caching for dashboard, activity, and review-queue data. |
+| **PostgreSQL + pgvector** | Available in Docker Compose and migration assets, but the inspected Rust backend and AI matching flow do not currently write/query it at runtime. |
+| **Supabase Storage** | Receives evidence uploads from the frontend. The async worker can retrieve queued objects when Supabase credentials and an object key are supplied. |
 
----
+### Trust boundary
 
-## 🚀 Key Platform Capabilities
+```text
+Evidence → extract and normalize → candidate match → planner decision → audit event
+```
 
-### 1. Heterogeneous Field Evidence Ingestion
-- Ingests free-text daily progress logs, structured Excel/CSV inspection sheets, multi-page PDFs, and audio recordings into Supabase Storage (`evidence-documents`).
-- Real-time 5-stage pipeline tracker visualizes parsing, extraction, embedding generation, trust verification, and ledger commitment.
+The AI service produces observations and match proposals. The Rust API owns review actions and its current process-local audit chain. Do not interpret an AI match as a schedule update until a planner approval or application policy commits it.
 
-### 2. Hybrid AI Schedule Matching Engine
-- **Lexical Matching (40%)**: RapidFuzz token sort and partial string matching on activity codes, equipment tags, and line numbers.
-- **Semantic Search (40%)**: 384-dimensional dense vector embeddings (`sentence-transformers/all-MiniLM-L6-v2`) with pgvector cosine similarity search.
-- **Context Boost (20%)**: Spatial, discipline, and WBS path alignment bonuses.
+## Repository layout
 
-### 3. Rust-Powered Zero-Hallucination Trust Plane
-- Enforces strict topological dependency rules (predecessor completion requirements).
-- Prevents impossible timeline anomalies (e.g., negative duration, progress rollback, finish date preceding start date).
-- Deterministic state machine: `PROPOSED` &rarr; `MATCHED` &rarr; `REVIEW_REQUIRED` &rarr; `APPROVED` &rarr; `COMMITTED`.
+```text
+nexora-ai/
+├── frontend/                 # React 19 + TypeScript + Vite + Tailwind 4 console
+│   ├── src/pages/            # Dashboard, evidence, review, schedule, audit, export
+│   ├── src/components/       # Drawers, dialogs, navigation, shared UI primitives
+│   └── public/favicon.svg    # Matches the NEXORA sidebar brand mark
+├── backend/                  # Rust 2021 Axum trust-plane API
+│   ├── src/api/              # Routes, handlers, header-based RBAC middleware
+│   ├── src/domain/           # Models, validation utilities, state machine, SHA-256 ledger
+│   ├── src/cache/            # Optional Redis response cache
+│   └── src/messaging/        # RabbitMQ publisher, consumer, and outbox relay
+├── ai_service/               # FastAPI extraction, matching, and async worker
+│   ├── app/services/         # Parsers, OCR/ASR, embeddings, matcher, RabbitMQ publisher
+│   └── app/workers/          # RabbitMQ worker and Redis-backed job state
+├── database/                 # SQL migrations and demo seed data
+├── scripts/                  # Supabase, database, backup, restore, and health helpers
+├── docker-compose.yml        # Local stack: Postgres, RabbitMQ, Redis, AI, worker, API, UI
+└── docker-compose.prod.yml   # Production-oriented Compose configuration
+```
 
-### 4. High-Density Planner Review Console
-- 3-column split view for human-in-the-loop review of ambiguous proposals.
-- Score decomposition visualizer (Lexical, Semantic, Context).
-- Single approve, batch approve, activity override selector, and rejection with mandatory engineering rationale.
+## Local development
 
-### 5. Cryptographic SHA-256 Audit Trail
-- Every state transition is cryptographically chained to the previous block's SHA-256 hash.
-- Live verification action (`/api/v1/projects/:id/audit-trail/verify`) detects any unauthorized database tampering.
-- Interactive before/after JSON diff inspection.
+### Prerequisites
 
-### 6. Oracle Primavera P6 Export & PMIS Sync
-- One-click export to standardized Oracle Primavera P6 XML (`V24` schema).
-- Real-time CSV schedule variance download and JSON PMIS sync payloads.
+- Node.js 20+ and npm
+- Rust toolchain with Cargo
+- Python 3.11+ and [`uv`](https://docs.astral.sh/uv/)
+- Docker and Docker Compose for the complete asynchronous stack
+- Optional for local media processing: Tesseract OCR and FFmpeg
 
----
+### Run the full local stack
 
-## ⚡ Quick Start (Local Setup)
+This is the recommended route when testing asynchronous evidence processing because it starts PostgreSQL/pgvector, RabbitMQ, Redis, the FastAPI service, its worker, the Rust API, and the frontend.
 
-### 1. Prerequisites
-- **Node.js 20+** & **npm 10+**
-- **Rust 1.78+** (`cargo`)
-- **Python 3.11+** & **uv**
-- **Supabase CLI** (`npx supabase`)
-
-### 2. Clone and Configure Environment
 ```bash
 git clone https://github.com/urvashislash/nexora-ai.git
 cd nexora-ai
-
-# Copy environment configuration
-cp .env.example .env
+docker compose up --build
 ```
 
-### 3. Start Local Services
+Local service ports:
 
-Open 3 terminal sessions:
+| Service | URL / port |
+| --- | --- |
+| Frontend | `http://localhost:5173` |
+| Rust API | `http://localhost:3000/api/v1/health` |
+| AI service | `http://localhost:8000/health` |
+| AI API docs | `http://localhost:8000/api/v1/docs` |
+| RabbitMQ management | `http://localhost:15672` |
+| PostgreSQL | `localhost:5432` |
+| Redis | `localhost:6379` |
+
+### Run services individually
 
 ```bash
-# Terminal 1: Rust Backend API (Port 3000)
-cd backend
-cargo run
-
-# Terminal 2: Python AI Processing Service (Port 8000)
-cd ai_service
-uv venv && uv pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --port 8000 --host 0.0.0.0
-
-# Terminal 3: React Frontend Console (Port 5173)
+# Frontend
 cd frontend
 npm install
 npm run dev
+
+# Rust API — optional RabbitMQ and Redis integration is enabled by exported URLs
+cd ../backend
+cargo run
+
+# AI API (synchronous endpoints work without RabbitMQ)
+cd ../ai_service
+uv venv --python 3.11
+uv pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 4. Verify System Health
-Run the automated multi-service health probe:
+To run the AI worker outside Docker, start RabbitMQ and Redis first, then run:
+
+```bash
+cd ai_service
+RABBITMQ_URL='amqp://guest:guest@localhost:5672/%2f' \
+REDIS_URL='redis://localhost:6379/0' \
+.venv/bin/python -m app.workers.queue_worker
+```
+
+The Rust service does not load a `.env` file itself. Supply `RABBITMQ_URL`, `REDIS_URL`, and `RUST_LOG` through the shell, Docker Compose, or deployment environment.
+
+## Configuration
+
+Never commit secrets. Use the supplied environment template as a reference and provide credentials through your local environment or deployment platform.
+
+Important configuration groups:
+
+| Area | Key variables |
+| --- | --- |
+| Rust API | `PORT` or `BACKEND_PORT`, `RABBITMQ_URL`, `REDIS_URL`, `RUST_LOG` |
+| AI service | `AI_HOST`, `AI_PORT`, `RABBITMQ_URL`, `REDIS_URL`, `JOB_STATE_BACKEND` |
+| Queue processing | `QUEUE_MAX_ATTEMPTS`, `QUEUE_RETRY_DELAY_MS`, `JOB_STATE_TTL_SECONDS`, `JOB_LOCK_TTL_SECONDS` |
+| AI models | `EMBEDDING_MODEL`, `EMBEDDING_BACKEND`, `EMBEDDING_ALLOW_DOWNLOAD`, `ASR_MODEL` |
+| Supabase Storage | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` |
+
+The AI service defaults to `sentence-transformers/all-MiniLM-L6-v2` with 384 dimensions. With `EMBEDDING_BACKEND=auto` and downloads disabled, it uses a deterministic hash-vector fallback if the model is not already available.
+
+## API overview
+
+### Rust trust-plane API
+
+All routes are under `/api/v1`.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Process health plus RabbitMQ/Redis connection state |
+| `GET` | `/projects/:id/dashboard` | Project KPI dashboard |
+| `GET` | `/projects/:id/activities` | Project activities |
+| `GET` | `/projects/:id/observations` | Observations held by the process |
+| `GET` | `/projects/:id/review-queue` | Pending match proposals |
+| `POST` | `/projects/:id/observations` | Create an observation |
+| `POST` | `/projects/:id/ingest` | Ingest an observation |
+| `POST` | `/proposals/:id/approve` | Approve a proposal |
+| `POST` | `/proposals/:id/reject` | Reject a proposal |
+| `POST` | `/proposals/:id/override` | Override a proposed target |
+| `GET` | `/projects/:id/audit-trail` | Read audit events |
+| `GET` | `/projects/:id/audit-trail/verify` | Verify the in-memory audit chain |
+| `GET` | `/projects/:id/export/p6` | Generate basic P6-style XML |
+
+Protected API routes use `X-User-Id` and `X-User-Role` headers in the current implementation. This is role-based request validation, **not** a complete JWT/session authentication system.
+
+### AI processing API
+
+The FastAPI router is mounted at `/api/v1`.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | AI service process health |
+| `GET` | `/api/v1/health` | Embedding, RabbitMQ, and Redis status |
+| `POST` | `/api/v1/extract` | Extract observations from text |
+| `POST` | `/api/v1/extract-file` | Extract from a multipart file |
+| `POST` | `/api/v1/schedule/import-file` | Parse schedule files |
+| `POST` | `/api/v1/normalize` | Normalize construction text |
+| `POST` | `/api/v1/embed` | Generate embeddings |
+| `POST` | `/api/v1/match` | Score observations against supplied activities |
+| `POST` | `/api/v1/pipeline/process` | Synchronous text pipeline |
+| `POST` | `/api/v1/pipeline/process-file` | Synchronous file pipeline |
+| `POST` | `/api/v1/pipeline/submit-async` | Publish an async RabbitMQ job |
+| `GET` | `/api/v1/jobs/{job_id}/status` | Read Redis-backed job state |
+
+## Matching policy
+
+The default `construction-v1` policy uses lexical (`0.40`), semantic (`0.45`), and context (`0.15`) weights, with additional safeguards for automatic matching.
+
+- **Auto-link candidate:** score at least `0.85`, extraction confidence at least `0.70`, sufficient lexical evidence or an exact equipment match, a candidate gap of at least `0.08`, and no discipline mismatch.
+- **Review candidate:** score from `0.40` to `<0.85`, or any candidate that does not meet all automatic-link safeguards.
+- **Rejected candidate:** below `0.40` or no supplied activities.
+
+The worker uses at-least-once processing. Consumers that persist a result must treat `job_id` or `idempotency_key` as unique to prevent duplicate writes.
+
+## Tests and quality checks
+
+```bash
+# Frontend type check and production bundle
+cd frontend && npm run build
+
+# Frontend lint
+cd frontend && npm run lint
+
+# Rust trust-plane tests
+cd backend && cargo test
+
+# AI service tests
+cd ai_service && .venv/bin/python -m pytest -q
+```
+
+A health helper is also available:
+
 ```bash
 ./scripts/health_probe.sh local
 ```
 
-Expected Output:
-```text
-=============================================================================
- NEXORA AI — System Health & Availability Probe [local]
-=============================================================================
-• Probing Rust Backend API (http://localhost:3000/api/v1/health)... ✅ HEALTHY
-• Probing Python AI Service (http://localhost:8000/health)... ✅ HEALTHY
-• Probing Frontend Web App (http://localhost:5173)... ✅ HEALTHY
-• Probing Supabase / PostgreSQL Connection... ✅ CONNECTED
-=============================================================================
-🎉 System status: ALL PROBED SERVICES OPERATIONAL
-```
+It is an informational probe for backend, AI, frontend, and optionally PostgreSQL. Review its output service by service; a successful script exit alone does not prove every HTTP service is reachable.
 
----
+## Current limitations
 
-## 🧪 Smart India Hackathon (SIH) Demo Scenarios
+- **Runtime persistence:** Rust API projects, observations, proposals, audit events, legal holds, archives, and outbox events are initialized in memory and are lost on restart.
+- **Database integration:** PostgreSQL/pgvector dependencies and migrations are present, but the active Rust handlers and AI matcher do not execute SQL or pgvector similarity queries.
+- **Trust validation coverage:** validation and state-machine utilities exist, but not every API mutation path invokes every domain validation helper yet.
+- **Async intake contract:** async worker jobs require `storage_key` and `filename`; submitting text-only async work without them can be accepted by the API but fail in the worker. Job status can be `UNKNOWN` until a worker claims the message.
+- **Security hardening:** the Rust API currently accepts client-supplied role headers and allows permissive CORS. Add verified authentication, authorization, rate limiting, and restrictive CORS before deployment.
+- **P6 interoperability:** the API emits basic P6-style XML but has not been validated against an Oracle P6 import schema.
 
-The platform includes 5 built-in demonstration scenarios located on the **Evidence Inbox** page:
+## License
 
-| Scenario | Input Evidence | Expected Behavior |
-|---|---|---|
-| **Scenario A: Exact Match** | *"P-101 completed successfully. Hydro test pack holding pressure maintained at 42.5 bar for 4 hours."* | **>90% Auto-Link**: Matches `PIP-2401`. Rust Trust Plane commits 100% completion automatically. |
-| **Scenario B: Semantic Match** | *"spool erection complete on Pipe Rack B Tier 2 with alignment and bolt tightening done."* | **Semantic Normalization**: 384-d embedding matches `PIP-2400` despite colloquial wording. |
-| **Scenario C: Ambiguous Match** | *"Hydrostatic pressure testing completed along Interconnecting Pipe Rack B headers yesterday."* | **Planner Review Queue**: Matches both `PIP-2401` and `PIP-2402` (76% confidence). Routed to Planner Review. |
-| **Scenario D: Unmatched Scope** | *"Emergency dewatering and deep foundation pit excavation carried out near Substation 4."* | **Unmatched Isolation**: Scope does not exist in baseline L5 schedule; isolated for scope adjustment without hallucinating. |
-| **Scenario E: Date Inversion** | *"Line P-101 testing finished on 20-Aug-2026, work started on 28-Aug-2026."* | **Trust Plane Rejection**: Rejects impossible timeline (`finish < start`) with `VALIDATION_ERROR`. |
-
----
-
-## 📁 Repository Structure
-
-```text
-nexora-ai/
-├── backend/                         # Rust Axum Trust Plane
-│   ├── src/
-│   │   ├── api/                     # Route handlers & RBAC middleware
-│   │   ├── domain/                  # Trust validation, state machine & SHA-256 ledger
-│   │   └── main.rs                  # Axum HTTP server entry point
-│   ├── Cargo.toml
-│   └── Dockerfile
-├── ai_service/                      # Python AI Extraction & Matching Plane
-│   ├── app/
-│   │   ├── api/                     # FastAPI extraction & matching endpoints
-│   │   ├── services/                # Hybrid matcher, embeddings, document parser
-│   │   ├── workers/                 # RabbitMQ background queue worker
-│   │   └── main.py                  # FastAPI application entry point
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/                        # React 19 Frontend (Field Ledger UI)
-│   ├── src/
-│   │   ├── components/              # ActivityDrawer, EvidenceDrawer, Sidebar
-│   │   ├── pages/                   # Dashboard, Evidence, Review, Explorer, Audit, Export
-│   │   ├── lib/                     # API client & Supabase Cloud connectors
-│   │   └── App.tsx                  # Master application shell
-│   ├── nginx.conf                   # Hardened production Nginx configuration
-│   └── Dockerfile
-├── database/                        # Database Schema & Migrations
-│   ├── migrations/                  # 001 to 007 SQL migrations (PostgreSQL + pgvector)
-│   └── seeds/                       # Demo refinery project seed data
-├── scripts/                         # Operational & DevOps CLI Helpers
-│   ├── health_probe.sh              # Multi-tier health probe
-│   ├── link_supabase.sh             # Cloud database connector
-│   ├── deploy_to_supabase.sh        # Migration deployment script
-│   ├── backup_db.sh                 # Database backup utility
-│   ├── restore_db.sh                # Database restore utility
-│   └── rollback.sh                  # Emergency container rollback script
-├── docker-compose.yml               # Local orchestration
-└── docker-compose.prod.yml          # Hardened production orchestration
-```
-
----
-
-## 📄 License
-
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [MIT License](LICENSE).

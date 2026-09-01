@@ -213,12 +213,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <TabsContent value="signin" className="mt-0">
             <form onSubmit={handleSignIn} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
-                  Email Address
+                <label htmlFor="signin-email" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
+                  Email address
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
                   <Input
+                    id="signin-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -230,12 +231,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
+                <label htmlFor="signin-password" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
                   Password
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
                   <Input
+                    id="signin-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -261,12 +263,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <TabsContent value="signup" className="mt-0">
             <form onSubmit={handleSignUp} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
-                  Full Name
+                <label htmlFor="signup-name" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
+                  Full name
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
                   <Input
+                    id="signup-name"
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -278,12 +281,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
-                  Email Address
+                <label htmlFor="signup-email" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
+                  Email address
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
                   <Input
+                    id="signup-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -295,12 +299,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
+                <label htmlFor="signup-password" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
                   Password
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
                   <Input
+                    id="signup-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -312,10 +317,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
-                  Assigned Project Role
+                <label htmlFor="signup-role" className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
+                  Project role
                 </label>
                 <select
+                  id="signup-role"
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value as UserRole)}
                   className="w-full rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-[#C38B4B] focus:outline-hidden font-sans"

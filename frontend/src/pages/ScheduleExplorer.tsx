@@ -188,6 +188,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
               <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-400" />
               <Input
                 type="text"
+                aria-label="Search schedule activities"
                 placeholder="Search by code, activity name, equipment tag..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -263,10 +264,12 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
               const isSelected = selectedActivity?.activity.id === activity.id;
 
               return (
-                <div
+                <button
                   key={activity.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => setSelectedActivity(item)}
-                  className={`schedule-row-item flex items-center p-3 hover:bg-slate-50/80 transition-colors duration-150 cursor-pointer ${
+                  className={`schedule-row-item flex w-full items-center p-3 text-left transition-colors duration-150 hover:bg-slate-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-500 ${
                     isSelected ? 'bg-slate-100/90' : ''
                   }`}
                 >
@@ -314,7 +317,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                       />
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -325,32 +328,32 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead onClick={() => toggleSort('code')} className="cursor-pointer">
-                  <div className="flex items-center gap-1">
-                    <span>WBS Code</span>
+                <TableHead>
+                  <button type="button" onClick={() => toggleSort('code')} className="flex items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500">
+                    <span>WBS code</span>
                     <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                  </button>
                 </TableHead>
                 <TableHead>Activity Name</TableHead>
                 <TableHead>Discipline</TableHead>
-                <TableHead onClick={() => toggleSort('planned_start_date')} className="cursor-pointer">
-                  <div className="flex items-center gap-1">
-                    <span>Planned Dates</span>
+                <TableHead>
+                  <button type="button" onClick={() => toggleSort('planned_start_date')} className="flex items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500">
+                    <span>Planned dates</span>
                     <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                  </button>
                 </TableHead>
-                <TableHead onClick={() => toggleSort('progress')} className="cursor-pointer">
-                  <div className="flex items-center gap-1">
+                <TableHead>
+                  <button type="button" onClick={() => toggleSort('progress')} className="flex items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500">
                     <span>Progress</span>
                     <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                  </button>
                 </TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead onClick={() => toggleSort('variance')} className="cursor-pointer text-right">
-                  <div className="flex items-center justify-end gap-1">
+                <TableHead className="text-right">
+                  <button type="button" onClick={() => toggleSort('variance')} className="ml-auto flex items-center justify-end gap-1 rounded text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500">
                     <span>Variance</span>
                     <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                  </button>
                 </TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
@@ -365,8 +368,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                 return (
                   <TableRow
                     key={activity.id}
-                    onClick={() => setSelectedActivity(item)}
-                    className="schedule-row-item cursor-pointer"
+                    className="schedule-row-item"
                   >
                     <TableCell className="font-mono font-bold text-slate-900">{activity.code}</TableCell>
                     <TableCell className="font-medium text-slate-800">
@@ -408,7 +410,8 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                         variant="ghost"
                         size="icon-sm"
                         className="text-slate-400 hover:text-slate-900"
-                        title="Open 360° Activity Detail Drawer"
+                        aria-label={`Open details for ${activity.code}`}
+                        title="Open activity details"
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </Button>

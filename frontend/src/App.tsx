@@ -1,21 +1,21 @@
-import { useEffect, useState, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback } from 'react';
 import { Menu, Moon, Sun } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
-import { Dashboard } from './pages/Dashboard';
-import { ProjectGraph } from './pages/ProjectGraph';
-import { DocumentUpload } from './pages/DocumentUpload';
-import { ReviewQueue } from './pages/ReviewQueue';
-import { ScheduleExplorer } from './pages/ScheduleExplorer';
-import { AuditTrail } from './pages/AuditTrail';
-import { ScheduleExport } from './pages/ScheduleExport';
-import { SystemHealth } from './pages/SystemHealth';
-import { ThankYou } from './pages/ThankYou';
-import { NotFound } from './pages/NotFound';
+const Dashboard = lazy(() => import('./pages/Dashboard').then(({ Dashboard }) => ({ default: Dashboard })));
+const ProjectGraph = lazy(() => import('./pages/ProjectGraph').then(({ ProjectGraph }) => ({ default: ProjectGraph })));
+const DocumentUpload = lazy(() => import('./pages/DocumentUpload').then(({ DocumentUpload }) => ({ default: DocumentUpload })));
+const ReviewQueue = lazy(() => import('./pages/ReviewQueue').then(({ ReviewQueue }) => ({ default: ReviewQueue })));
+const ScheduleExplorer = lazy(() => import('./pages/ScheduleExplorer').then(({ ScheduleExplorer }) => ({ default: ScheduleExplorer })));
+const AuditTrail = lazy(() => import('./pages/AuditTrail').then(({ AuditTrail }) => ({ default: AuditTrail })));
+const ScheduleExport = lazy(() => import('./pages/ScheduleExport').then(({ ScheduleExport }) => ({ default: ScheduleExport })));
+const SystemHealth = lazy(() => import('./pages/SystemHealth').then(({ SystemHealth }) => ({ default: SystemHealth })));
+const ThankYou = lazy(() => import('./pages/ThankYou').then(({ ThankYou }) => ({ default: ThankYou })));
+const NotFound = lazy(() => import('./pages/NotFound').then(({ NotFound }) => ({ default: NotFound })));
 import { DashboardSkeleton } from './components/SkeletonLoader';
-import { CommandPalette } from './components/CommandPalette';
-import { AuthModal } from './components/AuthModal';
-import { JwtInspectorModal } from './components/JwtInspectorModal';
-import { CreateProjectModal } from './components/CreateProjectModal';
+const CommandPalette = lazy(() => import('./components/CommandPalette').then(({ CommandPalette }) => ({ default: CommandPalette })));
+const AuthModal = lazy(() => import('./components/AuthModal').then(({ AuthModal }) => ({ default: AuthModal })));
+const JwtInspectorModal = lazy(() => import('./components/JwtInspectorModal').then(({ JwtInspectorModal }) => ({ default: JwtInspectorModal })));
+const CreateProjectModal = lazy(() => import('./components/CreateProjectModal').then(({ CreateProjectModal }) => ({ default: CreateProjectModal })));
 import { ProjectSelector } from './components/ProjectSelector';
 import { generateUUIDv7, generateAuditPayloadHash } from './lib/idGenerator';
 import { Toaster } from './components/ui/sonner';
@@ -880,7 +880,7 @@ export function App() {
           {isLoading && activities.length === 0 ? (
             <DashboardSkeleton />
           ) : (
-            <>
+            <Suspense fallback={<DashboardSkeleton />}>
               {activeTab === 'dashboard' && (
                 <Dashboard 
                   kpis={kpis} 
@@ -952,48 +952,52 @@ export function App() {
                   onNavigateHome={() => setActiveTab('dashboard')}
                 />
               )}
-            </>
+            </Suspense>
           )}
         </div>
 
-        {/* Global Command Palette Modal */}
-        <CommandPalette
-          isOpen={isCommandPaletteOpen}
-          onClose={() => setIsCommandPaletteOpen(false)}
-          onNavigateTab={setActiveTab}
-          activities={activities}
-          currentRole={user?.role || currentRole}
-          onSelectRole={(r: string) => {
-            const role = r as UserRole;
-            setCurrentRole(role);
-            if (user) {
-              setUser({ ...user, role });
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          {isCommandPaletteOpen && (
+            <CommandPalette
+              isOpen={isCommandPaletteOpen}
+              onClose={() => setIsCommandPaletteOpen(false)}
+              onNavigateTab={setActiveTab}
+              activities={activities}
+              currentRole={user?.role || currentRole}
+              onSelectRole={(r: string) => {
+                const role = r as UserRole;
+                setCurrentRole(role);
+                if (user) setUser({ ...user, role });
+              }}
+            />
+          )}
 
-        {/* Auth Modal */}
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          onClose={() => setIsAuthModalOpen(false)}
-          onAuthSuccess={handleAuthSuccess}
-        />
+          {isAuthModalOpen && (
+            <AuthModal
+              isOpen={isAuthModalOpen}
+              onClose={() => setIsAuthModalOpen(false)}
+              onAuthSuccess={handleAuthSuccess}
+            />
+          )}
 
-        {/* JWT Inspector Modal */}
-        <JwtInspectorModal
-          isOpen={isJwtModalOpen}
-          onClose={() => setIsJwtModalOpen(false)}
-          token={jwtToken}
-          user={user}
-        />
+          {isJwtModalOpen && (
+            <JwtInspectorModal
+              isOpen={isJwtModalOpen}
+              onClose={() => setIsJwtModalOpen(false)}
+              token={jwtToken}
+              user={user}
+            />
+          )}
 
-        {/* Create Project Modal Wizard */}
-        <CreateProjectModal
-          isOpen={isCreateProjectModalOpen}
-          onClose={() => setIsCreateProjectModalOpen(false)}
-          onProjectCreated={handleProjectCreated}
-          userId={user?.id}
-        />
+          {isCreateProjectModalOpen && (
+            <CreateProjectModal
+              isOpen={isCreateProjectModalOpen}
+              onClose={() => setIsCreateProjectModalOpen(false)}
+              onProjectCreated={handleProjectCreated}
+              userId={user?.id}
+            />
+          )}
+        </Suspense>
 
         {/* Global Toast Notifications */}
         <Toaster position="top-right" richColors />

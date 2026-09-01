@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { 
   Clock, 
   ChevronRight, 
@@ -28,6 +28,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const overallProgRef = useRef<HTMLSpanElement>(null);
   const sCurvePathRef = useRef<SVGPathElement>(null);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     animateCounter(overallProgRef.current, kpis.overall_progress_pct, { duration: 900, suffix: '%' });
@@ -42,9 +43,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   return (
     <motion.div 
       className="space-y-6 pb-12"
-      initial={{ opacity: 0 }}
+      initial={shouldReduceMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
     >
       {/* LEVEL 1: PRIMARY DECISION HERO BANNER */}
       <Card className="p-6 sm:p-7 shadow-2xs space-y-6">

@@ -81,14 +81,15 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
 
         {/* 360° Tabs */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-6 pt-3 border-b border-slate-100 bg-white">
-            <TabsList className="w-full grid grid-cols-4 h-9">
+          <div className="overflow-x-auto border-b border-slate-100 bg-white px-4 pt-3 sm:px-6">
+            <TabsList className="grid h-9 min-w-[26rem] grid-cols-4 sm:min-w-0 sm:w-full">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="evidence">
                 Evidence {linkedObservations.length > 0 && `(${linkedObservations.length})`}
               </TabsTrigger>
               <TabsTrigger value="dependencies">
-                Dependencies ({predecessors.length + successors.length})
+                <span className="sm:hidden">Links ({predecessors.length + successors.length})</span>
+                <span className="hidden sm:inline">Dependencies ({predecessors.length + successors.length})</span>
               </TabsTrigger>
               <TabsTrigger value="audit">
                 Audit ({linkedAudits.length})
