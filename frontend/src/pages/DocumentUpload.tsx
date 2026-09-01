@@ -23,6 +23,7 @@ import type { WorkObservation, Discipline, EventType } from '../types';
 import { uploadEvidenceFile } from '../lib/supabase';
 import { api } from '../lib/api';
 import { EvidenceDrawer } from '../components/EvidenceDrawer';
+import { generateUUIDv7 } from '../lib/idGenerator';
 
 interface DocumentUploadProps {
   observations: WorkObservation[];
@@ -31,9 +32,7 @@ interface DocumentUploadProps {
 }
 
 function generateObsId(): string {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `obs-${Math.random().toString(36).substring(2, 9)}`;
+  return generateUUIDv7();
 }
 
 export const DocumentUpload: React.FC<DocumentUploadProps> = ({ 

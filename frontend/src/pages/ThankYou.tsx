@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, ShieldCheck, ArrowRight, Eye, PlusCircle } from 'lucide-react';
+import { generateEntityId } from '../lib/idGenerator';
 
 interface ThankYouProps {
   onNavigateTab: (tab: 'dashboard' | 'upload' | 'review' | 'schedule' | 'audit' | 'export') => void;
@@ -14,7 +15,7 @@ export const ThankYou: React.FC<ThankYouProps> = ({
   onNavigateTab,
   submissionDetails = {
     type: 'Field Actualization Note',
-    id: 'OBS-' + Math.floor(1000 + Math.random() * 9000),
+    id: generateEntityId('obs'),
     timestamp: new Date().toISOString()
   }
 }) => {

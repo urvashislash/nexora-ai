@@ -11,6 +11,7 @@ import { ThankYou } from './pages/ThankYou';
 import { NotFound } from './pages/NotFound';
 import { DashboardSkeleton } from './components/SkeletonLoader';
 import { CommandPalette } from './components/CommandPalette';
+import { generateUUIDv7, generateAuditPayloadHash } from './lib/idGenerator';
 import { supabase, subscribeToProjectRealtime } from './lib/supabase';
 import { api } from './lib/api';
 import type { 
@@ -427,23 +428,39 @@ function App() {
         return a;
       }));
 
-      // Add audit event
-      const newAudit: AuditEvent = {
-        id: `audit-${Date.now()}`,
-        project_id: PROJECT_ID,
-        entity_type: 'ACTIVITY',
-        entity_id: 'd0000000-0000-0000-0000-000000000002',
-        action: 'AUTO_COMMIT_PROGRESS',
-        actor_id: 'SYSTEM',
-        actor_role: 'RUST_TRUST_PLANE',
-        before_state: { progress_pct: 0, status: 'NOT_STARTED' },
-        after_state: { progress_pct: 100, status: 'COMPLETED' },
-        payload_hash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
-        created_at: new Date().toISOString(),
-      };
-      setAuditEvents(prev => [newAudit, ...prev]);
+      // Add audit event with UUIDv7 and SHA-256 chained hash
+      const nowStr = new Date().toISOString();
+      const prevAudit = auditEvents[0];
+      const prevHash = prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
+      
+      generateAuditPayloadHash(
+        'ACTIVITY',
+        'd0000000-0000-0000-0000-000000000002',
+        'AUTO_COMMIT_PROGRESS',
+        'SYSTEM',
+        { progress_pct: 0, status: 'NOT_STARTED' },
+        { progress_pct: 100, status: 'COMPLETED' },
+        nowStr,
+        prevHash
+      ).then(hash => {
+        const newAudit: AuditEvent = {
+          id: generateUUIDv7(),
+          project_id: PROJECT_ID,
+          entity_type: 'ACTIVITY',
+          entity_id: 'd0000000-0000-0000-0000-000000000002',
+          action: 'AUTO_COMMIT_PROGRESS',
+          actor_id: 'SYSTEM',
+          actor_role: 'RUST_TRUST_PLANE',
+          before_state: { progress_pct: 0, status: 'NOT_STARTED' },
+          after_state: { progress_pct: 100, status: 'COMPLETED' },
+          payload_hash: hash,
+          previous_hash: prevHash,
+          created_at: nowStr,
+        };
+        setAuditEvents(prev => [newAudit, ...prev]);
+      });
     }
-  }, [activities]);
+  }, [activities, auditEvents]);
 
   // Approve proposal handler
   const handleApproveProposal = useCallback(async (proposalId: string, selectedActivityId?: string, comment?: string) => {
@@ -475,22 +492,40 @@ function App() {
 
     setReviewQueue(prev => prev.filter(q => q.proposal.id !== proposalId));
 
-    // Record Audit
+    // Record Audit with UUIDv7 and SHA-256 chained hash
+    const nowStr = new Date().toISOString();
+    const prevAudit = auditEvents[0];
+    const prevHash = prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
+    const beforeState = { status: 'PENDING_REVIEW' };
+    const afterState = { status: 'ACCEPTED', activity_id: targetActivityId, comment };
+    
+    const hash = await generateAuditPayloadHash(
+      'MATCH_PROPOSAL',
+      proposalId,
+      'APPROVE_PROPOSAL',
+      '00000000-0000-0000-0000-000000000001',
+      beforeState,
+      afterState,
+      nowStr,
+      prevHash
+    );
+
     const audit: AuditEvent = {
-      id: `audit-${Date.now()}`,
+      id: generateUUIDv7(),
       project_id: PROJECT_ID,
       entity_type: 'MATCH_PROPOSAL',
       entity_id: proposalId,
       action: 'APPROVE_PROPOSAL',
       actor_id: '00000000-0000-0000-0000-000000000001',
       actor_role: 'LEAD_PLANNER',
-      before_state: { status: 'PENDING_REVIEW' },
-      after_state: { status: 'ACCEPTED', activity_id: targetActivityId, comment },
-      payload_hash: 'c3f2e1d0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2',
-      created_at: new Date().toISOString(),
+      before_state: beforeState,
+      after_state: afterState,
+      payload_hash: hash,
+      previous_hash: prevHash,
+      created_at: nowStr,
     };
     setAuditEvents(prev => [audit, ...prev]);
-  }, [reviewQueue]);
+  }, [reviewQueue, auditEvents]);
 
   // Reject proposal handler
   const handleRejectProposal = useCallback(async (proposalId: string, reason?: string) => {
@@ -498,21 +533,39 @@ function App() {
 
     setReviewQueue(prev => prev.filter(q => q.proposal.id !== proposalId));
 
+    const nowStr = new Date().toISOString();
+    const prevAudit = auditEvents[0];
+    const prevHash = prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
+    const beforeState = { status: 'PENDING_REVIEW' };
+    const afterState = { status: 'REJECTED', reason };
+
+    const hash = await generateAuditPayloadHash(
+      'MATCH_PROPOSAL',
+      proposalId,
+      'REJECT_PROPOSAL',
+      '00000000-0000-0000-0000-000000000001',
+      beforeState,
+      afterState,
+      nowStr,
+      prevHash
+    );
+
     const audit: AuditEvent = {
-      id: `audit-${Date.now()}`,
+      id: generateUUIDv7(),
       project_id: PROJECT_ID,
       entity_type: 'MATCH_PROPOSAL',
       entity_id: proposalId,
       action: 'REJECT_PROPOSAL',
       actor_id: '00000000-0000-0000-0000-000000000001',
       actor_role: 'LEAD_PLANNER',
-      before_state: { status: 'PENDING_REVIEW' },
-      after_state: { status: 'REJECTED', reason },
-      payload_hash: 'e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3',
-      created_at: new Date().toISOString(),
+      before_state: beforeState,
+      after_state: afterState,
+      payload_hash: hash,
+      previous_hash: prevHash,
+      created_at: nowStr,
     };
     setAuditEvents(prev => [audit, ...prev]);
-  }, []);
+  }, [auditEvents]);
 
   // Override proposal handler
   const handleOverrideProposal = useCallback(async (proposalId: string, newActivityId: string, comment?: string) => {
@@ -536,21 +589,39 @@ function App() {
 
     setReviewQueue(prev => prev.filter(q => q.proposal.id !== proposalId));
 
+    const nowStr = new Date().toISOString();
+    const prevAudit = auditEvents[0];
+    const prevHash = prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
+    const beforeState = { status: 'PENDING_REVIEW' };
+    const afterState = { status: 'OVERRIDDEN', new_activity_id: newActivityId, comment };
+
+    const hash = await generateAuditPayloadHash(
+      'MATCH_PROPOSAL',
+      proposalId,
+      'OVERRIDE_MATCH_TARGET',
+      '00000000-0000-0000-0000-000000000001',
+      beforeState,
+      afterState,
+      nowStr,
+      prevHash
+    );
+
     const audit: AuditEvent = {
-      id: `audit-${Date.now()}`,
+      id: generateUUIDv7(),
       project_id: PROJECT_ID,
       entity_type: 'MATCH_PROPOSAL',
       entity_id: proposalId,
       action: 'OVERRIDE_MATCH_TARGET',
       actor_id: '00000000-0000-0000-0000-000000000001',
       actor_role: 'LEAD_PLANNER',
-      before_state: { status: 'PENDING_REVIEW' },
-      after_state: { status: 'OVERRIDDEN', new_activity_id: newActivityId, comment },
-      payload_hash: 'f5e4d3c2b1a0987654321fedcba0987654321fedcba0987654321fedcba09876',
-      created_at: new Date().toISOString(),
+      before_state: beforeState,
+      after_state: afterState,
+      payload_hash: hash,
+      previous_hash: prevHash,
+      created_at: nowStr,
     };
     setAuditEvents(prev => [audit, ...prev]);
-  }, []);
+  }, [auditEvents]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex font-sans selection:bg-[#C38B4B]/20 selection:text-[#C38B4B]">
