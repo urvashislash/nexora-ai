@@ -237,45 +237,313 @@ export async function getEvidenceFileUrl(filePath: string): Promise<string | nul
 }
 
 /**
- * Retrieves the current authenticated user.
+ * Decodes and parses a JWT Bearer token into structured claims.
  */
-export async function getCurrentUser() {
-  if (!supabaseInstance) return null;
-  const { data: { user }, error } = await supabaseInstance.auth.getUser();
-  if (error) {
-    console.error('[NEXORA] Auth Error:', error.message);
+export function parseJwt(token: string): import('../types').JwtClaims | null {
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('[NEXORA] Error parsing JWT token:', e);
     return null;
   }
-  return user;
 }
 
 /**
- * Fetches the user's role in a specific project.
+ * Signs in a user with email and password via Supabase Auth.
  */
-export async function getUserRole(projectId: string): Promise<string | null> {
-  if (!supabaseInstance) return null;
-  
-  const user = await getCurrentUser();
-  if (!user) return null;
+export async function signInWithEmail(email: string, password: string) {
+  if (!supabaseInstance) {
+    throw new Error('Supabase is not configured.');
+  }
+  const { data, error } = await supabaseInstance.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Signs up a new user with email, password, full name, and role.
+ */
+export async function signUpWithEmail(
+  email: string, 
+  password: string, 
+  fullName: string, 
+  role: import('../types').UserRole = 'PLANNER'
+) {
+  if (!supabaseInstance) {
+    throw new Error('Supabase is not configured.');
+  }
+  const { data, error } = await supabaseInstance.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+        role: role,
+      },
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Signs out the currently authenticated user.
+ */
+export async function signOut() {
+  if (!supabaseInstance) return;
+  const { error } = await supabaseInstance.auth.signOut();
+  if (error) {
+    console.error('[NEXORA] Sign out error:', error.message);
+  }
+}
+
+/**
+ * Fetches all available projects from Supabase DB.
+ */
+export async function fetchProjects(): Promise<import('../types').Project[]> {
+  if (!supabaseInstance) return [];
 
   const { data, error } = await supabaseInstance
-    .from('project_members')
-    .select('role')
-    .eq('project_id', projectId)
-    .eq('user_id', user.id)
-    .single();
+    .from('projects')
+    .select('*')
+    .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[NEXORA] Role fetch error:', error.message);
-    return null;
+    console.error('[NEXORA] Error fetching projects:', error.message);
+    return [];
   }
 
-  return data?.role || null;
+  return (data || []) as import('../types').Project[];
+}
+
+/**
+ * Creates a new project in the database with a baseline schedule version and initial activities.
+ */
+export async function createProjectInDB(
+  input: import('../types').ProjectCreateInput,
+  userId?: string
+): Promise<import('../types').Project | null> {
+  if (!supabaseInstance) return null;
+
+  try {
+    // 1. Insert Project Row
+    const { data: projectData, error: projError } = await supabaseInstance
+      .from('projects')
+      .insert({
+        code: input.code.toUpperCase().trim(),
+        name: input.name.trim(),
+        description: input.description?.trim() || null,
+        timezone: input.timezone || 'Asia/Kolkata',
+        currency: input.currency || 'INR',
+      })
+      .select()
+      .single();
+
+    if (projError || !projectData) {
+      console.error('[NEXORA] Error creating project:', projError?.message);
+      throw projError;
+    }
+
+    const newProject = projectData as import('../types').Project;
+
+    // 2. Associate Creator in project_members if userId is present
+    if (userId) {
+      await supabaseInstance.from('project_members').insert({
+        project_id: newProject.id,
+        user_id: userId,
+        email: 'creator@nexora.ai',
+        full_name: 'Lead Planner',
+        role: 'ADMIN',
+      });
+    }
+
+    // 3. Create initial Schedule Version (v1 BASELINE)
+    const { data: versionData, error: verError } = await supabaseInstance
+      .from('schedule_versions')
+      .insert({
+        project_id: newProject.id,
+        version_number: 1,
+        version_label: 'Baseline Revision 0',
+        version_type: 'BASELINE',
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (verError || !versionData) {
+      console.warn('[NEXORA] Schedule version creation skipped:', verError?.message);
+      return newProject;
+    }
+
+    // 4. Create Root WBS Node
+    const { data: wbsData } = await supabaseInstance
+      .from('wbs_nodes')
+      .insert({
+        project_id: newProject.id,
+        schedule_version_id: versionData.id,
+        wbs_code: `${newProject.code}.1`,
+        name: 'General Execution',
+        level: 1,
+        path: `${newProject.code}.1`,
+      })
+      .select()
+      .single();
+
+    const wbsId = wbsData?.id;
+
+    // 5. Insert Baseline Activities if provided
+    if (input.baselineActivities && input.baselineActivities.length > 0 && wbsId) {
+      const activitiesToInsert = input.baselineActivities.map((act) => ({
+        project_id: newProject.id,
+        schedule_version_id: versionData.id,
+        wbs_id: wbsId,
+        code: act.code,
+        name: act.name,
+        description: act.description || null,
+        discipline: act.discipline,
+        planned_start_date: act.planned_start_date,
+        planned_finish_date: act.planned_finish_date,
+        planned_duration_days: act.planned_duration_days,
+        planned_quantity: act.planned_quantity || null,
+        unit_of_measure: act.unit_of_measure || null,
+        location: act.location || null,
+        zone: act.zone || null,
+        equipment_tag: act.equipment_tag || null,
+        weightage: act.weightage || 1.0,
+        critical_path: Boolean(act.critical_path),
+      }));
+
+      const { data: insertedActs } = await supabaseInstance
+        .from('activities')
+        .insert(activitiesToInsert)
+        .select();
+
+      // Initialize state for each activity
+      if (insertedActs && insertedActs.length > 0) {
+        const statesToInsert = insertedActs.map((act) => ({
+          activity_id: act.id,
+          project_id: newProject.id,
+          execution_status: 'NOT_STARTED',
+          current_progress_pct: 0,
+          cumulative_quantity: 0,
+        }));
+
+        await supabaseInstance.from('activity_current_state').insert(statesToInsert);
+      }
+    }
+
+    return newProject;
+  } catch (err) {
+    console.error('[NEXORA] Failed to create project and schedule:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetches all activities along with their execution states for a specific project.
+ */
+export async function fetchProjectActivities(projectId: string): Promise<import('../types').ActivityWithState[]> {
+  if (!supabaseInstance) return [];
+
+  const { data: acts, error: actError } = await supabaseInstance
+    .from('activities')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('planned_start_date', { ascending: true });
+
+  if (actError || !acts) {
+    console.error('[NEXORA] Error fetching activities for project:', actError?.message);
+    return [];
+  }
+
+  const { data: states } = await supabaseInstance
+    .from('activity_current_state')
+    .select('*')
+    .eq('project_id', projectId);
+
+  const stateMap = new Map((states || []).map((s: any) => [s.activity_id, s]));
+
+  return acts.map((act: any) => ({
+    activity: act as import('../types').Activity,
+    state: stateMap.get(act.id) as import('../types').ActivityCurrentState | undefined,
+  }));
+}
+
+/**
+ * Fetches work observations for a specific project.
+ */
+export async function fetchProjectObservations(projectId: string): Promise<import('../types').WorkObservation[]> {
+  if (!supabaseInstance) return [];
+
+  const { data, error } = await supabaseInstance
+    .from('work_observations')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('recorded_at', { ascending: false });
+
+  if (error) {
+    console.error('[NEXORA] Error fetching project observations:', error.message);
+    return [];
+  }
+
+  return (data || []) as import('../types').WorkObservation[];
+}
+
+/**
+ * Fetches match proposals for a specific project.
+ */
+export async function fetchProjectProposals(projectId: string): Promise<import('../types').MatchProposal[]> {
+  if (!supabaseInstance) return [];
+
+  const { data, error } = await supabaseInstance
+    .from('match_proposals')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[NEXORA] Error fetching project proposals:', error.message);
+    return [];
+  }
+
+  return (data || []) as import('../types').MatchProposal[];
+}
+
+/**
+ * Fetches audit ledger events for a specific project.
+ */
+export async function fetchProjectAuditEvents(projectId: string): Promise<import('../types').AuditEvent[]> {
+  if (!supabaseInstance) return [];
+
+  const { data, error } = await supabaseInstance
+    .from('audit_events')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[NEXORA] Error fetching project audit events:', error.message);
+    return [];
+  }
+
+  return (data || []) as import('../types').AuditEvent[];
 }
 
 /**
  * Subscribes to real-time database changes for a specific project.
- * Automatically broadcasts new observations, match proposals, actual events, and audit logs.
  */
 export function subscribeToProjectRealtime(
   projectId: string,

@@ -8,16 +8,34 @@ import {
   ShieldCheck, 
   FileDown,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  KeyRound,
+  LogOut,
+  LogIn
 } from 'lucide-react';
+import type { Project, AuthUser } from '../types';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   pendingReviewCount: number;
+  activeProject?: Project;
+  user?: AuthUser | null;
+  onOpenAuth?: () => void;
+  onOpenJwt?: () => void;
+  onLogout?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, pendingReviewCount }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ 
+  activeTab, 
+  setActiveTab, 
+  pendingReviewCount,
+  activeProject,
+  user,
+  onOpenAuth,
+  onOpenJwt,
+  onLogout
+}) => {
   const navItems = [
     { id: 'dashboard', label: 'Command Centre', icon: LayoutDashboard },
     { id: 'graph', label: 'Obsidian Graph', icon: Network },
@@ -32,6 +50,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, pendi
     { id: 'audit', label: 'Audit & Traceability', icon: ShieldCheck },
     { id: 'export', label: 'System Health', icon: FileDown },
   ];
+
+  const userInitials = user?.full_name 
+    ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'PL';
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 w-64 bg-slate-50 border-r border-slate-200 flex flex-col">
@@ -53,7 +75,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, pendi
         </div>
         <div className="bg-slate-200/50 p-2.5 rounded border border-slate-200">
           <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold font-mono mb-1">Active Project</p>
-          <p className="text-xs text-slate-800 font-medium leading-tight">Paradip-Hyderabad Refinery Expansion</p>
+          <p className="text-xs text-slate-800 font-medium leading-tight truncate">
+            {activeProject ? activeProject.name : 'Paradip-Hyderabad Refinery Expansion'}
+          </p>
         </div>
       </div>
 
@@ -98,15 +122,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, pendi
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           <span className="font-semibold font-mono uppercase tracking-wider text-[10px]">Rust Trust Layer: Active</span>
         </div>
-        <div className="flex items-center space-x-3 px-2 mb-3">
-          <div className="h-8 w-8 rounded bg-slate-200 border border-slate-300 flex items-center justify-center text-xs font-bold text-slate-600 font-mono">
-            RS
+
+        {user ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 mb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="h-7 w-7 rounded bg-[#C38B4B]/15 border border-[#C38B4B]/30 flex items-center justify-center text-xs font-bold text-[#C38B4B] font-mono">
+                  {userInitials}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold text-slate-800 truncate max-w-[110px]">
+                    {user.full_name || user.email}
+                  </span>
+                  <span className="text-[9px] font-mono font-bold text-[#C38B4B]">
+                    {user.role}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                {onOpenJwt && (
+                  <button
+                    onClick={onOpenJwt}
+                    title="Inspect JWT Token"
+                    className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    title="Sign Out"
+                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-200 transition"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-slate-800">Rahul Sharma</span>
-            <span className="text-[10px] text-slate-500 font-mono">Lead Planner</span>
-          </div>
-        </div>
+        ) : (
+          <button
+            onClick={onOpenAuth}
+            className="w-full mb-3 flex items-center justify-center gap-2 rounded-md bg-[#C38B4B] py-2 text-xs font-mono font-bold text-slate-950 hover:bg-[#b07d42] transition shadow-xs"
+          >
+            <LogIn className="h-3.5 w-3.5" />
+            <span>Sign In / Auth</span>
+          </button>
+        )}
+
         <a
           href="https://github.com/urvashislash/nexora-ai"
           target="_blank"

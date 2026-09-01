@@ -35,6 +35,33 @@ export type ExecutionStatus =
   | 'DELAYED' 
   | 'BLOCKED';
 
+export type UserRole = 
+  | 'ADMIN' 
+  | 'PLANNER' 
+  | 'ENGINEER' 
+  | 'SUPERVISOR' 
+  | 'AUDITOR' 
+  | 'VIEWER';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  full_name?: string;
+  role: UserRole;
+  avatar_url?: string;
+}
+
+export interface JwtClaims {
+  sub: string;
+  email?: string;
+  role?: string;
+  aud?: string;
+  exp?: number;
+  iat?: number;
+  app_metadata?: Record<string, any>;
+  user_metadata?: Record<string, any>;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -42,6 +69,34 @@ export interface Project {
   description?: string;
   timezone: string;
   currency: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProjectCreateInput {
+  code: string;
+  name: string;
+  description?: string;
+  timezone?: string;
+  currency?: string;
+  baselineActivities?: BaselineActivityInput[];
+}
+
+export interface BaselineActivityInput {
+  code: string;
+  name: string;
+  description?: string;
+  discipline: Discipline;
+  planned_start_date: string;
+  planned_finish_date: string;
+  planned_duration_days: number;
+  planned_quantity?: number;
+  unit_of_measure?: string;
+  location?: string;
+  zone?: string;
+  equipment_tag?: string;
+  weightage?: number;
+  critical_path?: boolean;
 }
 
 export interface Activity {

@@ -19,12 +19,14 @@ interface ScheduleExportProps {
   activities: ActivityWithState[];
   observations?: WorkObservation[];
   onRefreshData?: () => Promise<void>;
+  activeProject?: import('../types').Project;
 }
 
 export const ScheduleExport: React.FC<ScheduleExportProps> = ({ 
   activities, 
   observations = [],
-  onRefreshData 
+  onRefreshData,
+  activeProject
 }) => {
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
   const [backendHealth, setBackendHealth] = useState<{ status: string; service?: string } | null>(null);
@@ -32,6 +34,10 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const supabaseStatus = getSupabaseStatus();
+
+  const currentProjId = activeProject?.id || 'a0000000-0000-0000-0000-000000000001';
+  const currentProjCode = activeProject?.code || 'PRD-HYD-PKG04';
+  const currentProjName = activeProject?.name || 'Paradip-Hyderabad Refinery Expansion - Package 04';
 
   const checkHealth = async () => {
     setIsProbing(true);
@@ -72,11 +78,11 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
   }, []);
 
   const handleDownloadP6XML = async () => {
-    let xmlContent = await api.getP6Export('a0000000-0000-0000-0000-000000000001');
+    let xmlContent = await api.getP6Export(currentProjId);
 
     if (!xmlContent) {
       // Local generator fallback
-      xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<APBO:Project xmlns:APBO="http://xmlns.oracle.com/Primavera/P6/V24">\n  <ProjectObjectId>PRD-HYD-PKG04</ProjectObjectId>\n  <ProjectName>Paradip-Hyderabad Refinery Expansion - Package 04</ProjectName>\n  <Activities>\n`;
+      xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<APBO:Project xmlns:APBO="http://xmlns.oracle.com/Primavera/P6/V24">\n  <ProjectObjectId>${currentProjCode}</ProjectObjectId>\n  <ProjectName>${currentProjName}</ProjectName>\n  <Activities>\n`;
       activities.forEach(({ activity, state }) => {
         const progress = state?.current_progress_pct || 0;
         const status = state?.execution_status || 'NOT_STARTED';
@@ -91,7 +97,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `NEXORA_PRD_PKG04_P6_Export_${new Date().toISOString().slice(0,10)}.xml`;
+    a.download = `NEXORA_${currentProjCode}_P6_Export_${new Date().toISOString().slice(0,10)}.xml`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -117,7 +123,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `NEXORA_Actualized_Schedule_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `NEXORA_${currentProjCode}_Actualized_Schedule_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -140,7 +146,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `NEXORA_Field_Observations_Ledger_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `NEXORA_${currentProjCode}_Observations_Ledger_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -152,8 +158,9 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
 
   const handleDownloadJSON = () => {
     const payload = {
-      project_id: 'a0000000-0000-0000-0000-000000000001',
-      project_code: 'PRD-HYD-PKG04',
+      project_id: currentProjId,
+      project_code: currentProjCode,
+      project_name: currentProjName,
       exported_at: new Date().toISOString(),
       activities_count: activities.length,
       observations_count: observations.length,
@@ -168,7 +175,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `NEXORA_PMIS_Payload_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `NEXORA_${currentProjCode}_PMIS_Payload_${new Date().toISOString().slice(0,10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

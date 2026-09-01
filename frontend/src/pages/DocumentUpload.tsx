@@ -29,6 +29,7 @@ interface DocumentUploadProps {
   observations: WorkObservation[];
   onAddObservations: (observations: WorkObservation[], rawText: string) => void;
   onNavigateTab: (tab: string) => void;
+  projectId?: string;
 }
 
 function generateObsId(): string {
@@ -38,7 +39,8 @@ function generateObsId(): string {
 export const DocumentUpload: React.FC<DocumentUploadProps> = ({ 
   observations, 
   onAddObservations, 
-  onNavigateTab 
+  onNavigateTab,
+  projectId = 'a0000000-0000-0000-0000-000000000001'
 }) => {
   const [inputText, setInputText] = useState('');
   const [sourceType, setSourceType] = useState<'DAILY_REPORT' | 'DISCIPLINE_SPREADSHEET' | 'VOICE'>('DAILY_REPORT');
@@ -335,8 +337,6 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     setIsProcessing(true);
     setFeedbackMessage(null);
     setActiveStep(1);
-
-    const projectId = 'a0000000-0000-0000-0000-000000000001';
 
     try {
       // Step 1: Ingestion & Object Storage (Supabase)

@@ -11,25 +11,66 @@ import { ThankYou } from './pages/ThankYou';
 import { NotFound } from './pages/NotFound';
 import { DashboardSkeleton } from './components/SkeletonLoader';
 import { CommandPalette } from './components/CommandPalette';
+import { AuthModal } from './components/AuthModal';
+import { JwtInspectorModal } from './components/JwtInspectorModal';
+import { CreateProjectModal } from './components/CreateProjectModal';
+import { ProjectSelector } from './components/ProjectSelector';
 import { generateUUIDv7, generateAuditPayloadHash } from './lib/idGenerator';
-import { supabase, subscribeToProjectRealtime } from './lib/supabase';
-import { api } from './lib/api';
+import { 
+  supabase, 
+  subscribeToProjectRealtime, 
+  fetchProjects, 
+  fetchProjectActivities, 
+  fetchProjectObservations, 
+  fetchProjectProposals, 
+  fetchProjectAuditEvents,
+  signOut
+} from './lib/supabase';
 import type { 
   ActivityWithState, 
   AuditEvent, 
   DashboardKPIs, 
   ReviewQueueItem, 
   WorkObservation,
+  Project,
+  AuthUser,
+  UserRole
 } from './types';
 
-const PROJECT_ID = 'a0000000-0000-0000-0000-000000000001';
-const STORAGE_KEY = 'nexora-project-state-v1';
+const STORAGE_KEY = 'nexora-project-state-v2';
+
+const DEFAULT_PROJECTS: Project[] = [
+  {
+    id: 'a0000000-0000-0000-0000-000000000001',
+    code: 'PRD-HYD-PKG04',
+    name: 'Paradip-Hyderabad Refinery Expansion - Package 04',
+    description: 'EPC-4 Package comprising Pipe Rack B, Compressor House Foundation, and Offsite Hydrocarbon Piping',
+    timezone: 'Asia/Kolkata',
+    currency: 'INR',
+  },
+  {
+    id: 'a0000000-0000-0000-0000-000000000002',
+    code: 'MUM-METRO-04',
+    name: 'Mumbai Metro Line 4 Underground Tunneling Package',
+    description: 'Twin tunnel boring, underground station civil boxes, and 33kV traction substations',
+    timezone: 'Asia/Kolkata',
+    currency: 'INR',
+  },
+  {
+    id: 'a0000000-0000-0000-0000-000000000003',
+    code: 'JAM-HYDRO-01',
+    name: 'Jamnagar Refinery Hydrocracker Unit Expansion',
+    description: 'Heavy hydrocracker reactor erection, alloy steel high pressure piping, and field DCS instrumentation',
+    timezone: 'Asia/Kolkata',
+    currency: 'INR',
+  }
+];
 
 const initialActivities: ActivityWithState[] = [
   {
     activity: {
       id: 'd0000000-0000-0000-0000-000000000001',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
       wbs_id: 'c0000000-0000-0000-0000-000000000003',
       code: 'PIP-2400',
@@ -49,7 +90,7 @@ const initialActivities: ActivityWithState[] = [
     },
     state: {
       activity_id: 'd0000000-0000-0000-0000-000000000001',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       execution_status: 'IN_PROGRESS',
       actual_start_date: '2026-08-10',
       actual_finish_date: undefined,
@@ -63,7 +104,7 @@ const initialActivities: ActivityWithState[] = [
   {
     activity: {
       id: 'd0000000-0000-0000-0000-000000000002',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
       wbs_id: 'c0000000-0000-0000-0000-000000000003',
       code: 'PIP-2401',
@@ -83,7 +124,7 @@ const initialActivities: ActivityWithState[] = [
     },
     state: {
       activity_id: 'd0000000-0000-0000-0000-000000000002',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       execution_status: 'NOT_STARTED',
       actual_start_date: undefined,
       actual_finish_date: undefined,
@@ -97,7 +138,7 @@ const initialActivities: ActivityWithState[] = [
   {
     activity: {
       id: 'd0000000-0000-0000-0000-000000000003',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
       wbs_id: 'c0000000-0000-0000-0000-000000000003',
       code: 'PIP-2402',
@@ -117,7 +158,7 @@ const initialActivities: ActivityWithState[] = [
     },
     state: {
       activity_id: 'd0000000-0000-0000-0000-000000000003',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       execution_status: 'NOT_STARTED',
       current_progress_pct: 0,
       cumulative_quantity: 0,
@@ -129,7 +170,7 @@ const initialActivities: ActivityWithState[] = [
   {
     activity: {
       id: 'd0000000-0000-0000-0000-000000000004',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
       wbs_id: 'c0000000-0000-0000-0000-000000000004',
       code: 'CIV-1100',
@@ -149,7 +190,7 @@ const initialActivities: ActivityWithState[] = [
     },
     state: {
       activity_id: 'd0000000-0000-0000-0000-000000000004',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       execution_status: 'COMPLETED',
       actual_start_date: '2026-08-15',
       actual_finish_date: '2026-08-24',
@@ -163,31 +204,65 @@ const initialActivities: ActivityWithState[] = [
   {
     activity: {
       id: 'd0000000-0000-0000-0000-000000000005',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
-      wbs_id: 'c0000000-0000-0000-0000-000000000002',
+      wbs_id: 'c0000000-0000-0000-0000-000000000004',
       code: 'CIV-1101',
-      name: 'Concrete Pour - Column Footings Area 100',
-      description: 'M35 grade ready-mix concrete pouring for heavy column footings C1-C12',
+      name: 'Concrete Pouring (M35 Grade) - Compressor Foundation C-101',
+      description: 'Mass concrete pouring of 120 cum M35 grade concrete with temperature monitoring',
       discipline: 'CIVIL',
       planned_start_date: '2026-08-25',
-      planned_finish_date: '2026-08-29',
-      planned_duration_days: 5,
-      planned_quantity: 180,
-      unit_of_measure: 'Cu.M',
-      location: 'CDU Area 100',
+      planned_finish_date: '2026-08-27',
+      planned_duration_days: 3,
+      planned_quantity: 120,
+      unit_of_measure: 'Cum',
+      location: 'Compressor House',
       zone: 'Zone 1',
-      equipment_tag: 'COL-FTG-100',
-      weightage: 1.4,
+      equipment_tag: 'FND-C-101',
+      weightage: 2.2,
       critical_path: false,
     },
     state: {
       activity_id: 'd0000000-0000-0000-0000-000000000005',
-      project_id: PROJECT_ID,
+      project_id: 'a0000000-0000-0000-0000-000000000001',
       execution_status: 'IN_PROGRESS',
       actual_start_date: '2026-08-25',
-      current_progress_pct: 60,
-      cumulative_quantity: 108,
+      actual_finish_date: undefined,
+      current_progress_pct: 50,
+      cumulative_quantity: 60,
+      is_critical_path_delayed: false,
+      variance_days: 0,
+      updated_at: new Date().toISOString(),
+    }
+  },
+  {
+    activity: {
+      id: 'd0000000-0000-0000-0000-000000000006',
+      project_id: 'a0000000-0000-0000-0000-000000000001',
+      schedule_version_id: 'b0000000-0000-0000-0000-000000000001',
+      wbs_id: 'c0000000-0000-0000-0000-000000000005',
+      code: 'ELE-3100',
+      name: 'Cable Tray Installation - Substation 4 to Pipe Rack B',
+      discipline: 'ELECTRICAL',
+      planned_start_date: '2026-08-20',
+      planned_finish_date: '2026-09-02',
+      planned_duration_days: 14,
+      planned_quantity: 800,
+      unit_of_measure: 'Rmt',
+      location: 'Substation 4',
+      zone: 'Zone 3',
+      equipment_tag: 'TRAY-SS4-RB',
+      weightage: 1.0,
+      critical_path: false,
+    },
+    state: {
+      activity_id: 'd0000000-0000-0000-0000-000000000006',
+      project_id: 'a0000000-0000-0000-0000-000000000001',
+      execution_status: 'IN_PROGRESS',
+      actual_start_date: '2026-08-20',
+      actual_finish_date: undefined,
+      current_progress_pct: 35,
+      cumulative_quantity: 280,
       is_critical_path_delayed: false,
       variance_days: 0,
       updated_at: new Date().toISOString(),
@@ -195,51 +270,77 @@ const initialActivities: ActivityWithState[] = [
   }
 ];
 
-const initialObservations: WorkObservation[] = [
-  {
-    id: 'obs-init-01',
-    project_id: PROJECT_ID,
-    raw_text: 'Hydrostatic testing completed along Pipe Rack B headers yesterday afternoon.',
-    normalized_text: 'Hydrostatic Testing completed along Pipe Rack B headers',
-    discipline: 'PIPING',
-    recorded_at: new Date().toISOString(),
-    event_type: 'FINISH',
-    reported_progress: 100,
-  }
-];
-
 function safeReadStorage<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
-
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = localStorage.getItem(key);
     if (!raw) return fallback;
-    return (JSON.parse(raw) as T) ?? fallback;
+    return JSON.parse(raw) as T;
   } catch {
     return fallback;
   }
 }
 
-function App() {
+export function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
-  const [currentRole, setCurrentRole] = useState<string>('Lead Planner');
-
-  const [activities, setActivities] = useState<ActivityWithState[]>(() =>
-    safeReadStorage<ActivityWithState[]>(`${STORAGE_KEY}:activities`, initialActivities)
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isJwtModalOpen, setIsJwtModalOpen] = useState(false);
+  const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
+  
+  // User Authentication & Role State
+  const [user, setUser] = useState<AuthUser | null>(() => 
+    safeReadStorage<AuthUser | null>(`${STORAGE_KEY}:user`, {
+      id: 'usr-planner-001',
+      email: 'planner@nexora.ai',
+      full_name: 'Vikram Singh (Lead Planner)',
+      role: 'PLANNER',
+    })
   );
+  const [jwtToken, setJwtToken] = useState<string | null>(() =>
+    safeReadStorage<string | null>(`${STORAGE_KEY}:jwt`, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpdHhnc2hyanB5dmN6aWR6dnRvIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJzdWIiOiJ1c3ItcGxhbm5lci0wMDEiLCJlbWFpbCI6InBsYW5uZXJAbmV4b3JhLmFpIiwiZXhwIjoyMTAzNjU2NzY3LCJpYXQiOjE3ODgwODA3NjcsInVzZXJfbWV0YWRhdGEiOnsiZnVsbF9uYW1lIjoiVmlrcmFtIFNpbmdoIiwicm9sZSI6IlBMQU5ORVIifX0.mock_signature_valid')
+  );
+  const [currentRole, setCurrentRole] = useState<UserRole>('PLANNER');
+
+  // Multi-Project State
+  const [projectsList, setProjectsList] = useState<Project[]>(() =>
+    safeReadStorage<Project[]>(`${STORAGE_KEY}:projects`, DEFAULT_PROJECTS)
+  );
+  const [activeProject, setActiveProject] = useState<Project>(() =>
+    safeReadStorage<Project>(`${STORAGE_KEY}:activeProject`, DEFAULT_PROJECTS[0])
+  );
+
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
+
+  // Entities state
+  const [activities, setActivities] = useState<ActivityWithState[]>(() =>
+    safeReadStorage<ActivityWithState[]>(`${STORAGE_KEY}:${activeProject.id}:activities`, initialActivities)
+  );
+
   const [observations, setObservations] = useState<WorkObservation[]>(() =>
-    safeReadStorage<WorkObservation[]>(`${STORAGE_KEY}:observations`, initialObservations)
+    safeReadStorage<WorkObservation[]>(`${STORAGE_KEY}:${activeProject.id}:observations`, [
+      {
+        id: 'obs-001',
+        project_id: activeProject.id,
+        raw_text: 'Spool erection on Pipe Rack B Tier 2 completed with alignment check and bolt torque tightening done.',
+        normalized_text: 'Spool Erection on Pipe Rack B Tier 2 completed',
+        discipline: 'PIPING',
+        location: 'Pipe Rack B',
+        zone: 'Zone 2',
+        equipment_tag: 'RACK-B-CS',
+        recorded_at: '2026-08-25T11:30:00Z',
+        event_type: 'PROGRESS',
+        reported_progress: 80,
+      }
+    ])
   );
 
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>(() =>
-    safeReadStorage<ReviewQueueItem[]>(`${STORAGE_KEY}:reviewQueue`, [
+    safeReadStorage<ReviewQueueItem[]>(`${STORAGE_KEY}:${activeProject.id}:reviewQueue`, [
       {
         proposal: {
           id: '20000000-0000-0000-0000-000000000005',
-          project_id: PROJECT_ID,
+          project_id: activeProject.id,
           observation_id: '10000000-0000-0000-0000-000000000005',
           activity_id: 'd0000000-0000-0000-0000-000000000002',
           candidate_rank: 1,
@@ -255,7 +356,7 @@ function App() {
         },
         observation: {
           id: '10000000-0000-0000-0000-000000000005',
-          project_id: PROJECT_ID,
+          project_id: activeProject.id,
           raw_text: 'Hydrostatic testing completed along Pipe Rack B headers yesterday afternoon.',
           normalized_text: 'Hydrostatic Testing completed along Pipe Rack B headers',
           discipline: 'PIPING',
@@ -268,237 +369,262 @@ function App() {
   );
 
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() =>
-    safeReadStorage<AuditEvent[]>(`${STORAGE_KEY}:auditEvents`, [
+    safeReadStorage<AuditEvent[]>(`${STORAGE_KEY}:${activeProject.id}:auditEvents`, [
       {
         id: 'audit-001',
-        project_id: PROJECT_ID,
+        project_id: activeProject.id,
         entity_type: 'ACTIVITY',
         entity_id: 'd0000000-0000-0000-0000-000000000004',
         action: 'APPROVE_ACTUAL_PROGRESS',
-        actor_id: '00000000-0000-0000-0000-000000000001',
+        actor_id: user?.id || '00000000-0000-0000-0000-000000000001',
         actor_role: 'LEAD_PLANNER',
         before_state: { progress_pct: 0, status: 'NOT_STARTED' },
         after_state: { progress_pct: 100, status: 'COMPLETED' },
         payload_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
         created_at: '2026-08-28T14:30:00Z',
-      },
-      {
-        id: 'audit-002',
-        project_id: PROJECT_ID,
-        entity_type: 'WORK_OBSERVATION',
-        entity_id: 'obs-init-01',
-        action: 'AUTO_LINK_OBSERVATION',
-        actor_id: 'SYSTEM',
-        actor_role: 'RUST_TRUST_PLANE',
-        before_state: { status: 'RECEIVED' },
-        after_state: { status: 'MATCHED', confidence: 0.94 },
-        payload_hash: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
-        previous_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-        created_at: '2026-08-29T09:15:00Z',
       }
     ])
   );
 
-  // Load from live APIs / Supabase DB
-  const loadData = useCallback(async () => {
+  // Load live data for the active project
+  const loadData = useCallback(async (projectId?: string) => {
+    const targetId = projectId || activeProject.id;
     try {
-      // 1. Check Supabase
+      // 1. Check Supabase connection
       const { error } = await supabase.auth.getSession();
       setSupabaseConnected(!error);
 
-      // 2. Fetch live data from backend or Supabase
-      const [liveActivities, liveQueue, liveObs, liveAudit] = await Promise.all([
-        api.getActivities(PROJECT_ID),
-        api.getReviewQueue(PROJECT_ID),
-        api.getObservations(PROJECT_ID),
-        api.getAuditTrail(PROJECT_ID),
+      // 2. Fetch Projects from DB if available
+      const dbProjects = await fetchProjects();
+      if (dbProjects && dbProjects.length > 0) {
+        setProjectsList(() => {
+          const combined = [...dbProjects];
+          DEFAULT_PROJECTS.forEach(dp => {
+            if (!combined.some(p => p.id === dp.id || p.code === dp.code)) {
+              combined.push(dp);
+            }
+          });
+          return combined;
+        });
+      }
+
+      // 3. Fetch Data for Active Project
+      const [liveActs, liveObs, liveProposals, liveAudits] = await Promise.all([
+        fetchProjectActivities(targetId),
+        fetchProjectObservations(targetId),
+        fetchProjectProposals(targetId),
+        fetchProjectAuditEvents(targetId),
       ]);
 
-      if (liveActivities && liveActivities.length > 0) {
-        setActivities(liveActivities);
-      }
-      if (liveQueue && liveQueue.length > 0) {
-        setReviewQueue(liveQueue);
+      if (liveActs && liveActs.length > 0) {
+        setActivities(liveActs);
       }
       if (liveObs && liveObs.length > 0) {
         setObservations(liveObs);
       }
-      if (liveAudit && liveAudit.length > 0) {
-        setAuditEvents(liveAudit);
+      if (liveProposals && liveProposals.length > 0) {
+        const queueItems: ReviewQueueItem[] = liveProposals.map(p => ({
+          proposal: p,
+          observation: liveObs?.find(o => o.id === p.observation_id),
+          activity: liveActs?.find(a => a.activity.id === p.activity_id)?.activity,
+        }));
+        setReviewQueue(queueItems);
+      }
+      if (liveAudits && liveAudits.length > 0) {
+        setAuditEvents(liveAudits);
       }
     } catch (err) {
       console.warn('[NEXORA] Live fetch error, using local fallback:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [activeProject.id]);
 
+  // Initial mount & project change effect
   useEffect(() => {
     let isMounted = true;
     const fetchInitialData = async () => {
       if (isMounted) {
-        await loadData();
+        await loadData(activeProject.id);
       }
     };
     void fetchInitialData();
 
     // Subscribe to live Postgres change events
-    const unsubscribe = subscribeToProjectRealtime(PROJECT_ID, {
-      onObservationChange: () => {
-        void loadData();
-      },
-      onProposalChange: () => {
-        void loadData();
-      },
-      onStateChange: () => {
-        void loadData();
-      },
-      onAuditChange: () => {
-        void loadData();
-      },
+    const unsubscribe = subscribeToProjectRealtime(activeProject.id, {
+      onObservationChange: () => void loadData(activeProject.id),
+      onProposalChange: () => void loadData(activeProject.id),
+      onStateChange: () => void loadData(activeProject.id),
+      onAuditChange: () => void loadData(activeProject.id),
     });
 
     return () => {
       isMounted = false;
       unsubscribe();
     };
-  }, [loadData]);
+  }, [activeProject.id, loadData]);
 
+  // Sync state to local storage
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(`${STORAGE_KEY}:activities`, JSON.stringify(activities));
-    window.localStorage.setItem(`${STORAGE_KEY}:observations`, JSON.stringify(observations));
-    window.localStorage.setItem(`${STORAGE_KEY}:reviewQueue`, JSON.stringify(reviewQueue));
-    window.localStorage.setItem(`${STORAGE_KEY}:auditEvents`, JSON.stringify(auditEvents));
-  }, [activities, observations, reviewQueue, auditEvents]);
+    localStorage.setItem(`${STORAGE_KEY}:user`, JSON.stringify(user));
+    localStorage.setItem(`${STORAGE_KEY}:jwt`, JSON.stringify(jwtToken));
+    localStorage.setItem(`${STORAGE_KEY}:activeProject`, JSON.stringify(activeProject));
+    localStorage.setItem(`${STORAGE_KEY}:projects`, JSON.stringify(projectsList));
+    localStorage.setItem(`${STORAGE_KEY}:${activeProject.id}:activities`, JSON.stringify(activities));
+    localStorage.setItem(`${STORAGE_KEY}:${activeProject.id}:observations`, JSON.stringify(observations));
+    localStorage.setItem(`${STORAGE_KEY}:${activeProject.id}:reviewQueue`, JSON.stringify(reviewQueue));
+    localStorage.setItem(`${STORAGE_KEY}:${activeProject.id}:auditEvents`, JSON.stringify(auditEvents));
+  }, [user, jwtToken, activeProject, projectsList, activities, observations, reviewQueue, auditEvents]);
 
-  // Calculate live KPIs
-  const kpis: DashboardKPIs = {
-    total_observations: observations.length,
-    extracted_events: observations.length + 8,
-    auto_linked_events: 8,
-    review_queue_count: reviewQueue.length,
-    unmatched_count: 0,
-    completed_activities: activities.filter(a => a.state?.execution_status === 'COMPLETED').length,
-    in_progress_activities: activities.filter(a => a.state?.execution_status === 'IN_PROGRESS').length,
-    overall_progress_pct: Math.round(
-      activities.reduce((acc, a) => acc + (a.state?.current_progress_pct || 0), 0) / (activities.length || 1)
-    ),
+  // Handle Project Selection
+  const handleSelectProject = (project: Project) => {
+    setActiveProject(project);
+    setIsLoading(true);
   };
 
-  // Add observations handler
-  const handleAddObservations = useCallback(async (newObs: WorkObservation[], rawText: string) => {
+  // Handle Project Created
+  const handleProjectCreated = (newProject: Project) => {
+    setProjectsList(prev => [newProject, ...prev]);
+    setActiveProject(newProject);
+    setIsLoading(true);
+  };
+
+  // Handle Auth Success
+  const handleAuthSuccess = (authUser: AuthUser, token?: string) => {
+    setUser(authUser);
+    if (token) setJwtToken(token);
+    setCurrentRole(authUser.role);
+  };
+
+  // Handle Logout
+  const handleLogout = async () => {
+    await signOut();
+    setUser(null);
+    setJwtToken(null);
+  };
+
+  // KPI Calculations
+  const completedCount = activities.filter(a => a.state?.execution_status === 'COMPLETED').length;
+  const inProgressCount = activities.filter(a => a.state?.execution_status === 'IN_PROGRESS').length;
+  const totalWeight = activities.reduce((acc, a) => acc + (a.activity.weightage || 1), 0);
+  const weightedProgress = activities.reduce((acc, a) => {
+    const progress = a.state?.current_progress_pct || 0;
+    const weight = a.activity.weightage || 1;
+    return acc + (progress * weight);
+  }, 0);
+  const overallProgressPct = totalWeight > 0 ? Math.round(weightedProgress / totalWeight) : 0;
+
+  const kpis: DashboardKPIs = {
+    total_observations: observations.length,
+    extracted_events: observations.length,
+    auto_linked_events: activities.filter(a => (a.state?.current_progress_pct || 0) > 0).length,
+    review_queue_count: reviewQueue.length,
+    unmatched_count: 0,
+    completed_activities: completedCount,
+    in_progress_activities: inProgressCount,
+    overall_progress_pct: overallProgressPct,
+  };
+
+  // Add observation handler
+  const handleAddObservations = useCallback((newObs: WorkObservation[], rawText: string) => {
     setObservations(prev => [newObs[0], ...prev]);
 
-    // Check if it should go to review queue or auto-link
-    if (rawText.toLowerCase().includes('headers') || rawText.includes('Pipe Rack B')) {
-      const dynamicProposalId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '20000000-0000-0000-0000-000000000005';
-      const newProposal: ReviewQueueItem = {
-        proposal: {
-          id: dynamicProposalId,
-          project_id: PROJECT_ID,
-          observation_id: newObs[0].id,
-          activity_id: activities[1].activity.id,
-          candidate_rank: 1,
-          lexical_score: 0.75,
-          semantic_score: 0.79,
-          context_boost: 0.15,
-          confidence_score: 0.78,
-          match_tier: 'MEDIUM',
-          explanation: 'Requires planner signoff on Pipe Rack B header test package.',
-          evidence_snippet: rawText,
-          status: 'PENDING_REVIEW',
-          created_at: new Date().toISOString(),
-        },
-        observation: newObs[0],
-        activity: activities[1].activity,
-      };
-      setReviewQueue(prev => [newProposal, ...prev]);
-    } else if (rawText.includes('P-101')) {
-      // Auto-linked!
+    // Fast-path auto matching
+    const matchingAct = activities.find(a => 
+      rawText.toLowerCase().includes(a.activity.code.toLowerCase()) || 
+      (a.activity.equipment_tag && rawText.includes(a.activity.equipment_tag))
+    );
+
+    if (matchingAct) {
+      const nowStr = new Date().toISOString();
+      const newProgress = Math.min(100, (matchingAct.state?.current_progress_pct || 0) + (newObs[0].reported_progress || 100));
+      const newStatus = newProgress >= 100 ? 'COMPLETED' : 'IN_PROGRESS';
+
       setActivities(prev => prev.map(a => {
-        if (a.activity.code === 'PIP-2401') {
+        if (a.activity.id === matchingAct.activity.id) {
           return {
             ...a,
             state: {
               ...a.state!,
-              execution_status: 'COMPLETED',
-              actual_start_date: '2026-08-26',
-              actual_finish_date: '2026-08-28',
-              current_progress_pct: 100,
-              cumulative_quantity: 1,
-              updated_at: new Date().toISOString(),
+              execution_status: newStatus,
+              actual_start_date: a.state?.actual_start_date || nowStr.slice(0, 10),
+              actual_finish_date: newStatus === 'COMPLETED' ? nowStr.slice(0, 10) : undefined,
+              current_progress_pct: newProgress,
+              updated_at: nowStr,
             }
           };
         }
         return a;
       }));
 
-      // Add audit event with UUIDv7 and SHA-256 chained hash
-      const nowStr = new Date().toISOString();
-      const prevAudit = auditEvents[0];
-      const prevHash = prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
-      
-      generateAuditPayloadHash(
-        'ACTIVITY',
-        'd0000000-0000-0000-0000-000000000002',
-        'AUTO_COMMIT_PROGRESS',
-        'SYSTEM',
-        { progress_pct: 0, status: 'NOT_STARTED' },
-        { progress_pct: 100, status: 'COMPLETED' },
-        nowStr,
-        prevHash
-      ).then(hash => {
-        const newAudit: AuditEvent = {
+      // Record Audit
+      const audit: AuditEvent = {
+        id: generateUUIDv7(),
+        project_id: activeProject.id,
+        entity_type: 'ACTIVITY',
+        entity_id: matchingAct.activity.id,
+        action: 'AUTO_LINK_OBSERVATION',
+        actor_id: user?.id || 'SYSTEM',
+        actor_role: 'RUST_TRUST_PLANE',
+        before_state: { progress_pct: matchingAct.state?.current_progress_pct, status: matchingAct.state?.execution_status },
+        after_state: { progress_pct: newProgress, status: newStatus },
+        payload_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+        created_at: nowStr,
+      };
+      setAuditEvents(prev => [audit, ...prev]);
+    } else {
+      // Add to Review Queue
+      const newProposal: ReviewQueueItem = {
+        proposal: {
           id: generateUUIDv7(),
-          project_id: PROJECT_ID,
-          entity_type: 'ACTIVITY',
-          entity_id: 'd0000000-0000-0000-0000-000000000002',
-          action: 'AUTO_COMMIT_PROGRESS',
-          actor_id: 'SYSTEM',
-          actor_role: 'RUST_TRUST_PLANE',
-          before_state: { progress_pct: 0, status: 'NOT_STARTED' },
-          after_state: { progress_pct: 100, status: 'COMPLETED' },
-          payload_hash: hash,
-          previous_hash: prevHash,
-          created_at: nowStr,
-        };
-        setAuditEvents(prev => [newAudit, ...prev]);
-      });
+          project_id: activeProject.id,
+          observation_id: newObs[0].id,
+          activity_id: activities[0]?.activity.id || 'd0000000-0000-0000-0000-000000000001',
+          candidate_rank: 1,
+          lexical_score: 0.65,
+          semantic_score: 0.72,
+          context_boost: 0.10,
+          confidence_score: 0.74,
+          match_tier: 'MEDIUM',
+          explanation: 'Extracted fact matches WBS keywords. Needs Lead Planner review.',
+          evidence_snippet: rawText.slice(0, 80),
+          status: 'PENDING_REVIEW',
+          created_at: new Date().toISOString(),
+        },
+        observation: newObs[0],
+        activity: activities[0]?.activity,
+      };
+      setReviewQueue(prev => [newProposal, ...prev]);
     }
-  }, [activities, auditEvents]);
+  }, [activities, activeProject.id, user?.id]);
 
   // Approve proposal handler
-  const handleApproveProposal = useCallback(async (proposalId: string, selectedActivityId?: string, comment?: string) => {
-    // 1. Send to API
-    api.approveProposal(proposalId, { selected_activity_id: selectedActivityId, comments: comment });
-
-    // 2. Optimistic UI update
+  const handleApproveProposal = useCallback(async (proposalId: string, comment?: string) => {
     const item = reviewQueue.find(q => q.proposal.id === proposalId);
-    if (!item) return;
+    const targetActivityId = item?.activity?.id || item?.proposal.activity_id;
 
-    const targetActivityId = selectedActivityId || item.activity?.id || item.proposal.activity_id;
-
-    setActivities(prev => prev.map(a => {
-      if (a.activity.id === targetActivityId) {
-        return {
-          ...a,
-          state: {
-            ...a.state!,
-            execution_status: 'COMPLETED',
-            actual_start_date: a.state?.actual_start_date || '2026-08-26',
-            actual_finish_date: '2026-08-28',
-            current_progress_pct: 100,
-            updated_at: new Date().toISOString(),
-          }
-        };
-      }
-      return a;
-    }));
+    if (targetActivityId) {
+      setActivities(prev => prev.map(a => {
+        if (a.activity.id === targetActivityId) {
+          return {
+            ...a,
+            state: {
+              ...a.state!,
+              execution_status: 'COMPLETED',
+              actual_start_date: a.state?.actual_start_date || new Date().toISOString().slice(0, 10),
+              actual_finish_date: new Date().toISOString().slice(0, 10),
+              current_progress_pct: 100,
+              updated_at: new Date().toISOString(),
+            }
+          };
+        }
+        return a;
+      }));
+    }
 
     setReviewQueue(prev => prev.filter(q => q.proposal.id !== proposalId));
 
-    // Record Audit with UUIDv7 and SHA-256 chained hash
+    // Record Audit
     const nowStr = new Date().toISOString();
     const prevAudit = auditEvents[0];
     const prevHash = prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
@@ -509,7 +635,7 @@ function App() {
       'MATCH_PROPOSAL',
       proposalId,
       'APPROVE_PROPOSAL',
-      '00000000-0000-0000-0000-000000000001',
+      user?.id || '00000000-0000-0000-0000-000000000001',
       beforeState,
       afterState,
       nowStr,
@@ -518,12 +644,12 @@ function App() {
 
     const audit: AuditEvent = {
       id: generateUUIDv7(),
-      project_id: PROJECT_ID,
+      project_id: activeProject.id,
       entity_type: 'MATCH_PROPOSAL',
       entity_id: proposalId,
       action: 'APPROVE_PROPOSAL',
-      actor_id: '00000000-0000-0000-0000-000000000001',
-      actor_role: 'LEAD_PLANNER',
+      actor_id: user?.id || '00000000-0000-0000-0000-000000000001',
+      actor_role: user?.role || 'LEAD_PLANNER',
       before_state: beforeState,
       after_state: afterState,
       payload_hash: hash,
@@ -531,12 +657,10 @@ function App() {
       created_at: nowStr,
     };
     setAuditEvents(prev => [audit, ...prev]);
-  }, [reviewQueue, auditEvents]);
+  }, [reviewQueue, auditEvents, activeProject.id, user]);
 
   // Reject proposal handler
   const handleRejectProposal = useCallback(async (proposalId: string, reason?: string) => {
-    api.rejectProposal(proposalId, { reason: reason || 'Rejected by Lead Planner' });
-
     setReviewQueue(prev => prev.filter(q => q.proposal.id !== proposalId));
 
     const nowStr = new Date().toISOString();
@@ -549,7 +673,7 @@ function App() {
       'MATCH_PROPOSAL',
       proposalId,
       'REJECT_PROPOSAL',
-      '00000000-0000-0000-0000-000000000001',
+      user?.id || '00000000-0000-0000-0000-000000000001',
       beforeState,
       afterState,
       nowStr,
@@ -558,12 +682,12 @@ function App() {
 
     const audit: AuditEvent = {
       id: generateUUIDv7(),
-      project_id: PROJECT_ID,
+      project_id: activeProject.id,
       entity_type: 'MATCH_PROPOSAL',
       entity_id: proposalId,
       action: 'REJECT_PROPOSAL',
-      actor_id: '00000000-0000-0000-0000-000000000001',
-      actor_role: 'LEAD_PLANNER',
+      actor_id: user?.id || '00000000-0000-0000-0000-000000000001',
+      actor_role: user?.role || 'LEAD_PLANNER',
       before_state: beforeState,
       after_state: afterState,
       payload_hash: hash,
@@ -571,12 +695,10 @@ function App() {
       created_at: nowStr,
     };
     setAuditEvents(prev => [audit, ...prev]);
-  }, [auditEvents]);
+  }, [auditEvents, activeProject.id, user]);
 
   // Override proposal handler
   const handleOverrideProposal = useCallback(async (proposalId: string, newActivityId: string, comment?: string) => {
-    api.overrideProposal(proposalId, { new_activity_id: newActivityId, reason: comment || 'Planner override' });
-
     setActivities(prev => prev.map(a => {
       if (a.activity.id === newActivityId) {
         return {
@@ -605,7 +727,7 @@ function App() {
       'MATCH_PROPOSAL',
       proposalId,
       'OVERRIDE_MATCH_TARGET',
-      '00000000-0000-0000-0000-000000000001',
+      user?.id || '00000000-0000-0000-0000-000000000001',
       beforeState,
       afterState,
       nowStr,
@@ -614,12 +736,12 @@ function App() {
 
     const audit: AuditEvent = {
       id: generateUUIDv7(),
-      project_id: PROJECT_ID,
+      project_id: activeProject.id,
       entity_type: 'MATCH_PROPOSAL',
       entity_id: proposalId,
       action: 'OVERRIDE_MATCH_TARGET',
-      actor_id: '00000000-0000-0000-0000-000000000001',
-      actor_role: 'LEAD_PLANNER',
+      actor_id: user?.id || '00000000-0000-0000-0000-000000000001',
+      actor_role: user?.role || 'LEAD_PLANNER',
       before_state: beforeState,
       after_state: afterState,
       payload_hash: hash,
@@ -627,7 +749,7 @@ function App() {
       created_at: nowStr,
     };
     setAuditEvents(prev => [audit, ...prev]);
-  }, [auditEvents]);
+  }, [auditEvents, activeProject.id, user]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex font-sans selection:bg-[#C38B4B]/20 selection:text-[#C38B4B]">
@@ -636,6 +758,11 @@ function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         pendingReviewCount={reviewQueue.length} 
+        activeProject={activeProject}
+        user={user}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenJwt={() => setIsJwtModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Operating Surface */}
@@ -643,7 +770,13 @@ function App() {
         {/* Top Header Bar */}
         <header className="h-14 border-b border-slate-200 bg-white px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center space-x-3 text-xs font-mono">
-            <span className="text-slate-400">PRD-HYD-PKG04</span>
+            {/* Global Project Switcher Dropdown */}
+            <ProjectSelector
+              projects={projectsList}
+              activeProject={activeProject}
+              onSelectProject={handleSelectProject}
+              onOpenCreateProject={() => setIsCreateProjectModalOpen(true)}
+            />
             <span className="text-slate-300">/</span>
             <span className="font-semibold text-slate-800 uppercase">
               {activeTab === 'dashboard' ? 'Command Centre' :
@@ -666,14 +799,14 @@ function App() {
               <span className="text-[11px] text-slate-500">Quick Commands</span>
             </button>
 
-            {/* Active Demo Role Indicator */}
+            {/* Active User Role Indicator / JWT Modal Trigger */}
             <div 
-              onClick={() => setIsCommandPaletteOpen(true)}
+              onClick={() => setIsJwtModalOpen(true)}
               className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200 cursor-pointer hover:bg-amber-100 transition"
-              title="Click to Switch Role"
+              title="Click to Inspect Cryptographic JWT Token"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-[#C38B4B]" />
-              <span className="text-[11px] font-bold">{currentRole}</span>
+              <span className="text-[11px] font-bold">{user?.role || currentRole}</span>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -719,6 +852,7 @@ function App() {
                 <ProjectGraph 
                   activities={activities} 
                   observations={observations}
+                  project={activeProject}
                 />
               )}
 
@@ -727,6 +861,7 @@ function App() {
                   observations={observations}
                   onAddObservations={handleAddObservations} 
                   onNavigateTab={setActiveTab} 
+                  projectId={activeProject.id}
                 />
               )}
 
@@ -756,7 +891,8 @@ function App() {
                 <ScheduleExport 
                   activities={activities} 
                   observations={observations}
-                  onRefreshData={loadData}
+                  onRefreshData={() => loadData(activeProject.id)}
+                  activeProject={activeProject}
                 />
               )}
 
@@ -781,8 +917,37 @@ function App() {
           onClose={() => setIsCommandPaletteOpen(false)}
           onNavigateTab={setActiveTab}
           activities={activities}
-          currentRole={currentRole}
-          onSelectRole={setCurrentRole}
+          currentRole={user?.role || currentRole}
+          onSelectRole={(r: string) => {
+            const role = r as UserRole;
+            setCurrentRole(role);
+            if (user) {
+              setUser({ ...user, role });
+            }
+          }}
+        />
+
+        {/* Auth Modal */}
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onAuthSuccess={handleAuthSuccess}
+        />
+
+        {/* JWT Inspector Modal */}
+        <JwtInspectorModal
+          isOpen={isJwtModalOpen}
+          onClose={() => setIsJwtModalOpen(false)}
+          token={jwtToken}
+          user={user}
+        />
+
+        {/* Create Project Modal Wizard */}
+        <CreateProjectModal
+          isOpen={isCreateProjectModalOpen}
+          onClose={() => setIsCreateProjectModalOpen(false)}
+          onProjectCreated={handleProjectCreated}
+          userId={user?.id}
         />
       </main>
     </div>

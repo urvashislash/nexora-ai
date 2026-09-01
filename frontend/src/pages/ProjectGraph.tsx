@@ -41,6 +41,7 @@ interface GraphLink {
 interface ProjectGraphProps {
   activities: ActivityWithState[];
   observations?: WorkObservation[];
+  project?: import('../types').Project;
 }
 
 // Pure deterministic pseudo-random generator for reproducible node layout
@@ -51,7 +52,8 @@ function deterministicRandom(seed: number): number {
 
 export const ProjectGraph: React.FC<ProjectGraphProps> = ({ 
   activities,
-  observations = []
+  observations = [],
+  project
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -84,8 +86,8 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
     // Root Project Hub Node
     nList.push({
       id: 'root-project',
-      label: 'PARADIP REFINERY',
-      sublabel: 'Package 04 Expansion',
+      label: project ? project.code : 'PARADIP REFINERY',
+      sublabel: project ? project.name : 'Package 04 Expansion',
       type: 'project',
       x: 0,
       y: 0,
@@ -221,7 +223,7 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
     }
 
     return { nodes: nList, links: lList };
-  }, [activities, observations, selectedDiscipline, criticalOnly, showEvidence]);
+  }, [activities, observations, selectedDiscipline, criticalOnly, showEvidence, project]);
 
   // Force-Directed Physics Simulation Step
   useEffect(() => {
