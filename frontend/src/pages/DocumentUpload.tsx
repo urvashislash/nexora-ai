@@ -23,6 +23,7 @@ import type { WorkObservation, Discipline, EventType } from '../types';
 import { uploadEvidenceFile } from '../lib/supabase';
 import { api } from '../lib/api';
 import { EvidenceDrawer } from '../components/EvidenceDrawer';
+import { PipelineInspectorDrawer } from '../components/PipelineInspectorDrawer';
 import { generateUUIDv7 } from '../lib/idGenerator';
 import { animateStaggerEntrance } from '../lib/animations';
 
@@ -47,6 +48,8 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   const [sourceType, setSourceType] = useState<'DAILY_REPORT' | 'DISCIPLINE_SPREADSHEET' | 'VOICE'>('DAILY_REPORT');
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(0);
+  const [selectedPipelineStep, setSelectedPipelineStep] = useState<number | null>(null);
+  const [showDemoScenarios, setShowDemoScenarios] = useState<boolean>(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedObsForDrawer, setSelectedObsForDrawer] = useState<WorkObservation | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -480,48 +483,56 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         </div>
       </div>
 
-      {/* 5 Mandatory SIH Demo Scenarios */}
-      <div className="glass-panel p-5">
-        <div className="flex items-center justify-between gap-2 mb-3">
+      {/* 5 Mandatory SIH Demo Scenarios (Collapsible Sandbox) */}
+      <div className="glass-panel p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-[#C38B4B]" />
             <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-900">
-              5 Mandatory SIH Demo Scenarios (One-Click Ingestion)
+              SIH Sandbox Scenarios (1-Click Demo Evaluation)
             </h2>
           </div>
-          <span className="text-[11px] font-mono text-slate-500">Click any card to auto-execute pipeline</span>
+          <button
+            onClick={() => setShowDemoScenarios(prev => !prev)}
+            className="text-xs font-mono text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
+          >
+            <span>{showDemoScenarios ? 'Hide Scenarios' : 'Show Scenarios'}</span>
+            {showDemoScenarios ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {demoPresets.map((preset) => (
-            <div 
-              key={preset.id}
-              onClick={() => {
-                setInputText(preset.text);
-                setDiscipline(preset.discipline);
-                setLocation(preset.location);
-                setEquipmentTag(preset.equipment || '');
-                setReportedProgress(preset.progress);
-                handleProcess(preset.text, preset);
-              }}
-              className="demo-preset-card p-3.5 rounded-lg border border-slate-200 bg-white hover:border-[#C38B4B] hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <span className="font-bold text-xs text-slate-900 group-hover:text-[#C38B4B] transition">{preset.title}</span>
-                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${preset.badgeColor}`}>
-                    {preset.badge}
-                  </span>
+        {showDemoScenarios && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {demoPresets.map((preset) => (
+              <div 
+                key={preset.id}
+                onClick={() => {
+                  setInputText(preset.text);
+                  setDiscipline(preset.discipline);
+                  setLocation(preset.location);
+                  setEquipmentTag(preset.equipment || '');
+                  setReportedProgress(preset.progress);
+                  handleProcess(preset.text, preset);
+                }}
+                className="demo-preset-card p-3.5 rounded-lg border border-slate-200 bg-white hover:border-[#C38B4B] hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="font-bold text-xs text-slate-900 group-hover:text-[#C38B4B] transition">{preset.title}</span>
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${preset.badgeColor}`}>
+                      {preset.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 line-clamp-2 italic">"{preset.text}"</p>
                 </div>
-                <p className="text-xs text-slate-600 line-clamp-2 italic">"{preset.text}"</p>
+                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                  <span className="truncate max-w-[200px]">{preset.desc}</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-[#C38B4B] shrink-0 ml-1 group-hover:translate-x-0.5 transition" />
+                </div>
               </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                <span className="truncate max-w-[200px]">{preset.desc}</span>
-                <ArrowRight className="h-3.5 w-3.5 text-[#C38B4B] shrink-0 ml-1 group-hover:translate-x-0.5 transition" />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main Intake Form & Live Execution Pipeline */}
@@ -906,11 +917,13 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 return (
                   <div 
                     key={s.step}
-                    className={`flex items-start space-x-3 rounded p-2.5 transition border ${
+                    onClick={() => setSelectedPipelineStep(s.step)}
+                    className={`flex items-start space-x-3 rounded p-2.5 transition border cursor-pointer hover:border-[#C38B4B] ${
                       isCurrent ? 'bg-blue-50 border-blue-200 shadow-xs' :
                       isPassed ? 'bg-emerald-50/50 border-emerald-200' :
-                      'bg-slate-50 border-slate-200 opacity-60'
+                      'bg-slate-50 border-slate-200 opacity-80'
                     }`}
+                    title="Click to inspect stage specifications and production code"
                   >
                     <div className="mt-0.5">
                       {isPassed ? (
@@ -923,8 +936,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                         </div>
                       )}
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">{s.title}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-900">{s.title}</span>
+                        <span className="text-[10px] font-mono text-[#C38B4B] font-semibold">Inspect &rarr;</span>
+                      </div>
                       <div className="text-[11px] text-slate-500 font-mono">{s.desc}</div>
                     </div>
                   </div>
@@ -1063,6 +1079,13 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         observation={selectedObsForDrawer}
         isOpen={Boolean(selectedObsForDrawer)}
         onClose={() => setSelectedObsForDrawer(null)}
+      />
+
+      {/* Interactive 5-Stage Pipeline Inspector Drawer */}
+      <PipelineInspectorDrawer
+        step={selectedPipelineStep}
+        isOpen={selectedPipelineStep !== null}
+        onClose={() => setSelectedPipelineStep(null)}
       />
 
     </div>

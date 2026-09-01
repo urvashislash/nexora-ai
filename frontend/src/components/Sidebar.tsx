@@ -1,17 +1,17 @@
 import React from 'react';
 import { 
   LayoutDashboard, 
+  Network, 
   UploadCloud, 
-  CheckCircle2, 
-  CalendarClock, 
-  Network,
-  ShieldCheck, 
-  FileDown,
-  ChevronRight,
-  ExternalLink,
+  CheckSquare, 
+  Calendar, 
+  FileText, 
+  Activity, 
+  Download,
   KeyRound,
   LogOut,
-  LogIn
+  User,
+  Building2
 } from 'lucide-react';
 import type { Project, AuthUser } from '../types';
 
@@ -37,155 +37,174 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout
 }) => {
   const navItems = [
-    { id: 'dashboard', label: 'Command Centre', icon: LayoutDashboard },
-    { id: 'graph', label: 'Obsidian Graph', icon: Network },
-    { id: 'upload', label: 'Evidence Inbox', icon: UploadCloud },
-    { 
-      id: 'review', 
-      label: 'Planner Review', 
-      icon: CheckCircle2,
-      badge: pendingReviewCount > 0 ? pendingReviewCount : undefined 
-    },
-    { id: 'schedule', label: 'Project Explorer', icon: CalendarClock },
-    { id: 'audit', label: 'Audit & Traceability', icon: ShieldCheck },
-    { id: 'export', label: 'System Health', icon: FileDown },
+    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard, category: 'OPERATIONS' },
+    { id: 'upload', label: 'Evidence', icon: UploadCloud, category: 'OPERATIONS' },
+    { id: 'review', label: 'Planner Review', icon: CheckSquare, count: pendingReviewCount, category: 'OPERATIONS' },
+    { id: 'schedule', label: 'Schedule', icon: Calendar, category: 'OPERATIONS' },
+    { id: 'graph', label: 'Dependencies', icon: Network, category: 'OPERATIONS' },
+    { id: 'audit', label: 'Audit Ledger', icon: FileText, category: 'OPERATIONS' },
+    { id: 'health', label: 'System Health', icon: Activity, category: 'SYSTEM' },
+    { id: 'export', label: 'Exports', icon: Download, category: 'SYSTEM' },
   ];
 
-  const userInitials = user?.full_name 
-    ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    : 'PL';
+  const operationsItems = navItems.filter(i => i.category === 'OPERATIONS');
+  const systemItems = navItems.filter(i => i.category === 'SYSTEM');
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 w-64 bg-slate-50 border-r border-slate-200 flex flex-col">
-      {/* Brand & Project Info */}
-      <div className="flex flex-col p-6 border-b border-slate-200">
-        <div className="flex items-center space-x-3 mb-4">
-          {/* N-shaped survey bracket logo */}
-          <div className="relative flex h-8 w-8 items-center justify-center shrink-0">
-            <div className="absolute left-1 top-1 bottom-1 w-1.5 bg-slate-800 rounded-sm" />
-            <div className="absolute right-1 top-1 bottom-1 w-1.5 bg-slate-800 rounded-sm" />
-            <div className="absolute inset-0 m-auto h-[2.5px] w-6 bg-[#C38B4B] rotate-[-45deg] origin-center z-10" />
-            <div className="absolute right-0 bottom-0 h-2 w-2 bg-[#C38B4B] rounded-sm z-20" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-lg font-bold tracking-tight text-slate-900">NEXORA</span>
-            </div>
+    <aside className="fixed left-0 top-0 h-screen w-64 border-r border-slate-200 bg-white flex flex-col justify-between z-40 select-none">
+      {/* Top Brand Header */}
+      <div>
+        <div className="flex h-14 items-center px-6 border-b border-slate-100">
+          <div className="flex items-center space-x-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-900 text-[11px] font-bold text-white shadow-xs">
+              N
+            </span>
+            <span className="font-bold tracking-tight text-slate-900 text-sm font-sans">
+              NEXORA <span className="text-[#C38B4B] text-xs font-mono font-semibold">AI</span>
+            </span>
           </div>
         </div>
-        <div className="bg-slate-200/50 p-2.5 rounded border border-slate-200">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold font-mono mb-1">Active Project</p>
-          <p className="text-xs text-slate-800 font-medium leading-tight truncate">
-            {activeProject ? activeProject.name : 'Paradip-Hyderabad Refinery Expansion'}
-          </p>
+
+        {/* Project Selector Eyebrow in Sidebar */}
+        <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/60">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block font-semibold">
+            Active Package
+          </span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <Building2 className="h-3 w-3 text-[#C38B4B] shrink-0" />
+            <span className="text-xs font-semibold text-slate-800 truncate" title={activeProject?.name}>
+              {activeProject?.code || 'PRD-HYD-PKG04'}
+            </span>
+          </div>
+        </div>
+
+        {/* Navigation Sections */}
+        <div className="px-3 py-4 space-y-6">
+          {/* Operations Group */}
+          <div>
+            <span className="px-3 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+              Operations
+            </span>
+            <nav className="space-y-0.5">
+              {operationsItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition cursor-pointer ${
+                      isActive
+                        ? 'bg-slate-900 text-white shadow-xs font-semibold'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      <Icon className={`h-4 w-4 ${isActive ? 'text-[#C38B4B]' : 'text-slate-400'}`} />
+                      <span>{item.label}</span>
+                    </div>
+                    {item.count !== undefined && item.count > 0 && (
+                      <span className={`rounded-full px-2 py-0.2 text-[10px] font-mono font-bold ${
+                        isActive ? 'bg-[#C38B4B] text-slate-950' : 'bg-amber-100 text-amber-900'
+                      }`}>
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* System Group */}
+          <div>
+            <span className="px-3 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+              System
+            </span>
+            <nav className="space-y-0.5">
+              {systemItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition cursor-pointer ${
+                      isActive
+                        ? 'bg-slate-900 text-white shadow-xs font-semibold'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      <Icon className={`h-4 w-4 ${isActive ? 'text-[#C38B4B]' : 'text-slate-400'}`} />
+                      <span>{item.label}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-        <div className="text-[10px] uppercase font-mono tracking-wider font-semibold text-slate-400 mb-3 px-2">
-          [ Operations ]
-        </div>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`group w-full flex items-center justify-between rounded-md px-3 py-2 text-sm transition-all duration-200 ${
-                isActive
-                  ? 'bg-white shadow-sm border border-slate-200 text-slate-900 font-medium'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-transparent'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Icon className={`h-4 w-4 ${isActive ? 'text-[#C38B4B]' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                <span>{item.label}</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                {item.badge !== undefined && (
-                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded bg-amber-100 px-1.5 text-[11px] font-mono font-bold text-amber-800 border border-amber-200">
-                    {item.badge}
-                  </span>
-                )}
-                {isActive && <ChevronRight className="h-4 w-4 text-slate-300" />}
-              </div>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* User & Trust Level Indicator */}
-      <div className="p-4 border-t border-slate-200 bg-white">
-        <div className="flex items-center space-x-2 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800 mb-3">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          <span className="font-semibold font-mono uppercase tracking-wider text-[10px]">Rust Trust Layer: Active</span>
+      {/* Bottom Area: Trust Status & User Persona */}
+      <div className="border-t border-slate-100 p-4 space-y-3 bg-slate-50/50">
+        <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
+          <div className="flex items-center space-x-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-slate-700 font-semibold">Trust Plane Online</span>
+          </div>
+          <span className="text-[10px] text-slate-400">PostgreSQL 15</span>
         </div>
 
-        {user ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 mb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="h-7 w-7 rounded bg-[#C38B4B]/15 border border-[#C38B4B]/30 flex items-center justify-center text-xs font-bold text-[#C38B4B] font-mono">
-                  {userInitials}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold text-slate-800 truncate max-w-[110px]">
-                    {user.full_name || user.email}
-                  </span>
-                  <span className="text-[9px] font-mono font-bold text-[#C38B4B]">
-                    {user.role}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1">
-                {onOpenJwt && (
-                  <button
-                    onClick={onOpenJwt}
-                    title="Inspect JWT Token"
-                    className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {onLogout && (
-                  <button
-                    onClick={onLogout}
-                    title="Sign Out"
-                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-200 transition"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
+        {/* User Identity Chip */}
+        <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200">
+          <div 
+            onClick={onOpenJwt} 
+            className="flex items-center space-x-2 truncate cursor-pointer hover:opacity-80 transition"
+            title="Inspect Cryptographic JWT Claims"
+          >
+            <div className="h-6 w-6 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0">
+              <User className="h-3.5 w-3.5 text-slate-600" />
+            </div>
+            <div className="truncate">
+              <span className="text-xs font-bold text-slate-900 block truncate">
+                {user?.full_name?.split(' (')[0] || 'Vikram Singh'}
+              </span>
+              <span className="text-[10px] font-mono text-slate-400 block">
+                {user?.role || 'LEAD_PLANNER'}
+              </span>
             </div>
           </div>
-        ) : (
-          <button
-            onClick={onOpenAuth}
-            className="w-full mb-3 flex items-center justify-center gap-2 rounded-md bg-[#C38B4B] py-2 text-xs font-mono font-bold text-slate-950 hover:bg-[#b07d42] transition shadow-xs"
-          >
-            <LogIn className="h-3.5 w-3.5" />
-            <span>Sign In / Auth</span>
-          </button>
-        )}
 
-        <a
-          href="https://github.com/urvashislash/nexora-ai"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-        >
-          <div className="flex items-center space-x-2">
-            <svg className="h-4 w-4 fill-slate-700" viewBox="0 0 24 24">
-              <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-            </svg>
-            <span className="font-mono text-[11px]">GitHub Repository</span>
+          <div className="flex items-center space-x-1">
+            {onOpenJwt && (
+              <button 
+                onClick={onOpenJwt}
+                className="p-1 text-slate-400 hover:text-[#C38B4B] transition"
+                title="Inspect RFC 7519 JWT"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {user ? (
+              <button 
+                onClick={onLogout}
+                className="p-1 text-slate-400 hover:text-rose-600 transition"
+                title="Sign Out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button 
+                onClick={onOpenAuth}
+                className="text-[11px] font-mono text-[#C38B4B] font-bold hover:underline"
+              >
+                Sign In
+              </button>
+            )}
           </div>
-          <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
-        </a>
+        </div>
       </div>
     </aside>
   );

@@ -1,17 +1,15 @@
-import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { 
-  Network, 
-  Search, 
-  Flame, 
+  Search,
   RotateCcw, 
   ZoomIn, 
-  ZoomOut,
-  Sliders,
-  FileText
+  ZoomOut
 } from 'lucide-react';
-import type { ActivityWithState, WorkObservation } from '../types';
-import { ActivityDrawer } from '../components/ActivityDrawer';
+import type { ActivityWithState, WorkObservation, AuditEvent } from '../types';
+import { Activity360Drawer } from '../components/Activity360Drawer';
 import { EvidenceDrawer } from '../components/EvidenceDrawer';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
 
 interface GraphNode {
   id: string;
@@ -41,10 +39,10 @@ interface GraphLink {
 interface ProjectGraphProps {
   activities: ActivityWithState[];
   observations?: WorkObservation[];
+  auditEvents?: AuditEvent[];
   project?: import('../types').Project;
 }
 
-// Pure deterministic pseudo-random generator for reproducible node layout
 function deterministicRandom(seed: number): number {
   const x = Math.sin(seed * 9999) * 10000;
   return x - Math.floor(x);
@@ -53,28 +51,23 @@ function deterministicRandom(seed: number): number {
 export const ProjectGraph: React.FC<ProjectGraphProps> = ({ 
   activities,
   observations = [],
+  auditEvents = [],
   project
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Filter & Control States
-  const [selectedDiscipline, setSelectedDiscipline] = useState<string>('ALL');
-  const [criticalOnly, setCriticalOnly] = useState<boolean>(false);
-  const [showEvidence, setShowEvidence] = useState<boolean>(true);
+  // Graph Modes
+  const [graphMode, setGraphMode] = useState<'dependencies' | 'critical_path' | 'evidence' | 'all'>('dependencies');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [showControls, setShowControls] = useState<boolean>(false);
-
-  // Physics params
-  const [repulsion, setRepulsion] = useState<number>(450);
-  const [linkDistance, setLinkDistance] = useState<number>(90);
-  const [transform, setTransform] = useState<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 0.85 });
+  const [transform, setTransform] = useState<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 0.9 });
   const isDraggingRef = useRef<boolean>(false);
   const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const draggedNodeRef = useRef<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // Selected drawers
+  // Selected Drawer entities
   const [selectedActivity, setSelectedActivity] = useState<ActivityWithState | null>(null);
   const [selectedObservation, setSelectedObservation] = useState<WorkObservation | null>(null);
 
@@ -83,46 +76,51 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
     const nList: GraphNode[] = [];
     const lList: GraphLink[] = [];
 
-    // Root Project Hub Node
+    // Root Hub Node
     nList.push({
       id: 'root-project',
-      label: project ? project.code : 'PARADIP REFINERY',
+      label: project ? project.code : 'PRD-HYD-PKG04',
       sublabel: project ? project.name : 'Package 04 Expansion',
       type: 'project',
       x: 0,
       y: 0,
       vx: 0,
       vy: 0,
-      radius: 22,
+      radius: 24,
       color: '#C38B4B',
     });
 
-    // 2. WBS Location Groups
-    const wbsGroups = new Map<string, string>();
-    activities.forEach(act => {
-      const loc = act.activity.location || act.activity.discipline;
-      if (!wbsGroups.has(loc)) {
-        const wbsId = `wbs-${loc.toLowerCase().replace(/\s+/g, '-')}`;
-        wbsGroups.set(loc, wbsId);
-      }
-    });
+    // Filter activities based on mode and discipline
+    let filteredActs = activities;
+    if (graphMode === 'critical_path') {
+      filteredActs = filteredActs.filter(a => a.activity.critical_path);
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filteredActs = filteredActs.filter(a => 
+        a.activity.code.toLowerCase().includes(q) || 
+        a.activity.name.toLowerCase().includes(q)
+      );
+    }
 
-    let wbsIdx = 0;
-    wbsGroups.forEach((wbsId, locName) => {
-      wbsIdx++;
+    // WBS Clusters
+    const disciplines = Array.from(new Set(filteredActs.map(a => a.activity.discipline)));
+    disciplines.forEach((disc, idx) => {
+      const angle = (idx / disciplines.length) * 2 * Math.PI;
+      const wbsId = `wbs-${disc}`;
       nList.push({
         id: wbsId,
-        label: locName,
+        label: `${disc} Scope`,
         type: 'wbs',
-        x: (deterministicRandom(wbsIdx * 17) - 0.5) * 200,
-        y: (deterministicRandom(wbsIdx * 31) - 0.5) * 200,
+        discipline: disc,
+        x: Math.cos(angle) * 180,
+        y: Math.sin(angle) * 180,
         vx: 0,
         vy: 0,
-        radius: 18,
+        radius: 16,
         color: '#475569',
       });
 
-      // Link WBS to Project Root
       lList.push({
         source: 'root-project',
         target: wbsId,
@@ -130,92 +128,85 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
       });
     });
 
-    // 3. Activity Nodes
-    activities.forEach((act, idx) => {
-      // Filter discipline
-      if (selectedDiscipline !== 'ALL' && act.activity.discipline !== selectedDiscipline) {
-        return;
-      }
-      if (criticalOnly && !act.activity.critical_path) {
-        return;
-      }
+    // Activity Nodes
+    filteredActs.forEach((item, actIdx) => {
+      const { activity, state } = item;
+      const progress = state?.current_progress_pct || 0;
+      const status = state?.execution_status || 'NOT_STARTED';
+      const isCritical = !!activity.critical_path;
 
-      const status = act.state?.execution_status || 'NOT_STARTED';
-      const progress = act.state?.current_progress_pct || 0;
-      let color = '#64748B'; // Not started slate
-      if (status === 'COMPLETED') color = '#10B981'; // Emerald
-      else if (status === 'IN_PROGRESS') color = '#06B6D4'; // Cyan
-      else if (status === 'DELAYED') color = '#F43F5E'; // Rose
-      if (act.activity.critical_path) color = '#F59E0B'; // Amber
+      // Color based on execution status
+      const statusColor = progress === 100 ? '#10B981' : progress > 0 ? '#3B82F6' : '#94A3B8';
 
-      const actNodeId = `act-${act.activity.id}`;
-      nList.push({
-        id: actNodeId,
-        label: act.activity.code,
-        sublabel: act.activity.name,
+      const randOffset1 = (deterministicRandom(actIdx * 7) - 0.5) * 60;
+      const randOffset2 = (deterministicRandom(actIdx * 11) - 0.5) * 60;
+
+      const actNode: GraphNode = {
+        id: activity.id,
+        label: activity.code,
+        sublabel: activity.name,
         type: 'activity',
-        status,
-        progress,
-        discipline: act.activity.discipline,
-        isCritical: act.activity.critical_path,
-        x: (deterministicRandom((idx + 1) * 43) - 0.5) * 500,
-        y: (deterministicRandom((idx + 1) * 67) - 0.5) * 500,
+        status: status,
+        progress: progress,
+        discipline: activity.discipline,
+        isCritical: isCritical,
+        x: (actIdx % 2 === 0 ? 260 : -260) + randOffset1,
+        y: (actIdx * 50 - 150) + randOffset2,
         vx: 0,
         vy: 0,
-        radius: act.activity.critical_path ? 14 : 12,
-        color,
-        rawItem: act,
+        radius: isCritical ? 15 : 12,
+        color: statusColor,
+        rawItem: item,
+      };
+      nList.push(actNode);
+
+      // Link to discipline WBS
+      lList.push({
+        source: `wbs-${activity.discipline}`,
+        target: activity.id,
+        type: 'hierarchy',
       });
-
-      // Link to its WBS node
-      const loc = act.activity.location || act.activity.discipline;
-      const wbsId = wbsGroups.get(loc);
-      if (wbsId) {
-        lList.push({
-          source: wbsId,
-          target: actNodeId,
-          type: 'hierarchy',
-        });
-      }
-
-      // Predecessor dependency link (e.g. sequence chaining)
-      if (idx > 0 && deterministicRandom(idx * 73) > 0.4) {
-        const prevAct = activities[idx - 1];
-        if (selectedDiscipline === 'ALL' || prevAct.activity.discipline === selectedDiscipline) {
-          lList.push({
-            source: `act-${prevAct.activity.id}`,
-            target: actNodeId,
-            type: 'dependency',
-            isCritical: act.activity.critical_path && prevAct.activity.critical_path,
-          });
-        }
-      }
     });
 
-    // 4. Evidence Nodes
-    if (showEvidence && observations.length > 0) {
-      observations.slice(0, 8).forEach((obs, oIdx) => {
-        const obsId = `obs-${obs.id}`;
-        const hasAudio = (obs.metadata as any)?.has_audio || (obs.metadata as any)?.source_type === 'VOICE';
-        nList.push({
-          id: obsId,
-          label: hasAudio ? 'VOICE MEMO' : 'DPR REPORT',
-          sublabel: obs.normalized_text?.slice(0, 30) || obs.raw_text.slice(0, 30),
-          type: 'evidence',
-          x: (deterministicRandom((oIdx + 1) * 89) - 0.5) * 400,
-          y: (deterministicRandom((oIdx + 1) * 101) - 0.5) * 400,
-          vx: 0,
-          vy: 0,
-          radius: 9,
-          color: hasAudio ? '#A855F7' : '#3B82F6', // Purple for audio, blue for doc
-          rawItem: obs,
+    // Sequential Predecessor Dependencies between Activities
+    for (let i = 0; i < filteredActs.length - 1; i++) {
+      if (filteredActs[i].activity.discipline === filteredActs[i + 1].activity.discipline) {
+        lList.push({
+          source: filteredActs[i].activity.id,
+          target: filteredActs[i + 1].activity.id,
+          type: 'dependency',
+          isCritical: filteredActs[i].activity.critical_path && filteredActs[i + 1].activity.critical_path,
         });
+      }
+    }
 
-        // Link evidence to activities
-        if (nList.some(n => n.id === 'act-d0000000-0000-0000-0000-000000000001')) {
+    // Evidence Observations
+    if (graphMode === 'evidence' || graphMode === 'all') {
+      observations.slice(0, 10).forEach((obs, obsIdx) => {
+        const matchingAct = filteredActs.find(a => 
+          obs.raw_text.toLowerCase().includes(a.activity.code.toLowerCase()) || 
+          (a.activity.equipment_tag && obs.equipment_tag === a.activity.equipment_tag)
+        );
+
+        if (matchingAct) {
+          const obsNode: GraphNode = {
+            id: obs.id,
+            label: `EVID-${obs.id.slice(0, 5)}`,
+            sublabel: obs.raw_text.slice(0, 30) + '...',
+            type: 'evidence',
+            x: matchingAct.activity.planned_duration_days * 10 + (obsIdx * 20),
+            y: (obsIdx * 30) - 80,
+            vx: 0,
+            vy: 0,
+            radius: 8,
+            color: '#8B5CF6',
+            rawItem: obs,
+          };
+          nList.push(obsNode);
+
           lList.push({
-            source: obsId,
-            target: 'act-d0000000-0000-0000-0000-000000000001',
+            source: matchingAct.activity.id,
+            target: obs.id,
             type: 'evidence',
           });
         }
@@ -223,9 +214,21 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
     }
 
     return { nodes: nList, links: lList };
-  }, [activities, observations, selectedDiscipline, criticalOnly, showEvidence, project]);
+  }, [activities, observations, graphMode, searchQuery, project]);
 
-  // Force-Directed Physics Simulation Step
+  // Connected Nodes Set for Focus Highlighting
+  const connectedNodeIds = useMemo(() => {
+    if (!selectedNodeId) return null;
+    const set = new Set<string>();
+    set.add(selectedNodeId);
+    links.forEach(l => {
+      if (l.source === selectedNodeId) set.add(l.target);
+      if (l.target === selectedNodeId) set.add(l.source);
+    });
+    return set;
+  }, [selectedNodeId, links]);
+
+  // Physics Simulation Step
   useEffect(() => {
     let animFrame: number;
     let particleOffset = 0;
@@ -233,217 +236,160 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
     const nodeMap = new Map<string, GraphNode>();
     nodes.forEach(n => nodeMap.set(n.id, n));
 
-    const stepSimulation = () => {
-      // 1. Repulsion between all node pairs
+    const simStep = () => {
+      // Repulsion force
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
-          const n1 = nodes[i];
-          const n2 = nodes[j];
-          const dx = n2.x - n1.x;
-          const dy = n2.y - n1.y;
+          const a = nodes[i];
+          const b = nodes[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
           const distSq = dx * dx + dy * dy || 1;
           const dist = Math.sqrt(distSq);
-
-          if (dist < 350) {
-            const force = (repulsion / distSq);
+          if (dist < 400) {
+            const force = (800 / distSq);
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
-            if (draggedNodeRef.current !== n1) {
-              n1.vx -= fx;
-              n1.vy -= fy;
-            }
-            if (draggedNodeRef.current !== n2) {
-              n2.vx += fx;
-              n2.vy += fy;
-            }
+            a.vx -= fx;
+            a.vy -= fy;
+            b.vx += fx;
+            b.vy += fy;
           }
         }
       }
 
-      // 2. Spring Attraction along links
-      links.forEach(link => {
-        const source = nodeMap.get(link.source);
-        const target = nodeMap.get(link.target);
-        if (!source || !target) return;
-
-        const dx = target.x - source.x;
-        const dy = target.y - source.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const targetDist = link.type === 'hierarchy' ? linkDistance * 1.3 : linkDistance;
-        const displacement = dist - targetDist;
-        const force = displacement * 0.035;
-
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-
-        if (draggedNodeRef.current !== source) {
-          source.vx += fx;
-          source.vy += fy;
-        }
-        if (draggedNodeRef.current !== target) {
-          target.vx -= fx;
-          target.vy -= fy;
+      // Link attraction force
+      links.forEach(l => {
+        const src = nodeMap.get(l.source);
+        const tgt = nodeMap.get(l.target);
+        if (src && tgt) {
+          const dx = tgt.x - src.x;
+          const dy = tgt.y - src.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const targetDist = l.type === 'dependency' ? 140 : 180;
+          const force = (dist - targetDist) * 0.03;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          src.vx += fx;
+          src.vy += fy;
+          tgt.vx -= fx;
+          tgt.vy -= fy;
         }
       });
 
-      // 3. Center Gravity & Damping
+      // Damping & Center Gravity
       nodes.forEach(n => {
-        if (draggedNodeRef.current === n) return;
-        n.vx -= n.x * 0.008; // pull toward center
-        n.vy -= n.y * 0.008;
-
-        n.vx *= 0.88; // damping
-        n.vy *= 0.88;
-
-        n.x += n.vx;
-        n.y += n.vy;
+        if (n !== draggedNodeRef.current) {
+          n.vx += -n.x * 0.002;
+          n.vy += -n.y * 0.002;
+          n.vx *= 0.82;
+          n.vy *= 0.82;
+          n.x += n.vx;
+          n.y += n.vy;
+        }
       });
 
-      // 4. Render Canvas Frame
-      renderCanvas(particleOffset);
-      particleOffset += 0.02;
-
-      animFrame = requestAnimationFrame(stepSimulation);
-    };
-
-    const renderCanvas = (pulseTime: number) => {
+      // Render on canvas
       const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.save();
+          ctx.translate(canvas.width / 2 + transform.x, canvas.height / 2 + transform.y);
+          ctx.scale(transform.scale, transform.scale);
 
-      const width = canvas.width;
-      const height = canvas.height;
+          particleOffset = (particleOffset + 0.5) % 40;
 
-      ctx.clearRect(0, 0, width, height);
-      ctx.save();
+          // Draw Links
+          links.forEach(l => {
+            const src = nodeMap.get(l.source);
+            const tgt = nodeMap.get(l.target);
+            if (!src || !tgt) return;
 
-      // Apply zoom & pan transform
-      ctx.translate(width / 2 + transform.x, height / 2 + transform.y);
-      ctx.scale(transform.scale, transform.scale);
+            const isDimmed = connectedNodeIds && (!connectedNodeIds.has(src.id) || !connectedNodeIds.has(tgt.id));
 
-      // Draw Grid Background
-      ctx.strokeStyle = '#F1F5F9';
-      ctx.lineWidth = 1;
-      const gridSize = 40;
-      const extent = 1200;
-      for (let x = -extent; x <= extent; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, -extent);
-        ctx.lineTo(x, extent);
-        ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(src.x, src.y);
+            ctx.lineTo(tgt.x, tgt.y);
+
+            if (l.type === 'dependency') {
+              ctx.strokeStyle = isDimmed ? 'rgba(203, 213, 225, 0.2)' : l.isCritical ? 'rgba(245, 158, 11, 0.8)' : 'rgba(148, 163, 184, 0.6)';
+              ctx.lineWidth = l.isCritical ? 2.5 : 1.5;
+              ctx.setLineDash([4, 4]);
+            } else if (l.type === 'evidence') {
+              ctx.strokeStyle = isDimmed ? 'rgba(216, 180, 254, 0.2)' : 'rgba(168, 85, 247, 0.7)';
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([2, 2]);
+            } else {
+              ctx.strokeStyle = isDimmed ? 'rgba(226, 232, 240, 0.2)' : 'rgba(203, 213, 225, 0.7)';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([]);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+          });
+
+          // Draw Nodes
+          nodes.forEach(n => {
+            const isHovered = hoveredNodeRef.current?.id === n.id;
+            const isSelected = selectedNodeId === n.id;
+            const isDimmed = connectedNodeIds && !connectedNodeIds.has(n.id);
+
+            ctx.globalAlpha = isDimmed ? 0.2 : 1.0;
+
+            // Outer Critical Path Amber Ring
+            if (n.isCritical) {
+              ctx.beginPath();
+              ctx.arc(n.x, n.y, n.radius + 4, 0, 2 * Math.PI);
+              ctx.strokeStyle = '#F59E0B';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+            }
+
+            // Node Circle
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
+            ctx.fillStyle = n.color;
+            ctx.fill();
+            ctx.strokeStyle = isSelected ? '#C38B4B' : isHovered ? '#0F172A' : '#FFFFFF';
+            ctx.lineWidth = isSelected ? 3 : 2;
+            ctx.stroke();
+
+            // Node Labels
+            ctx.fillStyle = isDimmed ? '#94A3B8' : '#0F172A';
+            ctx.font = 'bold 11px IBM Plex Mono, monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(n.label, n.x, n.y + n.radius + 14);
+
+            if (n.sublabel && !isDimmed) {
+              ctx.fillStyle = '#64748B';
+              ctx.font = '9px system-ui, sans-serif';
+              ctx.fillText(n.sublabel.slice(0, 20), n.x, n.y + n.radius + 25);
+            }
+
+            ctx.globalAlpha = 1.0;
+          });
+
+          ctx.restore();
+        }
       }
-      for (let y = -extent; y <= extent; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(-extent, y);
-        ctx.lineTo(extent, y);
-        ctx.stroke();
-      }
 
-      // Draw Links
-      links.forEach(link => {
-        const source = nodeMap.get(link.source);
-        const target = nodeMap.get(link.target);
-        if (!source || !target) return;
-
-        const isHoveredNeighbor = hoveredNodeRef.current && 
-          (hoveredNodeRef.current.id === source.id || hoveredNodeRef.current.id === target.id);
-
-        ctx.beginPath();
-        ctx.moveTo(source.x, source.y);
-        ctx.lineTo(target.x, target.y);
-
-        if (link.type === 'evidence') {
-          ctx.setLineDash([4, 4]);
-          ctx.strokeStyle = isHoveredNeighbor ? '#A855F7' : 'rgba(168, 85, 247, 0.35)';
-          ctx.lineWidth = isHoveredNeighbor ? 2 : 1.2;
-        } else if (link.isCritical) {
-          ctx.setLineDash([]);
-          ctx.strokeStyle = isHoveredNeighbor ? '#F59E0B' : 'rgba(245, 158, 11, 0.6)';
-          ctx.lineWidth = isHoveredNeighbor ? 3 : 2;
-        } else {
-          ctx.setLineDash([]);
-          ctx.strokeStyle = isHoveredNeighbor ? '#0F172A' : 'rgba(203, 213, 225, 0.7)';
-          ctx.lineWidth = isHoveredNeighbor ? 2 : 1;
-        }
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Animated particles along critical path links
-        if (link.isCritical) {
-          const t = (pulseTime % 1);
-          const px = source.x + (target.x - source.x) * t;
-          const py = source.y + (target.y - source.y) * t;
-          ctx.beginPath();
-          ctx.arc(px, py, 3, 0, Math.PI * 2);
-          ctx.fillStyle = '#F59E0B';
-          ctx.fill();
-        }
-      });
-
-      // Draw Nodes
-      nodes.forEach(node => {
-        const isHovered = hoveredNodeRef.current?.id === node.id;
-        const isSearched = searchQuery && (
-          node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          node.sublabel?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-
-        // Glowing Halos
-        if (isHovered || isSearched || node.type === 'project' || node.isCritical) {
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, node.radius + (isHovered ? 8 : 5), 0, Math.PI * 2);
-          ctx.fillStyle = node.color === '#C38B4B' 
-            ? 'rgba(195, 139, 75, 0.25)' 
-            : node.color === '#10B981' 
-            ? 'rgba(16, 185, 129, 0.25)' 
-            : 'rgba(245, 158, 11, 0.25)';
-          ctx.fill();
-        }
-
-        // Node Body
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = node.color;
-        ctx.fill();
-        ctx.lineWidth = isHovered ? 2.5 : 1.5;
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.stroke();
-
-        // Node Label
-        ctx.font = node.type === 'project' 
-          ? 'bold 12px "IBM Plex Mono", monospace' 
-          : '500 10px "Inter", sans-serif';
-        ctx.fillStyle = '#0F172A';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(node.label, node.x, node.y + node.radius + 4);
-
-        // Progress percentage for activities
-        if (node.type === 'activity' && typeof node.progress === 'number' && node.progress > 0) {
-          ctx.font = 'bold 9px "IBM Plex Mono", monospace';
-          ctx.fillStyle = node.progress === 100 ? '#059669' : '#0284C7';
-          ctx.fillText(`${node.progress}%`, node.x, node.y + node.radius + 16);
-        }
-      });
-
-      ctx.restore();
+      animFrame = requestAnimationFrame(simStep);
     };
 
-    animFrame = requestAnimationFrame(stepSimulation);
-
-    return () => {
-      cancelAnimationFrame(animFrame);
-    };
-  }, [nodes, links, repulsion, linkDistance, transform, searchQuery]);
+    animFrame = requestAnimationFrame(simStep);
+    return () => cancelAnimationFrame(animFrame);
+  }, [nodes, links, transform, connectedNodeIds, selectedNodeId]);
 
   // Handle Canvas Resize
   useEffect(() => {
     const handleResize = () => {
-      if (containerRef.current && canvasRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        canvasRef.current.width = rect.width;
-        canvasRef.current.height = rect.height;
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (canvas && container) {
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
       }
     };
     handleResize();
@@ -451,25 +397,24 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Mouse / Touch Interactivity
-  const getCanvasCoords = useCallback((clientX: number, clientY: number) => {
-    if (!canvasRef.current) return { x: 0, y: 0 };
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = clientX - rect.left - canvasRef.current.width / 2 - transform.x;
-    const y = clientY - rect.top - canvasRef.current.height / 2 - transform.y;
-    return { x: x / transform.scale, y: y / transform.scale };
-  }, [transform]);
+  // Mouse / Drag Handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left - canvas.width / 2 - transform.x) / transform.scale;
+    const mouseY = (e.clientY - rect.top - canvas.height / 2 - transform.y) / transform.scale;
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    const coords = getCanvasCoords(e.clientX, e.clientY);
     const clickedNode = nodes.find(n => {
-      const dx = n.x - coords.x;
-      const dy = n.y - coords.y;
-      return Math.sqrt(dx * dx + dy * dy) <= n.radius + 4;
+      const dx = n.x - mouseX;
+      const dy = n.y - mouseY;
+      return Math.sqrt(dx * dx + dy * dy) <= n.radius + 5;
     });
 
     if (clickedNode) {
       draggedNodeRef.current = clickedNode;
+      setSelectedNodeId(clickedNode.id);
+
       if (clickedNode.type === 'activity' && clickedNode.rawItem) {
         setSelectedActivity(clickedNode.rawItem);
       } else if (clickedNode.type === 'evidence' && clickedNode.rawItem) {
@@ -478,37 +423,25 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
     } else {
       isDraggingRef.current = true;
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      setSelectedNodeId(null);
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const coords = getCanvasCoords(e.clientX, e.clientY);
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
     if (draggedNodeRef.current) {
-      draggedNodeRef.current.x = coords.x;
-      draggedNodeRef.current.y = coords.y;
+      const rect = canvas.getBoundingClientRect();
+      draggedNodeRef.current.x = (e.clientX - rect.left - canvas.width / 2 - transform.x) / transform.scale;
+      draggedNodeRef.current.y = (e.clientY - rect.top - canvas.height / 2 - transform.y) / transform.scale;
       draggedNodeRef.current.vx = 0;
       draggedNodeRef.current.vy = 0;
-      return;
-    }
-
-    if (isDraggingRef.current) {
+    } else if (isDraggingRef.current) {
       const dx = e.clientX - lastMousePosRef.current.x;
       const dy = e.clientY - lastMousePosRef.current.y;
-      setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+      setTransform(t => ({ ...t, x: t.x + dx, y: t.y + dy }));
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-      return;
-    }
-
-    // Hover detection
-    const hovered = nodes.find(n => {
-      const dx = n.x - coords.x;
-      const dy = n.y - coords.y;
-      return Math.sqrt(dx * dx + dy * dy) <= n.radius + 4;
-    });
-    hoveredNodeRef.current = hovered || null;
-    if (canvasRef.current) {
-      canvasRef.current.style.cursor = hovered ? 'pointer' : 'grab';
     }
   };
 
@@ -517,201 +450,146 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
     isDraggingRef.current = false;
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-    setTransform(prev => ({
-      ...prev,
-      scale: Math.max(0.3, Math.min(2.5, prev.scale * zoomFactor)),
-    }));
-  };
-
   return (
-    <div className="space-y-4">
-      {/* Header & Control Bar */}
-      <div className="glass-card p-4 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-lg bg-amber-50 text-[#C38B4B] border border-amber-200">
-            <Network className="h-5 w-5" />
+    <div className="space-y-6 pb-12">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="signal-tick bg-purple-500" />
+            <Badge variant="secondary">ACTIVITY NETWORK & PRECEDENCE</Badge>
           </div>
-          <div>
-            <h1 className="text-lg font-bold font-mono text-slate-900 flex items-center gap-2">
-              <span>Project Network Topology</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-normal">
-                {nodes.length} Nodes • {links.length} Links
-              </span>
-            </h1>
-            <p className="text-xs text-slate-500">Interactive Obsidian-style force-directed dependency and evidence graph</p>
-          </div>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+            Schedule Dependency Graph
+          </h1>
+          <p className="mt-1 text-xs text-slate-500 max-w-[65ch]">
+            Interactive topological network map. Select any activity node to isolate its upstream predecessors, downstream successors, and field evidence.
+          </p>
         </div>
 
-        {/* Quick Search & Filters */}
-        <div className="flex items-center gap-2">
-          {/* Search Box */}
-          <div className="relative w-48">
+        {/* Search & Graph Mode Buttons */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search tag/code..."
+              placeholder="Search activity node..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:border-[#C38B4B] font-mono"
+              className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
             />
           </div>
 
-          {/* Discipline Pills */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-mono">
-            {['ALL', 'PIPING', 'CIVIL', 'ELECTRICAL'].map(d => (
-              <button
-                key={d}
-                onClick={() => setSelectedDiscipline(d)}
-                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                  selectedDiscipline === d
-                    ? 'bg-white text-slate-900 font-bold shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {d}
-              </button>
-            ))}
+          <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-mono">
+            <button
+              onClick={() => setGraphMode('dependencies')}
+              className={`px-3 py-1.5 rounded transition ${graphMode === 'dependencies' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Dependencies
+            </button>
+            <button
+              onClick={() => setGraphMode('critical_path')}
+              className={`px-3 py-1.5 rounded transition ${graphMode === 'critical_path' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Critical Path
+            </button>
+            <button
+              onClick={() => setGraphMode('evidence')}
+              className={`px-3 py-1.5 rounded transition ${graphMode === 'evidence' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Evidence
+            </button>
+            <button
+              onClick={() => setGraphMode('all')}
+              className={`px-3 py-1.5 rounded transition ${graphMode === 'all' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              All Nodes
+            </button>
           </div>
-
-          {/* Critical Path Toggle */}
-          <button
-            onClick={() => setCriticalOnly(!criticalOnly)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition cursor-pointer border ${
-              criticalOnly
-                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            <Flame className="h-3.5 w-3.5" />
-            <span>Critical Path</span>
-          </button>
-
-          {/* Evidence Toggle */}
-          <button
-            onClick={() => setShowEvidence(!showEvidence)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition cursor-pointer border ${
-              showEvidence
-                ? 'bg-purple-600 text-white border-purple-700 shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            <span>Evidence</span>
-          </button>
-
-          {/* Physics Slider Toggle */}
-          <button
-            onClick={() => setShowControls(!showControls)}
-            className={`p-1.5 rounded-lg border transition cursor-pointer ${
-              showControls ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-            title="Physics Controls"
-          >
-            <Sliders className="h-4 w-4" />
-          </button>
         </div>
       </div>
 
-      {/* Physics Tuning Panel */}
-      {showControls && (
-        <div className="glass-card p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
-          <div className="space-y-1">
-            <div className="flex justify-between text-slate-600">
-              <span>Node Repulsion:</span>
-              <span className="font-bold">{repulsion}</span>
-            </div>
-            <input
-              type="range"
-              min="100"
-              max="900"
-              value={repulsion}
-              onChange={(e) => setRepulsion(Number(e.target.value))}
-              className="w-full accent-[#C38B4B]"
-            />
-          </div>
+      {/* Canvas Viewport Container */}
+      <div ref={containerRef} className="relative w-full h-[620px] bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-lg">
+        
+        {/* Floating Viewport Controls */}
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-slate-900/90 border border-slate-800 p-1.5 rounded-lg text-white">
+          <Button
+            onClick={() => setTransform(t => ({ ...t, scale: Math.min(2.5, t.scale + 0.15) }))}
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+            title="Zoom In"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.4, t.scale - 0.15) }))}
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+            title="Zoom Out"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => setTransform({ x: 0, y: 0, scale: 0.9 })}
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+            title="Reset Viewport"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        </div>
 
-          <div className="space-y-1">
-            <div className="flex justify-between text-slate-600">
-              <span>Link Distance:</span>
-              <span className="font-bold">{linkDistance}px</span>
+        {/* Legend Overlay */}
+        <div className="absolute bottom-4 left-4 z-20 bg-slate-900/90 border border-slate-800 p-3 rounded-lg text-white text-[11px] font-mono space-y-2">
+          <span className="text-[10px] text-slate-400 uppercase font-bold block">Status Dimension</span>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-slate-300">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span>Completed</span>
             </div>
-            <input
-              type="range"
-              min="40"
-              max="200"
-              value={linkDistance}
-              onChange={(e) => setLinkDistance(Number(e.target.value))}
-              className="w-full accent-[#C38B4B]"
-            />
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              <span>In Progress</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full border-2 border-amber-500 bg-transparent" />
+              <span>Critical Path</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+              <span>Field Evidence</span>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Graph Viewport */}
-      <div 
-        ref={containerRef} 
-        className="relative w-full h-[620px] rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden shadow-inner"
-      >
+        {/* Interactive Physics Canvas */}
         <canvas
           ref={canvasRef}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
-          className="w-full h-full block"
+          className="w-full h-full cursor-grab active:cursor-grabbing"
         />
-
-        {/* Viewport Overlay Controls */}
-        <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-white/90 backdrop-blur-md p-1.5 rounded-lg border border-slate-200 shadow-md">
-          <button
-            onClick={() => setTransform(prev => ({ ...prev, scale: Math.min(2.5, prev.scale * 1.2) }))}
-            className="p-1.5 text-slate-600 hover:text-slate-900 rounded hover:bg-slate-100 transition cursor-pointer"
-            title="Zoom In"
-          >
-            <ZoomIn className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setTransform(prev => ({ ...prev, scale: Math.max(0.3, prev.scale * 0.8) }))}
-            className="p-1.5 text-slate-600 hover:text-slate-900 rounded hover:bg-slate-100 transition cursor-pointer"
-            title="Zoom Out"
-          >
-            <ZoomOut className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setTransform({ x: 0, y: 0, scale: 0.85 })}
-            className="p-1.5 text-slate-600 hover:text-slate-900 rounded hover:bg-slate-100 transition cursor-pointer"
-            title="Reset View"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Graph Legend HUD */}
-        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md p-3 rounded-lg border border-slate-200 text-[11px] font-mono shadow-md space-y-1.5 pointer-events-none">
-          <div className="font-bold text-slate-800 pb-1 border-b border-slate-200">Graph Entities</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" /> Completed (100%)</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#06B6D4]" /> In Progress</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" /> Critical Path</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#64748B]" /> Not Started</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#A855F7]" /> Voice Evidence</div>
-        </div>
       </div>
 
-      {/* Selected Activity Drawer */}
-      <ActivityDrawer
+      {/* Activity 360° Drawer */}
+      <Activity360Drawer
         item={selectedActivity}
-        isOpen={Boolean(selectedActivity)}
+        isOpen={!!selectedActivity}
         onClose={() => setSelectedActivity(null)}
+        observations={observations}
+        auditEvents={auditEvents}
+        allActivities={activities}
       />
 
-      {/* Selected Evidence Drawer */}
+      {/* Evidence Drawer */}
       <EvidenceDrawer
         observation={selectedObservation}
-        isOpen={Boolean(selectedObservation)}
+        isOpen={!!selectedObservation}
         onClose={() => setSelectedObservation(null)}
       />
     </div>

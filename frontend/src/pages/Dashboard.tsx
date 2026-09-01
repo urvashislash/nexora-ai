@@ -1,348 +1,299 @@
 import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  FileText, 
-  CheckCircle2, 
   Clock, 
-  TrendingUp,
-  ShieldCheck,
-  ChevronRight,
-  Database,
-  Cpu,
-  Lock,
-  UserCheck,
-  Activity
+  ChevronRight, 
+  AlertTriangle,
+  Flame
 } from 'lucide-react';
 import type { DashboardKPIs, ActivityWithState } from '../types';
 import { animateCounter, animateSvgDraw } from '../lib/animations';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
 
 interface DashboardProps {
   kpis: DashboardKPIs;
   activities: ActivityWithState[];
   onNavigateTab: (tab: string) => void;
+  onSelectActivity?: (act: ActivityWithState) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ kpis, activities, onNavigateTab }) => {
-  const obsCounterRef = useRef<HTMLSpanElement>(null);
-  const autoLinkedRef = useRef<HTMLSpanElement>(null);
-  const reviewQueueRef = useRef<HTMLSpanElement>(null);
+export const Dashboard: React.FC<DashboardProps> = ({ 
+  kpis, 
+  activities, 
+  onNavigateTab,
+  onSelectActivity
+}) => {
   const overallProgRef = useRef<HTMLSpanElement>(null);
   const sCurvePathRef = useRef<SVGPathElement>(null);
 
   useEffect(() => {
-    animateCounter(obsCounterRef.current, kpis.total_observations, { duration: 900 });
-    animateCounter(autoLinkedRef.current, kpis.auto_linked_events, { duration: 900 });
-    animateCounter(reviewQueueRef.current, kpis.review_queue_count, { duration: 700 });
-    animateCounter(overallProgRef.current, kpis.overall_progress_pct, { duration: 1100, suffix: '%' });
+    animateCounter(overallProgRef.current, kpis.overall_progress_pct, { duration: 900, suffix: '%' });
     if (sCurvePathRef.current) {
-      animateSvgDraw(sCurvePathRef.current, 1400);
+      animateSvgDraw(sCurvePathRef.current, 1200);
     }
   }, [kpis]);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.05 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 6 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 100, damping: 20 } }
-  };
+  const criticalActivities = activities.filter(a => a.activity.critical_path);
+  const delayedActivities = activities.filter(a => (a.state?.variance_days ?? 0) > 0 || a.state?.execution_status === 'DELAYED');
 
   return (
     <motion.div 
-      className="space-y-8 pb-10"
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
+      className="space-y-8 pb-12"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
     >
-      {/* Top Header Section */}
-      <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="signal-tick bg-emerald-500" />
-            <Badge variant="bronze">LIVE TRUST PLANE</Badge>
-            <span className="text-[10px] font-mono text-slate-400">PostgreSQL + Rust Verification Layer</span>
-          </div>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 leading-none">
-            Project Ground Truth
-          </h1>
-          <p className="mt-2 text-sm text-slate-600 max-w-[65ch]">
-            Verified field operations and automated schedule reconciliation. Extracted evidence is staged for planner review before committing to the immutable event ledger.
-          </p>
-        </div>
-        <Button 
-          onClick={() => onNavigateTab('upload')}
-          variant="default"
-          size="default"
-          className="flex items-center gap-2"
-        >
-          <span>Ingest Field Report</span>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </motion.div>
-
-      {/* KPI Cards Grid */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Ingested Observations */}
-        <Card className="hover:border-slate-300 transition-all">
-          <CardHeader className="p-5 pb-0 flex flex-row items-center justify-between space-y-0">
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-500">Field Extractions</span>
-            <FileText className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent className="p-5 pt-3">
-            <div className="flex items-baseline gap-2">
-              <span ref={obsCounterRef} className="text-3xl font-bold text-slate-900 font-mono tracking-tight">
-                {kpis.total_observations}
-              </span>
-              <Badge variant="success">100% PROCESSED</Badge>
-            </div>
-            <div className="ledger-rule mt-4 mb-3" />
-            <p className="text-[11px] text-slate-500 font-mono">From PDF, Excel & Voice Memos</p>
-          </CardContent>
-        </Card>
-
-        {/* Auto-Linked Events */}
-        <Card className="hover:border-slate-300 transition-all">
-          <CardHeader className="p-5 pb-0 flex flex-row items-center justify-between space-y-0">
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-500">Auto-Linked Events</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent className="p-5 pt-3">
-            <div className="flex items-baseline gap-2">
-              <span ref={autoLinkedRef} className="text-3xl font-bold text-slate-900 font-mono tracking-tight">
-                {kpis.auto_linked_events}
-              </span>
-              <span className="text-[10px] font-mono text-slate-500">Conf. &ge; 88%</span>
-            </div>
-            <div className="ledger-rule mt-4 mb-3" />
-            <p className="text-[11px] text-slate-500 font-mono">Committed by Rust layer</p>
-          </CardContent>
-        </Card>
-
-        {/* Planner Review Queue */}
-        <Card 
-          onClick={() => onNavigateTab('review')}
-          className="cursor-pointer group hover:border-amber-300 hover:shadow-md transition-all relative overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-amber-50/40 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <CardHeader className="p-5 pb-0 flex flex-row items-center justify-between space-y-0 relative">
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-amber-800">Review Queue</span>
-            <Clock className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent className="p-5 pt-3 relative">
-            <div className="flex items-baseline gap-2">
-              <span ref={reviewQueueRef} className="text-3xl font-bold text-slate-900 font-mono tracking-tight">
-                {kpis.review_queue_count}
-              </span>
-              <Badge variant="warning">ACTION REQ.</Badge>
-            </div>
-            <div className="ledger-rule mt-4 mb-3 border-amber-200" />
-            <p className="text-[11px] text-amber-800/80 font-mono">Ambiguous matches pending</p>
-          </CardContent>
-        </Card>
-
-        {/* Overall Schedule Progress */}
-        <Card className="hover:border-slate-300 transition-all">
-          <CardHeader className="p-5 pb-0 flex flex-row items-center justify-between space-y-0">
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-500">Overall Progress</span>
-            <TrendingUp className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent className="p-5 pt-3">
-            <div className="flex items-baseline gap-2">
-              <span ref={overallProgRef} className="text-3xl font-bold text-slate-900 font-mono tracking-tight">
-                {kpis.overall_progress_pct}%
-              </span>
-            </div>
-            <div className="mt-4 mb-3 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${Math.min(100, Math.max(5, kpis.overall_progress_pct))}%` }}
-              />
-            </div>
-            <p className="text-[11px] text-slate-500 font-mono">{kpis.completed_activities} of {activities.length} activities done</p>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Interactive Schedule S-Curve & Critical Path Radar */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <Card className="lg:col-span-8 p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-            <div>
-              <CardTitle className="text-sm font-bold font-mono text-slate-900 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-[#C38B4B]" />
-                <span>Project Schedule S-Curve (Planned vs Actuals)</span>
-              </CardTitle>
-              <p className="text-[11px] text-slate-500">Cumulative physical progress trajectory against baseline L5 targets</p>
-            </div>
-            <div className="flex items-center gap-4 text-xs font-mono">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 bg-slate-300 border-b border-dashed border-slate-400" />
-                <span className="text-slate-500">Baseline Target</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-1 bg-emerald-500 rounded" />
-                <span className="text-emerald-700 font-bold">Actual Progress ({kpis.overall_progress_pct}%)</span>
-              </div>
-            </div>
-          </div>
-
-          {/* SVG S-Curve Visualizer with anime.js drawing */}
-          <div className="relative w-full h-48 bg-slate-50/70 rounded-lg p-2 overflow-hidden border border-slate-100">
-            <svg viewBox="0 0 500 150" className="w-full h-full">
-              {/* Grid Lines */}
-              <line x1="40" y1="20" x2="480" y2="20" stroke="#E2E8F0" strokeDasharray="3 3" />
-              <line x1="40" y1="55" x2="480" y2="55" stroke="#E2E8F0" strokeDasharray="3 3" />
-              <line x1="40" y1="90" x2="480" y2="90" stroke="#E2E8F0" strokeDasharray="3 3" />
-              <line x1="40" y1="125" x2="480" y2="125" stroke="#CBD5E1" strokeWidth="1.5" />
-
-              {/* Y Axis Labels */}
-              <text x="32" y="24" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">100%</text>
-              <text x="32" y="59" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">75%</text>
-              <text x="32" y="94" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">50%</text>
-              <text x="32" y="129" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">0%</text>
-
-              {/* Baseline Planned S-Curve (Dotted Gray) */}
-              <path
-                d="M 40 125 C 150 125, 200 95, 300 45 C 380 15, 430 20, 480 20"
-                fill="none"
-                stroke="#94A3B8"
-                strokeWidth="2.5"
-                strokeDasharray="4 4"
-              />
-
-              {/* Actual Cumulative S-Curve (Vibrant Emerald, AnimeJS drawn) */}
-              <path
-                ref={sCurvePathRef}
-                d="M 40 125 C 130 125, 180 105, 270 65 C 310 50, 340 45, 360 42"
-                fill="none"
-                stroke="#10B981"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-              />
-
-              {/* Current Actual Progress Point */}
-              <circle cx="360" cy="42" r="5" fill="#10B981" stroke="#FFFFFF" strokeWidth="2" className="animate-pulse" />
-              
-              {/* Milestone Target Markers */}
-              <g transform="translate(180, 105)">
-                <circle cx="0" cy="0" r="3" fill="#3B82F6" />
-                <text x="0" y="-6" fontSize="8" fill="#3B82F6" textAnchor="middle" fontFamily="IBM Plex Mono">Tier 1 Erection</text>
-              </g>
-
-              <g transform="translate(360, 42)">
-                <text x="0" y="-10" fontSize="9" fill="#047857" textAnchor="middle" fontWeight="bold" fontFamily="IBM Plex Mono">
-                  Today ({kpis.overall_progress_pct}%)
-                </text>
-              </g>
-
-              {/* X Axis Date Labels */}
-              <text x="40" y="142" fontSize="9" fill="#94A3B8" textAnchor="start" fontFamily="IBM Plex Mono">01-Aug</text>
-              <text x="180" y="142" fontSize="9" fill="#94A3B8" textAnchor="middle" fontFamily="IBM Plex Mono">15-Aug</text>
-              <text x="360" y="142" fontSize="9" fill="#047857" textAnchor="middle" fontWeight="bold" fontFamily="IBM Plex Mono">Today</text>
-              <text x="480" y="142" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">30-Sep</text>
-            </svg>
-          </div>
-        </Card>
-
-        {/* Critical Path Health & Telemetry Radar */}
-        <Card className="lg:col-span-4 p-6 flex flex-col justify-between space-y-4">
+      {/* LEVEL 1: PRIMARY DECISION HERO BANNER */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-500">Critical Path Radar</span>
-              <Badge variant="success">ON TRACK</Badge>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="signal-tick bg-emerald-500" />
+              <span className="text-[10px] font-mono text-slate-500 font-semibold uppercase tracking-wider">
+                Project Schedule Status
+              </span>
             </div>
-            
-            <div className="mt-4 space-y-3 font-mono text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Critical Activities:</span>
-                <span className="font-bold text-slate-900">{activities.filter(a => a.activity.critical_path).length} / {activities.length} items</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Total Float Variance:</span>
-                <span className="font-bold text-emerald-600">+0.0 Days</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Earliest Completion:</span>
-                <span className="font-bold text-slate-800">28-Sep-2026</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Target Milestone:</span>
-                <span className="font-bold text-[#C38B4B]">30-Sep-2026</span>
-              </div>
-            </div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+              Project is on schedule <span className="text-emerald-600 font-medium text-lg md:text-xl font-mono">(+2 days ahead of baseline)</span>
+            </h1>
+            <p className="text-xs text-slate-500 mt-1 font-mono">
+              Paradip-Hyderabad Refinery Expansion &bull; Last synchronized with Trust Plane at 16:40
+            </p>
           </div>
 
-          <div className="p-3 bg-slate-950 text-white rounded-lg text-[11px] font-mono space-y-1 border border-slate-800">
-            <div className="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Trust Plane Verification</span>
-            </div>
-            <div className="text-emerald-400 font-bold">100% Deterministic Consistency</div>
-            <div className="text-slate-400 text-[10px]">Zero retroactive date or FS policy violations detected.</div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => onNavigateTab('upload')}
+              variant="default"
+              size="default"
+              className="flex items-center gap-2"
+            >
+              <span>Ingest Field Report</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-        </Card>
-      </motion.div>
-
-      {/* System Architecture Pipeline Status */}
-      <motion.div variants={itemVariants}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-            <Database className="h-3.5 w-3.5 text-[#C38B4B]" />
-            <span>Operational Architecture Pipeline</span>
-          </h2>
-          <Badge variant="outline">RFC 7519 + SHA-256 LEDGER</Badge>
         </div>
+
+        {/* Progress Bar & Decision Metrics */}
+        <div className="space-y-3 pt-2 border-t border-slate-100">
+          <div className="flex justify-between items-baseline text-xs font-mono">
+            <span className="text-slate-600">
+              <strong ref={overallProgRef} className="text-slate-900 font-bold text-sm">{kpis.overall_progress_pct}%</strong> Actual Physical Progress &bull; <span className="text-slate-500">25% Planned Target</span>
+            </span>
+            <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              +2.0 pts Variance
+            </span>
+          </div>
+
+          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+            <div 
+              className="bg-emerald-500 h-full rounded-full transition-all duration-1000 ease-out"
+              style={{ width: `${Math.min(100, Math.max(5, kpis.overall_progress_pct))}%` }}
+            />
+          </div>
+
+          {/* 3 Compact Decision Count Pills */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div 
+              onClick={() => onNavigateTab('schedule')}
+              className="p-3 bg-slate-50 rounded-lg border border-slate-200 hover:border-slate-300 transition cursor-pointer flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-amber-500" />
+                <span className="text-xs font-semibold text-slate-800">Critical Path</span>
+              </div>
+              <span className="text-xs font-mono font-bold text-slate-900">{criticalActivities.length} items</span>
+            </div>
+
+            <div 
+              onClick={() => onNavigateTab('schedule')}
+              className="p-3 bg-slate-50 rounded-lg border border-slate-200 hover:border-slate-300 transition cursor-pointer flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-rose-500" />
+                <span className="text-xs font-semibold text-slate-800">Delayed Activities</span>
+              </div>
+              <span className="text-xs font-mono font-bold text-slate-900">{delayedActivities.length} items</span>
+            </div>
+
+            <div 
+              onClick={() => onNavigateTab('review')}
+              className="p-3 bg-amber-50/70 rounded-lg border border-amber-200 hover:border-amber-300 transition cursor-pointer flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-amber-600" />
+                <span className="text-xs font-semibold text-amber-900">Review Required</span>
+              </div>
+              <Badge variant="warning">{kpis.review_queue_count} pending</Badge>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* LEVEL 2: SCHEDULE PERFORMANCE S-CURVE */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Project schedule performance</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Cumulative physical S-curve actuals measured against baseline L5 target
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 bg-slate-300 border-b border-dashed border-slate-400" />
+              <span className="text-slate-500">Baseline Planned</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-1 bg-emerald-500 rounded" />
+              <span className="text-emerald-700 font-bold">Actual Progress ({kpis.overall_progress_pct}%)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* S-Curve Chart Canvas */}
+        <div className="relative w-full h-56 bg-slate-50/60 rounded-lg p-2 overflow-hidden border border-slate-100">
+          <svg viewBox="0 0 500 160" className="w-full h-full">
+            {/* Grid lines */}
+            <line x1="40" y1="20" x2="480" y2="20" stroke="#E2E8F0" strokeDasharray="3 3" />
+            <line x1="40" y1="60" x2="480" y2="60" stroke="#E2E8F0" strokeDasharray="3 3" />
+            <line x1="40" y1="100" x2="480" y2="100" stroke="#E2E8F0" strokeDasharray="3 3" />
+            <line x1="40" y1="140" x2="480" y2="140" stroke="#CBD5E1" strokeWidth="1.5" />
+
+            {/* Y Axis Labels */}
+            <text x="32" y="24" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">100%</text>
+            <text x="32" y="64" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">66%</text>
+            <text x="32" y="104" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">33%</text>
+            <text x="32" y="144" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">0%</text>
+
+            {/* Vertical "Today" Line */}
+            <line x1="360" y1="15" x2="360" y2="140" stroke="#10B981" strokeDasharray="2 2" strokeWidth="1" />
+
+            {/* Baseline Planned Path */}
+            <path
+              d="M 40 140 C 150 140, 200 105, 300 55 C 380 25, 430 20, 480 20"
+              fill="none"
+              stroke="#94A3B8"
+              strokeWidth="2"
+              strokeDasharray="4 4"
+            />
+
+            {/* Actual Path */}
+            <path
+              ref={sCurvePathRef}
+              d="M 40 140 C 130 140, 180 115, 270 75 C 310 58, 340 50, 360 46"
+              fill="none"
+              stroke="#10B981"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+            />
+
+            {/* Today Indicator Point */}
+            <circle cx="360" cy="46" r="5" fill="#10B981" stroke="#FFFFFF" strokeWidth="2" className="animate-pulse" />
+
+            {/* Today Callout */}
+            <g transform="translate(360, 46)">
+              <text x="0" y="-10" fontSize="9" fill="#047857" textAnchor="middle" fontWeight="bold" fontFamily="IBM Plex Mono">
+                Today ({kpis.overall_progress_pct}%)
+              </text>
+            </g>
+
+            {/* Milestone Markers */}
+            <g transform="translate(180, 115)">
+              <circle cx="0" cy="0" r="3" fill="#3B82F6" />
+              <text x="0" y="-6" fontSize="8" fill="#3B82F6" textAnchor="middle" fontFamily="IBM Plex Mono">Foundation Handover</text>
+            </g>
+
+            {/* X Axis Date Labels */}
+            <text x="40" y="154" fontSize="9" fill="#94A3B8" textAnchor="start" fontFamily="IBM Plex Mono">01-Aug</text>
+            <text x="180" y="154" fontSize="9" fill="#94A3B8" textAnchor="middle" fontFamily="IBM Plex Mono">15-Aug</text>
+            <text x="360" y="154" fontSize="9" fill="#047857" textAnchor="middle" fontWeight="bold" fontFamily="IBM Plex Mono">01-Sep</text>
+            <text x="480" y="154" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="IBM Plex Mono">30-Sep</text>
+          </svg>
+        </div>
+      </div>
+
+      {/* LEVEL 3: ACTION REQUIRED & RECENT FIELD DIGEST */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-4 bg-slate-50/50">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <Cpu className="h-4 w-4 text-purple-600" />
-              <span>1. Python AI Ingestion</span>
+        {/* Needs Attention Table */}
+        <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Needs planner attention</h3>
+              <p className="text-xs text-slate-500">Unresolved AI match proposals requiring human signoff</p>
             </div>
-            <p className="mt-1 text-[11px] text-slate-500 font-mono">
-              FastAPI + MiniLM 384-d semantic & token jaccard hybrid candidate ranker.
-            </p>
-          </Card>
+            <Button 
+              onClick={() => onNavigateTab('review')}
+              variant="outline" 
+              size="sm"
+            >
+              Open Queue ({kpis.review_queue_count})
+            </Button>
+          </div>
 
-          <Card className="p-4 bg-slate-50/50">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <Lock className="h-4 w-4 text-emerald-600" />
-              <span>2. Rust Trust Plane</span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500 font-mono">
-              Enforces date bounds, FS dependency rules, and non-backward state machine.
-            </p>
-          </Card>
+          <div className="space-y-2">
+            {activities.slice(0, 3).map((act, i) => (
+              <div 
+                key={i}
+                onClick={() => {
+                  if (onSelectActivity) onSelectActivity(act);
+                  else onNavigateTab('review');
+                }}
+                className="p-3.5 bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200 rounded-lg transition cursor-pointer flex items-center justify-between gap-3 group"
+              >
+                <div className="truncate">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-slate-900">{act.activity.code}</span>
+                    <Badge variant={i === 0 ? 'warning' : 'secondary'}>
+                      {i === 0 ? '76% Match' : '82% Match'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-600 truncate mt-0.5">{act.activity.name}</p>
+                </div>
 
-          <Card className="p-4 bg-slate-50/50">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <UserCheck className="h-4 w-4 text-amber-600" />
-              <span>3. Planner Review Guard</span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500 font-mono">
-              Candidate proposals below 88% confidence staged with diff & reasoning explanation.
-            </p>
-          </Card>
-
-          <Card className="p-4 bg-slate-50/50">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <Activity className="h-4 w-4 text-blue-600" />
-              <span>4. PostgreSQL Ledger</span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500 font-mono">
-              Row-Level Security, append-only chained audit trail, and Oracle P6 exporter.
-            </p>
-          </Card>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-mono font-bold text-[#C38B4B] group-hover:underline">
+                    Review &rarr;
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </motion.div>
+
+        {/* Recent Field Digest */}
+        <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Recent field activity</h3>
+              <p className="text-xs text-slate-500">Latest extracted observation facts</p>
+            </div>
+            <Badge variant="outline">{kpis.total_observations} TOTAL</Badge>
+          </div>
+
+          <div className="space-y-3 text-xs font-mono">
+            <div className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-lg space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-emerald-900">Auto-Linked: PIP-2400</span>
+                <span className="text-emerald-700">100% Match</span>
+              </div>
+              <p className="text-slate-700 font-sans text-xs">Spool erection on Pipe Rack B Tier 2 completed with torque check.</p>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-slate-900">Voice Note Captured</span>
+                <span className="text-slate-500">Audio VAD</span>
+              </div>
+              <p className="text-slate-700 font-sans text-xs">Hydrostatic testing completed along Pipe Rack B headers.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </motion.div>
   );
 };
