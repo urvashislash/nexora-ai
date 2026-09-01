@@ -90,7 +90,7 @@ def encode_crockford_base32(uuid_val: UUID) -> str:
     return "".join(chars)
 
 
-def generate_entity_id(prefix: EntityPrefix) -> str:
+def generate_entity_id(prefix: Union[EntityPrefix, str]) -> str:
     """
     Generates a domain-prefixed TypeID (e.g. `obs_01j7q9k2x...`).
     """
