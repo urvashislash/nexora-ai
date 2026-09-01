@@ -458,10 +458,10 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
             <Badge variant="secondary">Multi-Modal Ingestion Engine</Badge>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
-            Evidence Inbox & Ingestion
+            Evidence
           </h1>
           <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
-            Ingest daily site PDF reports, discipline inspection spreadsheets, or microphone voice memos. Data passes through entity normalization and 384-dimensional cosine matching into the Rust trust plane.
+            Upload reports, spreadsheets, photos, or voice notes for matching.
           </p>
         </div>
       </div>
@@ -472,7 +472,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-[#C38B4B]" />
             <h2 className="text-sm font-semibold text-slate-900 font-sans">
-              SIH Sandbox Scenarios (1-Click Demo Evaluation)
+              Demo scenarios
             </h2>
           </div>
           <button
@@ -525,7 +525,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-7 shadow-2xs space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2 font-sans">
-              <span>Field Evidence Intake</span>
+              <span>Add evidence</span>
               <Badge variant="bronze">Multi-Modal</Badge>
             </h3>
             
@@ -576,7 +576,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 <div className="flex items-center gap-2">
                   <div className={`h-2.5 w-2.5 rounded-full ${isRecording ? 'bg-rose-600 animate-ping' : 'bg-rose-400'}`} />
                   <span className="text-xs font-semibold text-slate-900 font-sans">
-                    Microphone Voice Capture (Whisper ASR)
+                    Voice capture
                   </span>
                 </div>
                 {isRecording && (
@@ -635,7 +635,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 )}
               </div>
               <p className="text-[11px] text-slate-500 font-sans">
-                Captures spoken supervisor progress notes directly. Transcribed with faster-whisper (VAD + 384-dim embedding extraction).
+                Captures and transcribes supervisor voice notes.
               </p>
             </div>
           )}
@@ -706,7 +706,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-500">
-                Observation Text / Field Notes
+                Field notes
               </label>
               {selectedFile && (
                 <button 
@@ -735,7 +735,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
             >
               <div className="flex items-center gap-2">
                 <Sliders className="h-3.5 w-3.5 text-[#C38B4B]" />
-                <span>Observation Parameters & Spatial Tags (Optional Override)</span>
+                <span>Optional details</span>
               </div>
               {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
@@ -885,18 +885,18 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           <div>
             <div className="flex items-center justify-between mb-3.5">
               <h3 className="text-sm font-semibold text-slate-900 font-sans">
-                Pipeline Execution Stages
+                Processing
               </h3>
               <Badge variant="secondary">Zero Hallucination</Badge>
             </div>
 
             <div className="space-y-2.5">
               {[
-                { step: 1, title: 'Ingestion & Object Storage', desc: 'Durable evidence payload stored in Supabase Storage' },
-                { step: 2, title: 'Text Extraction & Normalization', desc: 'Terminology mapped against domain dictionary' },
-                { step: 3, title: 'Embeddings & Hybrid Matching', desc: 'RapidFuzz + 384-dim sentence-transformers cosine search' },
-                { step: 4, title: 'Rust Trust Plane Validation', desc: 'Predecessor rules, monotonicity & temporal verification' },
-                { step: 5, title: 'PostgreSQL Commit & SHA256 Audit', desc: 'Immutable event ledger update with cryptographic hash' }
+                { step: 1, title: 'Upload', desc: 'Stores source evidence.' },
+                { step: 2, title: 'Extract', desc: 'Finds project entities.' },
+                { step: 3, title: 'Match', desc: 'Scores schedule candidates.' },
+                { step: 4, title: 'Validate', desc: 'Checks dates and dependencies.' },
+                { step: 5, title: 'Commit', desc: 'Adds a verified ledger event.' }
               ].map((s) => {
                 const isCurrent = activeStep === s.step;
                 const isPassed = activeStep > s.step || activeStep === 5;
@@ -954,7 +954,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-900 font-sans">Ingested Field Evidence Stream</h3>
-            <p className="text-xs text-slate-500 font-sans">Chronological ledger of raw field observations and AI extraction statuses</p>
+            <p className="text-xs text-slate-500 font-sans">Uploaded observations and extraction status.</p>
           </div>
 
           {/* Search & Filter Bar */}

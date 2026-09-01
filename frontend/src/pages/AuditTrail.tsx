@@ -95,7 +95,7 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
             Audit & Traceability Ledger
           </h1>
           <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
-            Every approved actual event is signed with SHA-256 and chained into the tamper-evident ledger. Zero phantom progress guaranteed.
+            Approved events are SHA-256 signed and chained.
           </p>
         </div>
 
@@ -114,7 +114,7 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
           ) : (
             <>
               <ShieldCheck className="h-4 w-4 text-[#34C759]" />
-              <span>Run Ledger Audit Check</span>
+              <span>Verify ledger</span>
             </>
           )}
         </Button>
@@ -125,10 +125,10 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
         <Alert variant={verifyResult.valid ? 'success' : 'destructive'}>
           <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
           <AlertTitle className="text-emerald-950 font-bold text-xs">
-            Cryptographic Integrity Verified (100% Chain Valid)
+            Ledger verified
           </AlertTitle>
           <AlertDescription className="text-xs text-emerald-900 mt-1 font-sans">
-            All {verifyResult.verified_count} event sequence hashes match continuous SHA-256 chain. No tamper deltas detected.
+            {verifyResult.verified_count} events match the chain.
           </AlertDescription>
         </Alert>
       )}
@@ -137,7 +137,7 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
       {isVerifying && (
         <Card className="p-4 shadow-2xs space-y-2">
           <div className="flex justify-between text-xs font-sans text-slate-600">
-            <span>Sequentially computing Merkle parent hashes...</span>
+            <span>Verifying chain...</span>
             <span className="font-mono font-bold">{Math.round((verificationProgress / Math.max(1, events.length)) * 100)}%</span>
           </div>
           <Progress 
@@ -223,7 +223,7 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
 
                 <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70 flex items-center justify-between gap-2">
                   <div className="truncate">
-                    <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Previous Block Hash (Parent)</span>
+                    <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Previous hash</span>
                     <span className="font-mono text-[11px] text-slate-500 truncate block">{evt.previous_hash || '0000000000000000000000000000000000000000000000000000000000000000 (Genesis)'}</span>
                   </div>
                 </div>
@@ -233,17 +233,17 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
               {isExpanded && (
                 <div className="pt-3 border-t border-slate-100 space-y-2">
                   <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-500 block">
-                    Before / After State Transition Vector
+                    State change
                   </span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <span className="text-[11px] font-sans text-slate-500 mb-1 block">State Before:</span>
+                      <span className="text-[11px] font-sans text-slate-500 mb-1 block">Before</span>
                       <pre className="p-3 rounded-xl bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto leading-relaxed">
                         {JSON.stringify(evt.before_state || {}, null, 2)}
                       </pre>
                     </div>
                     <div>
-                      <span className="text-[11px] font-sans text-slate-500 mb-1 block">State After (Committed):</span>
+                      <span className="text-[11px] font-sans text-slate-500 mb-1 block">After</span>
                       <pre className="p-3 rounded-xl bg-slate-900 text-emerald-400 font-mono text-[11px] overflow-x-auto leading-relaxed">
                         {JSON.stringify(evt.after_state || {}, null, 2)}
                       </pre>

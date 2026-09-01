@@ -124,7 +124,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
             Schedule Explorer
           </h1>
           <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
-            Gantt timeline and interactive WBS activity ledger tracking physical progress, baseline variance, and critical-path precedence.
+            Track activity progress, variance, and dependencies.
           </p>
         </div>
 

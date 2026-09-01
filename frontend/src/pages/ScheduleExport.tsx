@@ -162,7 +162,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
             Schedule & Ledger Exports
           </h1>
           <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
-            Export reconciled actuals and verified progress updates back into enterprise PMIS, Oracle Primavera P6 EPPM, or Excel spreadsheets.
+            Export verified actuals to P6 or CSV.
           </p>
         </div>
 
@@ -176,7 +176,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
               className="flex items-center gap-2"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-[#007AFF]' : ''}`} />
-              <span>{isRefreshing ? 'Syncing...' : 'Sync Cloud Database'}</span>
+              <span>{isRefreshing ? 'Syncing...' : 'Sync data'}</span>
             </Button>
           )}
 
@@ -188,7 +188,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
             className="flex items-center gap-2"
           >
             <Server className={`h-3.5 w-3.5 ${isProbing ? 'animate-spin' : ''}`} />
-            <span>Probe Health</span>
+            <span>Check health</span>
           </Button>
         </div>
       </div>
@@ -223,7 +223,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
                 Primavera P6 XML Export
               </CardTitle>
               <CardDescription className="text-xs text-slate-500 font-sans mt-1 leading-relaxed">
-                Native APBO schema export compatible with Primavera P6 EPPM/Professional. Contains updated actual dates, remaining duration, and progress percentages.
+                P6-compatible XML with updated dates, duration, and progress.
               </CardDescription>
             </div>
           </div>
@@ -259,7 +259,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
                 Schedule Actuals (CSV / XLSX)
               </CardTitle>
               <CardDescription className="text-xs text-slate-500 font-sans mt-1 leading-relaxed">
-                Clean, RFC 4180 compliant CSV export containing all WBS activity codes, planned vs actual start/finish dates, percent progress, and variance days.
+                CSV of activity dates, progress, and variance.
               </CardDescription>
             </div>
           </div>
@@ -295,7 +295,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
                 Raw Field Evidence Stream
               </CardTitle>
               <CardDescription className="text-xs text-slate-500 font-sans mt-1 leading-relaxed">
-                Export raw site observations, supervisor voice transcripts, spatial tags, and timestamped progress facts for audit and legal compliance.
+                Observations, transcripts, tags, and timestamps.
               </CardDescription>
             </div>
           </div>

@@ -58,7 +58,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               Project is on schedule <span className="text-[#34C759] font-medium text-lg md:text-xl font-sans">(+2 days ahead of baseline)</span>
             </h1>
             <p className="text-xs text-slate-500 mt-1 font-sans">
-              Paradip–Hyderabad Refinery Expansion &bull; Last synchronized with Trust Plane at 16:40
+              Paradip–Hyderabad Refinery Expansion &bull; Synced 16:40
             </p>
           </div>
 
@@ -79,7 +79,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="space-y-3.5 pt-2 border-t border-slate-100">
           <div className="flex justify-between items-baseline text-xs font-sans">
             <span className="text-slate-600">
-              <strong ref={overallProgRef} className="text-slate-900 font-bold text-sm font-mono">{kpis.overall_progress_pct}%</strong> Actual Physical Progress &bull; <span className="text-slate-500">25% Planned Target</span>
+              Actual / planned: <strong ref={overallProgRef} className="text-slate-900 font-bold text-sm font-mono">{kpis.overall_progress_pct}%</strong><span className="text-slate-500"> / 25%</span>
             </span>
             <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80 font-mono text-[11px]">
               +2.0 pts Variance
@@ -92,11 +92,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             indicatorClassName="bg-[#34C759]"
           />
 
-          {/* 3 Compact Decision Count Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-            <div 
+          {/* Decision shortcuts */}
+          <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-3">
+            <button
+              type="button"
               onClick={() => onNavigateTab('schedule')}
-              className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:border-slate-300 hover:bg-slate-100/70 transition-all duration-150 cursor-pointer flex items-center justify-between"
+              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
@@ -109,12 +110,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <span className="text-[11px] text-slate-500 font-sans">0 currently at risk</span>
                 </div>
               </div>
-              <span className="text-xs font-mono font-bold text-slate-900">&rarr;</span>
-            </div>
+              <span aria-hidden="true" className="text-xs font-mono font-bold text-slate-900">&rarr;</span>
+            </button>
 
-            <div 
+            <button
+              type="button"
               onClick={() => onNavigateTab('review')}
-              className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:border-slate-300 hover:bg-slate-100/70 transition-all duration-150 cursor-pointer flex items-center justify-between"
+              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
@@ -127,12 +129,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <span className="text-[11px] text-slate-500 font-sans">Requires planner decision</span>
                 </div>
               </div>
-              <span className="text-xs font-mono font-bold text-[#C38B4B]">&rarr;</span>
-            </div>
+              <span aria-hidden="true" className="text-xs font-mono font-bold text-[#C38B4B]">&rarr;</span>
+            </button>
 
-            <div 
+            <button
+              type="button"
               onClick={() => onNavigateTab('schedule')}
-              className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:border-slate-300 hover:bg-slate-100/70 transition-all duration-150 cursor-pointer flex items-center justify-between"
+              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
@@ -145,8 +148,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <span className="text-[11px] text-slate-500 font-sans">Within tolerance limits</span>
                 </div>
               </div>
-              <span className="text-xs font-mono font-bold text-slate-900">&rarr;</span>
-            </div>
+              <span aria-hidden="true" className="text-xs font-mono font-bold text-slate-900">&rarr;</span>
+            </button>
           </div>
         </div>
       </Card>
@@ -159,7 +162,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               S-Curve Physical Progress Variance
             </CardTitle>
             <CardDescription className="text-xs text-slate-500">
-              Cumulative planned baseline vs actual reconciled progress over time
+              Planned vs. actual progress
             </CardDescription>
           </div>
 
@@ -245,7 +248,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <CardTitle className="text-sm font-semibold text-slate-900">Needs planner attention</CardTitle>
-              <CardDescription className="text-xs text-slate-500">Unresolved AI match proposals requiring human signoff</CardDescription>
+              <CardDescription className="text-xs text-slate-500">Matches awaiting approval</CardDescription>
             </div>
             <Button 
               onClick={() => onNavigateTab('review')}
@@ -258,13 +261,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           <div className="space-y-2">
             {activities.slice(0, 3).map((act, i) => (
-              <div 
-                key={i}
+              <button
+                key={act.activity.id}
+                type="button"
                 onClick={() => {
                   if (onSelectActivity) onSelectActivity(act);
                   else onNavigateTab('review');
                 }}
-                className="p-3.5 bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/70 rounded-xl transition-all duration-150 cursor-pointer flex items-center justify-between gap-3 group"
+                className="group flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
               >
                 <div className="truncate">
                   <div className="flex items-center gap-2">
@@ -281,7 +285,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     Review &rarr;
                   </span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </Card>
@@ -291,7 +295,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <CardTitle className="text-sm font-semibold text-slate-900">Recent field activity</CardTitle>
-              <CardDescription className="text-xs text-slate-500">Latest extracted observation facts</CardDescription>
+              <CardDescription className="text-xs text-slate-500">Latest extracted facts</CardDescription>
             </div>
             <Badge variant="outline">{kpis.total_observations} TOTAL</Badge>
           </div>

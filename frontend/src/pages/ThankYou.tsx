@@ -34,13 +34,13 @@ export const ThankYou: React.FC<ThankYouProps> = ({
         {/* Headings */}
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5">
-            <Badge variant="success">CRYPTOGRAPHICALLY STAGED & VERIFIED</Badge>
+            <Badge variant="success">VERIFIED</Badge>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold font-sans text-slate-900 tracking-tight">
             Submission Confirmed
           </h1>
           <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto font-sans">
-            Your field observation note, voice memo, or inspection report has been cryptographically signed, hashed, and staged into the NEXORA Trust Plane ledger.
+            Your submission was signed and added to the NEXORA ledger.
           </p>
         </div>
 
@@ -51,7 +51,7 @@ export const ThankYou: React.FC<ThankYouProps> = ({
             <span className="font-semibold text-slate-800">{submissionDetails.type}</span>
           </div>
           <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
-            <span className="text-slate-500">Record Identifier:</span>
+            <span className="text-slate-500">Record ID:</span>
             <span className="font-mono text-emerald-700 font-bold">{submissionDetails.id}</span>
           </div>
           <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
@@ -62,7 +62,7 @@ export const ThankYou: React.FC<ThankYouProps> = ({
             <span className="text-slate-500">Trust State:</span>
             <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold text-[11px]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
-              PASSED POLICY GUARDS
+              Policy checks passed
             </span>
           </div>
         </div>

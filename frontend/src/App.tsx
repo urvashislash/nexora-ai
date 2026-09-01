@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Menu, Moon, Sun } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { ProjectGraph } from './pages/ProjectGraph';
@@ -40,6 +41,7 @@ import type {
 } from './types';
 
 const STORAGE_KEY = 'nexora-project-state-v2';
+type Theme = 'light' | 'dark';
 
 const DEFAULT_PROJECTS: Project[] = [
   {
@@ -288,6 +290,13 @@ export function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isJwtModalOpen, setIsJwtModalOpen] = useState(false);
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() =>
+    safeReadStorage<Theme>(
+      `${STORAGE_KEY}:theme`,
+      window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    )
+  );
   
   // User Authentication & Role State
   const [user, setUser] = useState<AuthUser | null>(() => 
@@ -753,25 +762,54 @@ export function App() {
     setAuditEvents(prev => [audit, ...prev]);
   }, [auditEvents, activeProject.id, user]);
 
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}:theme`, theme);
+    document.documentElement.style.colorScheme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0F172A' : '#F5F6F8');
+  }, [theme]);
+
   return (
-    <div className="min-h-screen bg-[#F5F6F8] text-slate-900 flex font-sans selection:bg-[#C38B4B]/20 selection:text-[#C38B4B]">
-      {/* Persistent Left Sidebar */}
+    <div className={`${theme === 'dark' ? 'dark bg-slate-950' : 'bg-[#F5F6F8]'} flex min-h-screen text-slate-900 font-sans selection:bg-[#C38B4B]/20 selection:text-[#C38B4B]`}>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
+      {isMobileNavOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          className="fixed inset-0 z-30 bg-slate-950/35 lg:hidden"
+          onClick={() => setIsMobileNavOpen(false)}
+        />
+      )}
+
       <Sidebar 
         activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setIsMobileNavOpen(false);
+        }}
         pendingReviewCount={reviewQueue.length} 
         activeProject={activeProject}
         user={user}
+        isMobileOpen={isMobileNavOpen}
+        onCloseMobile={() => setIsMobileNavOpen(false)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenJwt={() => setIsJwtModalOpen(true)}
         onLogout={handleLogout}
       />
 
       {/* Main Operating Surface */}
-      <main className="flex-1 pl-64">
+      <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 lg:pl-64">
         {/* Top Header Bar */}
-        <header className="h-14 border-b border-slate-200/80 bg-white px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
-          <div className="flex items-center space-x-2.5 text-xs font-sans">
+        <header className="h-14 border-b border-slate-200/80 bg-white px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+          <div className="flex min-w-0 items-center space-x-2.5 text-xs font-sans">
+            <button
+              type="button"
+              aria-label="Open navigation menu"
+              aria-expanded={isMobileNavOpen}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 lg:hidden"
+              onClick={() => setIsMobileNavOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             {/* Global Project Switcher Dropdown */}
             <ProjectSelector
               projects={projectsList}
@@ -779,8 +817,8 @@ export function App() {
               onSelectProject={handleSelectProject}
               onOpenCreateProject={() => setIsCreateProjectModalOpen(true)}
             />
-            <span className="text-slate-300 font-normal">/</span>
-            <span className="font-semibold text-slate-800 tracking-tight">
+            <span className="hidden text-slate-300 font-normal sm:inline">/</span>
+            <span className="hidden font-semibold text-slate-800 tracking-tight sm:inline">
               {activeTab === 'dashboard' ? 'Overview' :
                activeTab === 'graph' ? 'Dependencies' :
                activeTab === 'upload' ? 'Evidence' :
@@ -792,7 +830,7 @@ export function App() {
             </span>
           </div>
 
-          <div className="flex items-center space-x-3 text-xs font-sans">
+          <div className="flex shrink-0 items-center space-x-2 sm:space-x-3 text-xs font-sans">
             {/* Quick Command Palette Button */}
             <button
               onClick={() => setIsCommandPaletteOpen(true)}
@@ -803,17 +841,28 @@ export function App() {
               <span className="text-[11px] font-medium text-slate-600">Quick Commands</span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+              className="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-700 transition hover:bg-slate-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+
             {/* Active User Role Indicator / JWT Modal Trigger */}
-            <div 
+            <button
+              type="button"
               onClick={() => setIsJwtModalOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 cursor-pointer transition-all duration-150"
-              title="Click to Inspect Cryptographic JWT Token"
+              className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 transition-all duration-150 hover:bg-slate-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+              title="Inspect cryptographic JWT token"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-[#C38B4B]" />
               <span className="text-[11px] font-medium tracking-tight">{user?.role ? user.role.replace(/_/g, ' ') : currentRole.replace(/_/g, ' ')}</span>
-            </div>
+            </button>
 
-            <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-sans">
+            <div className="hidden sm:flex items-center space-x-1.5 text-xs text-slate-500 font-sans">
               <span className={`h-1.5 w-1.5 rounded-full ${supabaseConnected ? 'bg-[#34C759]' : 'bg-[#FF9500]'}`} />
               <span className="text-slate-600 hidden lg:inline font-normal text-[11px]">
                 {supabaseConnected ? 'Cloud Sync Active' : 'Local Standby'}
@@ -827,7 +876,7 @@ export function App() {
         </header>
 
         {/* Dynamic Tab Surface */}
-        <div className="max-w-7xl mx-auto px-8 pt-8 pb-12">
+        <div className="mx-auto max-w-7xl px-4 pb-12 pt-5 sm:px-6 sm:pt-6 lg:px-8 lg:pt-8">
           {isLoading && activities.length === 0 ? (
             <DashboardSkeleton />
           ) : (

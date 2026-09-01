@@ -296,6 +296,26 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const isDark = document.querySelector('#root .dark') !== null;
+          const canvasPalette = isDark
+            ? {
+                hierarchy: 'rgba(100, 116, 139, 0.72)',
+                dependency: 'rgba(148, 163, 184, 0.72)',
+                dimmed: 'rgba(100, 116, 139, 0.24)',
+                nodeStroke: '#162033',
+                nodeHover: '#e5edf7',
+                label: '#e5edf7',
+                sublabel: '#9daec3',
+              }
+            : {
+                hierarchy: 'rgba(203, 213, 225, 0.7)',
+                dependency: 'rgba(148, 163, 184, 0.6)',
+                dimmed: 'rgba(203, 213, 225, 0.2)',
+                nodeStroke: '#FFFFFF',
+                nodeHover: '#0F172A',
+                label: '#0F172A',
+                sublabel: '#64748B',
+              };
           ctx.save();
           ctx.translate(canvas.width / 2 + transform.x, canvas.height / 2 + transform.y);
           ctx.scale(transform.scale, transform.scale);
@@ -315,7 +335,7 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
             ctx.lineTo(tgt.x, tgt.y);
 
             if (l.type === 'dependency') {
-              ctx.strokeStyle = isDimmed ? 'rgba(203, 213, 225, 0.2)' : l.isCritical ? 'rgba(245, 158, 11, 0.8)' : 'rgba(148, 163, 184, 0.6)';
+              ctx.strokeStyle = isDimmed ? canvasPalette.dimmed : l.isCritical ? 'rgba(245, 158, 11, 0.8)' : canvasPalette.dependency;
               ctx.lineWidth = l.isCritical ? 2.5 : 1.5;
               ctx.setLineDash([4, 4]);
             } else if (l.type === 'evidence') {
@@ -323,7 +343,7 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
               ctx.lineWidth = 1.5;
               ctx.setLineDash([2, 2]);
             } else {
-              ctx.strokeStyle = isDimmed ? 'rgba(226, 232, 240, 0.2)' : 'rgba(203, 213, 225, 0.7)';
+              ctx.strokeStyle = isDimmed ? canvasPalette.dimmed : canvasPalette.hierarchy;
               ctx.lineWidth = 1;
               ctx.setLineDash([]);
             }
@@ -353,18 +373,18 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
             ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
             ctx.fillStyle = n.color;
             ctx.fill();
-            ctx.strokeStyle = isSelected ? '#C38B4B' : isHovered ? '#0F172A' : '#FFFFFF';
+            ctx.strokeStyle = isSelected ? '#C38B4B' : isHovered ? canvasPalette.nodeHover : canvasPalette.nodeStroke;
             ctx.lineWidth = isSelected ? 3 : 2;
             ctx.stroke();
 
             // Node Labels
-            ctx.fillStyle = isDimmed ? '#94A3B8' : '#0F172A';
+            ctx.fillStyle = isDimmed ? '#9daec3' : canvasPalette.label;
             ctx.font = 'bold 11px IBM Plex Mono, monospace';
             ctx.textAlign = 'center';
             ctx.fillText(n.label, n.x, n.y + n.radius + 14);
 
             if (n.sublabel && !isDimmed) {
-              ctx.fillStyle = '#64748B';
+              ctx.fillStyle = canvasPalette.sublabel;
               ctx.font = '9px system-ui, sans-serif';
               ctx.fillText(n.sublabel.slice(0, 20), n.x, n.y + n.radius + 25);
             }

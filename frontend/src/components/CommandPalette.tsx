@@ -52,12 +52,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   return (
     <CommandDialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <CommandInput placeholder="Search activities, workflows, packages, or switch role..." />
+      <CommandInput placeholder="Search commands, activities, or roles…" />
       <CommandList>
-        <CommandEmpty>No matching command, activity, or role found.</CommandEmpty>
+        <CommandEmpty>No matches.</CommandEmpty>
         
         {/* Navigation Group */}
-        <CommandGroup heading="Navigation & Workflows">
+        <CommandGroup heading="Navigation">
           <CommandItem
             onSelect={() => {
               onNavigateTab('dashboard');
@@ -65,7 +65,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <LayoutDashboard className="mr-2 h-4 w-4 text-[#C38B4B]" />
-            <span>Overview & S-Curve Command Centre</span>
+            <span>Overview</span>
             <CommandShortcut>⌘1</CommandShortcut>
           </CommandItem>
 
@@ -76,7 +76,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <UploadCloud className="mr-2 h-4 w-4 text-[#007AFF]" />
-            <span>Evidence Inbox (DPR / Voice Notes)</span>
+            <span>Evidence</span>
             <CommandShortcut>⌘2</CommandShortcut>
           </CommandItem>
 
@@ -98,7 +98,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <CalendarClock className="mr-2 h-4 w-4 text-purple-600" />
-            <span>Schedule Explorer & Gantt Chart</span>
+            <span>Schedule</span>
             <CommandShortcut>⌘4</CommandShortcut>
           </CommandItem>
 
@@ -109,7 +109,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <Network className="mr-2 h-4 w-4 text-[#C38B4B]" />
-            <span>Obsidian Dependencies Graph</span>
+            <span>Dependencies</span>
             <CommandShortcut>⌘5</CommandShortcut>
           </CommandItem>
 
@@ -131,7 +131,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <Activity className="mr-2 h-4 w-4 text-sky-600" />
-            <span>System Telemetry & Health</span>
+            <span>System Health</span>
             <CommandShortcut>⌘7</CommandShortcut>
           </CommandItem>
 
@@ -142,13 +142,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <FileDown className="mr-2 h-4 w-4 text-slate-600" />
-            <span>Exports (Primavera P6 / CSV / JSON)</span>
+            <span>Exports</span>
             <CommandShortcut>⌘8</CommandShortcut>
           </CommandItem>
         </CommandGroup>
 
         {/* Roles */}
-        <CommandGroup heading="Switch Enterprise Persona">
+        <CommandGroup heading="Switch role">
           <CommandItem
             onSelect={() => {
               onSelectRole('Lead Planner');
@@ -156,7 +156,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <UserCheck className="mr-2 h-4 w-4 text-[#C38B4B]" />
-            <span>Switch Role: Lead Project Planner</span>
+            <span>Lead Project Planner</span>
           </CommandItem>
 
           <CommandItem
@@ -166,7 +166,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <UserCheck className="mr-2 h-4 w-4 text-sky-600" />
-            <span>Switch Role: Field Supervisor</span>
+            <span>Field Supervisor</span>
           </CommandItem>
 
           <CommandItem
@@ -176,7 +176,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <UserCheck className="mr-2 h-4 w-4 text-[#34C759]" />
-            <span>Switch Role: Quality Auditor</span>
+            <span>Quality Auditor</span>
           </CommandItem>
 
           <CommandItem
@@ -186,13 +186,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
           >
             <UserCheck className="mr-2 h-4 w-4 text-purple-600" />
-            <span>Switch Role: Site Engineer</span>
+            <span>Site Engineer</span>
           </CommandItem>
         </CommandGroup>
 
         {/* Activities Quick Jump */}
         {activities.length > 0 && (
-          <CommandGroup heading="Schedule Activities Quick Jump">
+          <CommandGroup heading="Activities">
             {activities.slice(0, 10).map((act) => (
               <CommandItem
                 key={act.activity.id}

@@ -190,10 +190,10 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
             <Badge variant="warning">Planner Review Queue</Badge>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
-            AI Proposal Review Console
+            Review matches
           </h1>
           <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
-            Deterministic human-in-the-loop authorization console. Unambiguous match evidence &ge; 88% confidence auto-links, while ambiguous items require explicit planner approval.
+            Review ambiguous matches. Matches at 88% confidence or higher link automatically.
           </p>
         </div>
 
@@ -244,7 +244,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
           </div>
 
           <div className="flex items-center gap-3 text-xs font-sans text-slate-500">
-            <span>Showing <strong className="text-slate-900 font-semibold">{filteredItems.length}</strong> of {items.length} pending items</span>
+            <span><strong className="text-slate-900 font-semibold">{filteredItems.length}</strong> of {items.length} pending</span>
           </div>
         </div>
       </Card>
@@ -255,7 +255,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
           <CheckCircle2 className="h-10 w-10 text-[#34C759] mx-auto" />
           <h3 className="text-base font-bold text-slate-900 font-sans">Queue Clear</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto font-sans">
-            All AI match proposals have been processed. New site evidence will stream here when uploaded.
+            All proposals are processed. New evidence appears here after upload.
           </p>
         </Card>
       ) : (
@@ -354,10 +354,10 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                   </div>
                 </div>
 
-                {/* Why NEXORA Matched This (Visual AI Explanation) */}
+                {/* Match explanation */}
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <span className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-500 block">
-                    Why NEXORA Matched This
+                    Why it matched
                   </span>
                   
                   <p className="text-xs text-slate-700 font-sans leading-relaxed">
@@ -504,7 +504,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                   Reject AI Match Proposal
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500 mt-0.5 font-sans">
-                  Rejections are permanently registered in the immutable audit trail with your engineering rationale.
+                  Your reason is saved to the audit trail.
                 </DialogDescription>
               </div>
             </div>

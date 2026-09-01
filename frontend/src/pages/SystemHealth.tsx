@@ -105,7 +105,7 @@ export const SystemHealth: React.FC = () => {
             System & Engine Health
           </h1>
           <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
-            Live telemetry across the Rust Trust Plane runtime, FastAPI Whisper microservice, and Supabase PostgreSQL persistence engine.
+            Live status for the trust engine, AI service, and database.
           </p>
         </div>
 
@@ -168,10 +168,10 @@ export const SystemHealth: React.FC = () => {
       <Card className="p-6 shadow-2xs space-y-4">
         <div className="border-b border-slate-100 pb-3">
           <CardTitle className="text-sm font-semibold text-slate-900">
-            Trust Plane Safety Invariants & Execution Guarantees
+            Safety checks
           </CardTitle>
           <CardDescription className="text-xs text-slate-500">
-            Enforced at the compiled binary layer before any PostgreSQL commit
+            Checked before database commits.
           </CardDescription>
         </div>
 
@@ -182,7 +182,7 @@ export const SystemHealth: React.FC = () => {
               <span className="font-semibold text-slate-900">Precedence Monotonicity</span>
             </div>
             <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
-              Successor activities cannot start or commit progress until Finish-to-Start (FS) predecessor milestones achieve 100% completion in the verified ledger.
+              Requires verified predecessor completion.
             </p>
           </div>
 
@@ -192,7 +192,7 @@ export const SystemHealth: React.FC = () => {
               <span className="font-semibold text-slate-900">Temporal Non-Contradiction</span>
             </div>
             <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
-              Actual start dates cannot exceed actual finish dates. Events timestamped in the future are strictly rejected with an invariant violation.
+              Rejects invalid or future dates.
             </p>
           </div>
 
@@ -202,7 +202,7 @@ export const SystemHealth: React.FC = () => {
               <span className="font-semibold text-slate-900">Cryptographic Sourcing</span>
             </div>
             <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
-              All planner decisions and AI auto-links produce a unique SHA-256 hash chained back to the genesis block of the schedule version.
+              Every decision is SHA-256 chained.
             </p>
           </div>
         </div>

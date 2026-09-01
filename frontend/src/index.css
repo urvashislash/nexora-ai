@@ -63,7 +63,19 @@
     --status-info: 211 100% 50%;
   }
 
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
+    min-width: 320px;
+    margin: 0;
     background-color: #F8F9FA;
     color: #0F172A;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
@@ -71,9 +83,173 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid #64748B;
+    outline-offset: 2px;
+  }
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  left: 1rem;
+  top: 1rem;
+  transform: translateY(-200%);
+  border-radius: 0.5rem;
+  background: #18181B;
+  padding: 0.625rem 0.875rem;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 150ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 /* NEXORA Utility Classes */
+/*
+ * The application currently uses Tailwind utility classes throughout feature and
+ * shared components. These theme overrides intentionally map that shared utility
+ * palette at the application boundary, so drawers, dialogs, controls, tables,
+ * status panels, and page surfaces all change theme together.
+ */
+.dark {
+  color: #e5edf7;
+  background: #0f172a;
+}
+
+.dark [class*="bg-white"],
+.dark [class*="bg-slate-50"] {
+  background-color: #162033 !important;
+}
+
+.dark [class*="bg-slate-100"] {
+  background-color: #1d2a3d !important;
+}
+
+.dark [class*="bg-slate-200"] {
+  background-color: #26364c !important;
+}
+
+.dark [class*="text-slate-900"],
+.dark [class*="text-slate-800"] {
+  color: #f1f5f9 !important;
+}
+
+.dark [class*="text-slate-700"] {
+  color: #d5deea !important;
+}
+
+.dark [class*="text-slate-600"] {
+  color: #bac7d8 !important;
+}
+
+.dark [class*="text-slate-500"] {
+  color: #9daec3 !important;
+}
+
+.dark [class*="text-slate-400"] {
+  color: #7e91a9 !important;
+}
+
+.dark [class*="text-slate-300"] {
+  color: #62748b !important;
+}
+
+.dark [class*="border-slate-"],
+.dark [class*="divide-slate-"] {
+  border-color: #33445c !important;
+}
+
+.dark [class*="ring-slate-"] {
+  --tw-ring-color: #94a3b8 !important;
+}
+
+.dark [class*="bg-emerald-50"],
+.dark [class*="bg-emerald-100"] {
+  background-color: #12362e !important;
+}
+
+.dark [class*="border-emerald-"] {
+  border-color: #21634f !important;
+}
+
+.dark [class*="text-emerald-"] {
+  color: #86efc2 !important;
+}
+
+.dark [class*="bg-amber-50"],
+.dark [class*="bg-amber-100"] {
+  background-color: #3a2b10 !important;
+}
+
+.dark [class*="border-amber-"] {
+  border-color: #7a5816 !important;
+}
+
+.dark [class*="text-amber-"] {
+  color: #fcd879 !important;
+}
+
+.dark [class*="bg-rose-50"],
+.dark [class*="bg-rose-100"] {
+  background-color: #3b1d2a !important;
+}
+
+.dark [class*="border-rose-"] {
+  border-color: #7f344d !important;
+}
+
+.dark [class*="text-rose-"] {
+  color: #fbb6c8 !important;
+}
+
+.dark [class*="bg-blue-50"],
+.dark [class*="bg-blue-100"],
+.dark [class*="bg-purple-50"] {
+  background-color: #162d4a !important;
+}
+
+.dark [class*="border-blue-"],
+.dark [class*="border-purple-"] {
+  border-color: #31557e !important;
+}
+
+.dark [class*="text-blue-"],
+.dark [class*="text-purple-"] {
+  color: #a8c9ff !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  color: #e5edf7;
+  background-color: #162033;
+  border-color: #40536d;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #7e91a9;
+}
+
+.dark svg line[stroke="#E2E8F0"] { stroke: #33445c; }
+.dark svg line[stroke="#CBD5E1"] { stroke: #52647c; }
+.dark svg path[stroke="#94A3B8"] { stroke: #8fa3ba; }
+.dark svg text[fill="#94A3B8"] { fill: #9daec3; }
+.dark svg text[fill="#047857"] { fill: #86efc2; }
+.dark svg circle[stroke="#FFFFFF"] { stroke: #162033; }
+
 @layer components {
   .ledger-rule {
     @apply border-t border-slate-200/80 w-full;

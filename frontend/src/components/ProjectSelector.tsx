@@ -41,13 +41,14 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-2 rounded-lg border border-slate-200/90 bg-white hover:bg-slate-50/80 px-3 py-1.5 text-xs font-sans text-slate-800 transition-all duration-150 shadow-2xs group cursor-pointer active:scale-[0.98] outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400"
+          aria-label={`Switch project: ${activeProject.code}`}
+          className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200/90 bg-white px-2 py-1.5 text-xs font-sans text-slate-800 shadow-2xs transition-all duration-150 hover:bg-slate-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 sm:px-3"
         >
           <Building2 className="h-3.5 w-3.5 text-[#C38B4B]" />
-          <div className="flex items-center gap-1.5 text-left">
-            <span className="font-semibold text-slate-900">{activeProject.code}</span>
-            <span className="text-slate-300 font-normal">·</span>
-            <span className="max-w-[140px] sm:max-w-[200px] truncate text-slate-600 font-normal">
+          <div className="flex min-w-0 items-center gap-1.5 text-left">
+            <span className="shrink-0 font-semibold text-slate-900">{activeProject.code}</span>
+            <span className="hidden text-slate-300 font-normal sm:inline">·</span>
+            <span className="hidden max-w-[200px] truncate text-slate-600 font-normal sm:inline">
               {activeProject.name}
             </span>
           </div>
@@ -56,7 +57,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="start" className="w-80 p-2.5 rounded-2xl">
-        <DropdownMenuLabel>Project Packages</DropdownMenuLabel>
+        <DropdownMenuLabel>Projects</DropdownMenuLabel>
         
         {/* Search inside Dropdown */}
         <div className="relative mb-2 px-1">
@@ -65,7 +66,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter packages..."
+            placeholder="Filter projects..."
             className="w-full rounded-xl border border-slate-200/80 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs font-sans text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden"
             autoFocus
           />
@@ -110,7 +111,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
           className="flex items-center justify-center gap-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 py-2 text-xs font-sans font-semibold text-slate-800 transition cursor-pointer"
         >
           <FolderPlus className="h-3.5 w-3.5 text-[#C38B4B]" />
-          <span>Create New Project Package</span>
+          <span>New project</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
