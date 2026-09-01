@@ -43,6 +43,12 @@ interface ProjectGraphProps {
   observations?: WorkObservation[];
 }
 
+// Pure deterministic pseudo-random generator for reproducible node layout
+function deterministicRandom(seed: number): number {
+  const x = Math.sin(seed * 9999) * 10000;
+  return x - Math.floor(x);
+}
+
 export const ProjectGraph: React.FC<ProjectGraphProps> = ({ 
   activities,
   observations = []
@@ -60,53 +66,54 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
   // Physics params
   const [repulsion, setRepulsion] = useState<number>(450);
   const [linkDistance, setLinkDistance] = useState<number>(90);
+  const [transform, setTransform] = useState<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 0.85 });
+  const isDraggingRef = useRef<boolean>(false);
+  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const draggedNodeRef = useRef<GraphNode | null>(null);
+  const hoveredNodeRef = useRef<GraphNode | null>(null);
 
   // Selected drawers
   const [selectedActivity, setSelectedActivity] = useState<ActivityWithState | null>(null);
   const [selectedObservation, setSelectedObservation] = useState<WorkObservation | null>(null);
 
-  // Canvas View Transform
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 0.85 });
-  const isDraggingRef = useRef(false);
-  const lastMousePosRef = useRef({ x: 0, y: 0 });
-  const draggedNodeRef = useRef<GraphNode | null>(null);
-  const hoveredNodeRef = useRef<GraphNode | null>(null);
-
-  // Construct Graph Model
+  // 1. Build Graph Model from Activities & Observations
   const { nodes, links } = useMemo(() => {
     const nList: GraphNode[] = [];
     const lList: GraphLink[] = [];
 
-    // 1. Root Node
+    // Root Project Hub Node
     nList.push({
       id: 'root-project',
-      label: 'PH-PKG-04',
-      sublabel: 'Paradip-Hyderabad Refinery Expansion',
+      label: 'PARADIP REFINERY',
+      sublabel: 'Package 04 Expansion',
       type: 'project',
       x: 0,
       y: 0,
       vx: 0,
       vy: 0,
-      radius: 26,
+      radius: 22,
       color: '#C38B4B',
     });
 
-    // 2. Extract unique WBS zones
+    // 2. WBS Location Groups
     const wbsGroups = new Map<string, string>();
-    activities.forEach(a => {
-      const loc = a.activity.location || a.activity.discipline;
+    activities.forEach(act => {
+      const loc = act.activity.location || act.activity.discipline;
       if (!wbsGroups.has(loc)) {
-        wbsGroups.set(loc, `wbs-${loc.replace(/[^a-zA-Z0-9]/g, '_')}`);
+        const wbsId = `wbs-${loc.toLowerCase().replace(/\s+/g, '-')}`;
+        wbsGroups.set(loc, wbsId);
       }
     });
 
+    let wbsIdx = 0;
     wbsGroups.forEach((wbsId, locName) => {
+      wbsIdx++;
       nList.push({
         id: wbsId,
         label: locName,
         type: 'wbs',
-        x: (Math.random() - 0.5) * 200,
-        y: (Math.random() - 0.5) * 200,
+        x: (deterministicRandom(wbsIdx * 17) - 0.5) * 200,
+        y: (deterministicRandom(wbsIdx * 31) - 0.5) * 200,
         vx: 0,
         vy: 0,
         radius: 18,
@@ -149,8 +156,8 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
         progress,
         discipline: act.activity.discipline,
         isCritical: act.activity.critical_path,
-        x: (Math.random() - 0.5) * 500,
-        y: (Math.random() - 0.5) * 500,
+        x: (deterministicRandom((idx + 1) * 43) - 0.5) * 500,
+        y: (deterministicRandom((idx + 1) * 67) - 0.5) * 500,
         vx: 0,
         vy: 0,
         radius: act.activity.critical_path ? 14 : 12,
@@ -170,7 +177,7 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
       }
 
       // Predecessor dependency link (e.g. sequence chaining)
-      if (idx > 0 && Math.random() > 0.4) {
+      if (idx > 0 && deterministicRandom(idx * 73) > 0.4) {
         const prevAct = activities[idx - 1];
         if (selectedDiscipline === 'ALL' || prevAct.activity.discipline === selectedDiscipline) {
           lList.push({
@@ -185,7 +192,7 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
 
     // 4. Evidence Nodes
     if (showEvidence && observations.length > 0) {
-      observations.slice(0, 8).forEach((obs) => {
+      observations.slice(0, 8).forEach((obs, oIdx) => {
         const obsId = `obs-${obs.id}`;
         const hasAudio = (obs.metadata as any)?.has_audio || (obs.metadata as any)?.source_type === 'VOICE';
         nList.push({
@@ -193,8 +200,8 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
           label: hasAudio ? 'VOICE MEMO' : 'DPR REPORT',
           sublabel: obs.normalized_text?.slice(0, 30) || obs.raw_text.slice(0, 30),
           type: 'evidence',
-          x: (Math.random() - 0.5) * 400,
-          y: (Math.random() - 0.5) * 400,
+          x: (deterministicRandom((oIdx + 1) * 89) - 0.5) * 400,
+          y: (deterministicRandom((oIdx + 1) * 101) - 0.5) * 400,
           vx: 0,
           vy: 0,
           radius: 9,

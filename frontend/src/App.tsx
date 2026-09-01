@@ -301,7 +301,6 @@ function App() {
 
   // Load from live APIs / Supabase DB
   const loadData = useCallback(async () => {
-    setIsLoading(true);
     try {
       // 1. Check Supabase
       const { error } = await supabase.auth.getSession();
@@ -335,25 +334,32 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadData();
+    let isMounted = true;
+    const fetchInitialData = async () => {
+      if (isMounted) {
+        await loadData();
+      }
+    };
+    void fetchInitialData();
 
     // Subscribe to live Postgres change events
     const unsubscribe = subscribeToProjectRealtime(PROJECT_ID, {
       onObservationChange: () => {
-        loadData();
+        void loadData();
       },
       onProposalChange: () => {
-        loadData();
+        void loadData();
       },
       onStateChange: () => {
-        loadData();
+        void loadData();
       },
       onAuditChange: () => {
-        loadData();
+        void loadData();
       },
     });
 
     return () => {
+      isMounted = false;
       unsubscribe();
     };
   }, [loadData]);
