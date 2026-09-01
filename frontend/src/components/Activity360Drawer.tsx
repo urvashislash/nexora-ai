@@ -64,10 +64,10 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
       />
 
       {/* Slide-over Drawer Panel */}
-      <div className="relative w-full max-w-xl bg-white shadow-2xl flex flex-col h-full z-10 border-l border-slate-200">
+      <div className="relative w-full max-w-xl bg-white shadow-2xl flex flex-col h-full z-10 border-l border-slate-200/80 rounded-l-2xl overflow-hidden">
         
         {/* Drawer Header */}
-        <div className="p-6 border-b border-slate-200 bg-slate-50/70 flex items-start justify-between gap-4">
+        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="font-mono text-xs font-bold text-slate-900">{activity.code}</span>
@@ -76,8 +76,8 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
                 <Badge variant="warning">CRITICAL PATH</Badge>
               )}
             </div>
-            <h2 className="text-base font-bold text-slate-900 leading-snug">{activity.name}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="text-base font-bold text-slate-900 leading-snug font-sans">{activity.name}</h2>
+            <p className="text-xs text-slate-500 mt-0.5 font-sans">
               WBS Node: {activity.zone || 'Zone 2'} &bull; Area: {activity.location || 'Pipe Rack B'}
             </p>
           </div>
@@ -93,10 +93,10 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
         </div>
 
         {/* 360° Navigation Tabs */}
-        <div className="flex border-b border-slate-200 bg-white px-6 gap-6 text-xs font-mono">
+        <div className="flex border-b border-slate-100 bg-white px-6 gap-6 text-xs font-sans">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`py-3 font-semibold border-b-2 transition ${
+            className={`py-3 font-semibold border-b-2 transition cursor-pointer ${
               activeTab === 'overview'
                 ? 'border-[#C38B4B] text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -106,40 +106,40 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('evidence')}
-            className={`py-3 font-semibold border-b-2 transition flex items-center gap-1.5 ${
+            className={`py-3 font-semibold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'evidence'
                 ? 'border-[#C38B4B] text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <span>Evidence</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700">
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700 font-mono">
               {linkedObservations.length}
             </span>
           </button>
           <button
             onClick={() => setActiveTab('dependencies')}
-            className={`py-3 font-semibold border-b-2 transition flex items-center gap-1.5 ${
+            className={`py-3 font-semibold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'dependencies'
                 ? 'border-[#C38B4B] text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <span>Dependencies</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700">
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700 font-mono">
               {predecessors.length + successors.length}
             </span>
           </button>
           <button
             onClick={() => setActiveTab('audit')}
-            className={`py-3 font-semibold border-b-2 transition flex items-center gap-1.5 ${
+            className={`py-3 font-semibold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'audit'
                 ? 'border-[#C38B4B] text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <span>Audit</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700">
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700 font-mono">
               {linkedAudits.length}
             </span>
           </button>
@@ -151,40 +151,40 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
           {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Status & Progress Box */}
-              <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
+              {/* Status & Progress Card */}
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-3.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono uppercase text-slate-500 font-semibold">Execution Status</span>
+                  <span className="text-[11px] font-sans uppercase text-slate-500 font-semibold">Execution Status</span>
                   <Badge variant={status === 'COMPLETED' ? 'success' : status === 'IN_PROGRESS' ? 'warning' : 'outline'}>
                     {status}
                   </Badge>
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-mono">
+                  <div className="flex justify-between text-xs font-sans">
                     <span className="text-slate-600">Actual Physical Progress:</span>
-                    <span className="font-bold text-slate-900">{progress}%</span>
+                    <span className="font-mono font-bold text-slate-900">{progress}%</span>
                   </div>
-                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                     <div 
                       className={`h-full rounded-full transition-all duration-500 ${
-                        progress === 100 ? 'bg-emerald-500' : 'bg-[#C38B4B]'
+                        progress === 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'
                       }`}
                       style={{ width: `${progress}%` }}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-2 text-xs font-mono border-t border-slate-200/80">
+                <div className="grid grid-cols-2 gap-3 pt-2 text-xs font-sans border-t border-slate-100">
                   <div>
-                    <span className="text-slate-400 text-[10px] block">CUMULATIVE QUANTITY</span>
-                    <span className="font-bold text-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-semibold">CUMULATIVE QUANTITY</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">
                       {state?.cumulative_quantity ?? (progress > 0 ? (activity.planned_quantity || 1) * (progress / 100) : 0)} / {activity.planned_quantity || 1} {activity.unit_of_measure}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] block">SCHEDULE VARIANCE</span>
-                    <span className={`font-bold ${state?.variance_days && state.variance_days > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    <span className="text-slate-400 text-[10px] block font-semibold">SCHEDULE VARIANCE</span>
+                    <span className={`font-mono font-bold text-xs ${state?.variance_days && state.variance_days > 0 ? 'text-[#FF3B30]' : 'text-emerald-700'}`}>
                       {state?.variance_days ? `+${state.variance_days} Days Delay` : 'On Track (+0.0d)'}
                     </span>
                   </div>
@@ -193,85 +193,87 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
 
               {/* Baseline Schedule Windows */}
               <div className="space-y-3">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+                <h3 className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
                   Primavera P6 Baseline Parameters
                 </h3>
-                <div className="grid grid-cols-2 gap-3 text-xs font-mono">
-                  <div className="p-3 bg-white border border-slate-200 rounded">
-                    <span className="text-slate-400 text-[10px] block">PLANNED START</span>
-                    <span className="font-bold text-slate-800">{activity.planned_start_date}</span>
+                <div className="grid grid-cols-2 gap-3 text-xs font-sans">
+                  <div className="p-3.5 bg-slate-50/70 border border-slate-200/70 rounded-xl space-y-1">
+                    <span className="text-slate-400 text-[10px] block font-semibold">PLANNED START</span>
+                    <span className="font-mono font-bold text-slate-900">{activity.planned_start_date}</span>
                   </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded">
-                    <span className="text-slate-400 text-[10px] block">PLANNED FINISH</span>
-                    <span className="font-bold text-slate-800">{activity.planned_finish_date}</span>
+                  <div className="p-3.5 bg-slate-50/70 border border-slate-200/70 rounded-xl space-y-1">
+                    <span className="text-slate-400 text-[10px] block font-semibold">PLANNED FINISH</span>
+                    <span className="font-mono font-bold text-slate-900">{activity.planned_finish_date}</span>
                   </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded">
-                    <span className="text-slate-400 text-[10px] block">PLANNED DURATION</span>
-                    <span className="font-bold text-slate-800">{activity.planned_duration_days} Days</span>
+                  <div className="p-3.5 bg-slate-50/70 border border-slate-200/70 rounded-xl space-y-1">
+                    <span className="text-slate-400 text-[10px] block font-semibold">ACTUAL START</span>
+                    <span className="font-mono font-bold text-slate-900">{state?.actual_start_date || '—'}</span>
                   </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded">
-                    <span className="text-slate-400 text-[10px] block">EQUIPMENT TAG</span>
-                    <span className="font-bold text-slate-800">{activity.equipment_tag || 'N/A'}</span>
+                  <div className="p-3.5 bg-slate-50/70 border border-slate-200/70 rounded-xl space-y-1">
+                    <span className="text-slate-400 text-[10px] block font-semibold">ACTUAL FINISH</span>
+                    <span className="font-mono font-bold text-slate-900">{state?.actual_finish_date || '—'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Description & Scope Notes */}
-              {activity.description && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
-                    Engineering Scope of Work
-                  </h3>
-                  <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded border border-slate-200 leading-relaxed font-mono">
-                    {activity.description}
-                  </p>
+              {/* WBS Metadata & Tags */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
+                  Spatial & Equipment Identifiers
+                </h3>
+                <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 space-y-2 text-xs font-sans">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Equipment Tag:</span>
+                    <span className="font-mono font-semibold text-slate-900">{activity.equipment_tag || 'LINE-P-101'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Zone / Corridor:</span>
+                    <span className="text-slate-800 font-medium">{activity.zone || 'Zone 2'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Target Area:</span>
+                    <span className="text-slate-800 font-medium">{activity.location || 'Pipe Rack B Tier 2'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Scope Quantity:</span>
+                    <span className="font-mono text-slate-800">{activity.planned_quantity} {activity.unit_of_measure}</span>
+                  </div>
                 </div>
-              )}
-
-              {/* Trust Plane Guard Status */}
-              <div className="p-4 rounded-lg bg-emerald-50/60 border border-emerald-200 text-xs font-mono space-y-2">
-                <div className="flex items-center gap-2 text-emerald-800 font-bold">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  <span>Trust Plane Invariant Status</span>
-                </div>
-                <p className="text-emerald-900/80 text-[11px] leading-relaxed">
-                  Activity conforms to monotonic progress rule. State changes cannot be backtracked without a registered and signed Lead Planner change order.
-                </p>
               </div>
             </div>
           )}
 
-          {/* TAB 2: LINKED FIELD EVIDENCE */}
+          {/* TAB 2: FIELD EVIDENCE */}
           {activeTab === 'evidence' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
-                  Reconciled Field Observations ({linkedObservations.length})
-                </h3>
+                <span className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
+                  Linked Observations ({linkedObservations.length})
+                </span>
               </div>
 
               {linkedObservations.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-200 text-xs font-mono text-slate-500">
-                  No field observations linked to this activity yet.
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200/80">
+                  <p className="text-xs text-slate-500 font-sans">No field reports or voice memos linked to this activity yet.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {linkedObservations.map((obs) => (
-                    <div key={obs.id} className="p-4 rounded-lg bg-white border border-slate-200 space-y-2 text-xs font-mono">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900">ID: {obs.id.slice(0, 8)}...</span>
-                        <Badge variant="success">CONFIRMED</Badge>
-                      </div>
-                      <p className="text-slate-700 bg-slate-50 p-2.5 rounded border border-slate-100 font-sans leading-relaxed">
-                        "{obs.raw_text}"
-                      </p>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                        <span>Reported Progress: +{obs.reported_progress ?? 100}%</span>
-                        <span>{new Date(obs.recorded_at).toLocaleDateString()}</span>
-                      </div>
+                linkedObservations.map((obs) => (
+                  <div key={obs.id} className="p-4 bg-white rounded-2xl border border-slate-200/80 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between text-[11px] font-sans">
+                      <Badge variant="secondary">{obs.discipline || 'GENERAL'}</Badge>
+                      <span className="text-slate-400 font-mono text-[10px]">
+                        {new Date(obs.recorded_at).toLocaleString()}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <p className="text-xs text-slate-800 leading-relaxed font-sans italic">
+                      "{obs.raw_text}"
+                    </p>
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-sans">
+                      <span>Source: {obs.metadata?.source_type || 'DAILY_REPORT'}</span>
+                      <span className="font-mono font-bold text-emerald-700">+{obs.reported_progress}% Progress</span>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           )}
@@ -279,55 +281,47 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
           {/* TAB 3: DEPENDENCIES */}
           {activeTab === 'dependencies' && (
             <div className="space-y-6">
-              {/* Upstream Predecessors */}
-              <div className="space-y-2">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+              {/* Predecessors */}
+              <div className="space-y-3">
+                <span className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500 block">
                   Upstream Predecessors ({predecessors.length})
-                </h3>
+                </span>
                 {predecessors.length === 0 ? (
-                  <p className="text-xs font-mono text-slate-400 p-3 bg-slate-50 rounded border border-slate-100">
-                    No predecessor constraints (Root package activity).
-                  </p>
+                  <p className="text-xs text-slate-400 italic font-sans">No upstream schedule predecessors required.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {predecessors.map(p => (
-                      <div key={p.activity.id} className="p-3 bg-white border border-slate-200 rounded flex items-center justify-between text-xs font-mono">
-                        <div>
-                          <span className="font-bold text-slate-900">{p.activity.code}</span>
-                          <span className="text-slate-500 ml-2">{p.activity.name}</span>
-                        </div>
-                        <Badge variant={p.state?.execution_status === 'COMPLETED' ? 'success' : 'warning'}>
-                          {p.state?.execution_status || 'NOT_STARTED'}
-                        </Badge>
+                  predecessors.map((p) => (
+                    <div key={p.activity.id} className="p-3 bg-white rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-slate-900">{p.activity.code}</span>
+                        <p className="text-xs text-slate-600 truncate font-sans">{p.activity.name}</p>
                       </div>
-                    ))}
-                  </div>
+                      <Badge variant={p.state?.execution_status === 'COMPLETED' ? 'success' : 'outline'}>
+                        {p.state?.execution_status || 'NOT_STARTED'}
+                      </Badge>
+                    </div>
+                  ))
                 )}
               </div>
 
-              {/* Downstream Successors */}
-              <div className="space-y-2">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+              {/* Successors */}
+              <div className="space-y-3 pt-3 border-t border-slate-100">
+                <span className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500 block">
                   Downstream Successors ({successors.length})
-                </h3>
+                </span>
                 {successors.length === 0 ? (
-                  <p className="text-xs font-mono text-slate-400 p-3 bg-slate-50 rounded border border-slate-100">
-                    No downstream dependent activities.
-                  </p>
+                  <p className="text-xs text-slate-400 italic font-sans">No dependent successor activities downstream.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {successors.map(s => (
-                      <div key={s.activity.id} className="p-3 bg-white border border-slate-200 rounded flex items-center justify-between text-xs font-mono">
-                        <div>
-                          <span className="font-bold text-slate-900">{s.activity.code}</span>
-                          <span className="text-slate-500 ml-2">{s.activity.name}</span>
-                        </div>
-                        <Badge variant={s.state?.execution_status === 'COMPLETED' ? 'success' : 'outline'}>
-                          {s.state?.execution_status || 'NOT_STARTED'}
-                        </Badge>
+                  successors.map((s) => (
+                    <div key={s.activity.id} className="p-3 bg-white rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-slate-900">{s.activity.code}</span>
+                        <p className="text-xs text-slate-600 truncate font-sans">{s.activity.name}</p>
                       </div>
-                    ))}
-                  </div>
+                      <Badge variant={s.state?.execution_status === 'COMPLETED' ? 'success' : 'outline'}>
+                        {s.state?.execution_status || 'NOT_STARTED'}
+                      </Badge>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -336,48 +330,34 @@ export const Activity360Drawer: React.FC<Activity360DrawerProps> = ({
           {/* TAB 4: AUDIT HISTORY */}
           {activeTab === 'audit' && (
             <div className="space-y-4">
-              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
-                Immutable Ledger Events ({linkedAudits.length})
-              </h3>
+              <span className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500 block">
+                Cryptographic Ledger Log ({linkedAudits.length})
+              </span>
 
               {linkedAudits.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-200 text-xs font-mono text-slate-500">
-                  No direct audit ledger modifications recorded for this activity.
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200/80">
+                  <ShieldCheck className="h-6 w-6 text-slate-400 mx-auto mb-2" />
+                  <p className="text-xs text-slate-500 font-sans">No immutable ledger entries recorded yet for this activity.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {linkedAudits.map(aud => (
-                    <div key={aud.id} className="p-4 rounded-lg bg-white border border-slate-200 space-y-2 text-xs font-mono">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900">{aud.action}</span>
-                        <span className="text-[10px] text-slate-500">{new Date(aud.created_at).toLocaleString()}</span>
-                      </div>
-                      <div className="p-2 bg-slate-50 rounded border border-slate-100 text-[11px] text-slate-700 break-all select-all">
-                        SHA-256: {aud.payload_hash.slice(0, 32)}...
-                      </div>
-                      <div className="text-[10px] text-slate-500 flex justify-between">
-                        <span>Actor: {aud.actor_role}</span>
-                        <span>Entity: {aud.entity_type}</span>
-                      </div>
+                linkedAudits.map((evt) => (
+                  <div key={evt.id} className="p-4 bg-white rounded-2xl border border-slate-200/80 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between text-[11px] font-sans">
+                      <span className="font-semibold text-slate-900">{evt.action}</span>
+                      <span className="text-slate-400 font-mono text-[10px]">
+                        {new Date(evt.created_at || evt.timestamp || 0).toLocaleString()}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="font-mono text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200/70 truncate">
+                      SHA-256: {evt.payload_hash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           )}
 
         </div>
-
-        {/* Drawer Footer */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-          <span className="text-[11px] font-mono text-slate-500">
-            NEXORA Activity 360° Entity Inspector
-          </span>
-          <Button onClick={onClose} variant="default" size="sm">
-            Close Inspector
-          </Button>
-        </div>
-
       </div>
     </div>
   );

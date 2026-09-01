@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import type { WorkObservation } from '../types';
 import { getEvidencePublicUrl } from '../lib/supabase';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 
 interface EvidenceDrawerProps {
   observation: WorkObservation | null;
@@ -33,29 +35,31 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
       />
 
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-xl bg-white border-l border-slate-200 shadow-2xl flex flex-col transform transition-transform duration-300 ease-out">
+        <div className="w-screen max-w-xl bg-white border-l border-slate-200/80 shadow-2xl flex flex-col transform transition-transform duration-300 ease-out rounded-l-2xl overflow-hidden">
           
           {/* Header */}
-          <div className="p-6 border-b border-slate-200 bg-slate-50/80 flex items-start justify-between">
+          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="signal-tick bg-blue-500" />
-                <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-500">
+                <span className="signal-tick bg-[#007AFF]" />
+                <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-500">
                   Evidence Processing & AI Provenance Sheet
                 </span>
               </div>
-              <h2 className="text-xl font-bold font-mono text-slate-900">{observation.id}</h2>
-              <div className="flex items-center gap-2 text-xs font-mono text-slate-500 mt-1">
+              <h2 className="text-lg font-bold font-mono text-slate-900">{observation.id}</h2>
+              <div className="flex items-center gap-2 text-xs font-sans text-slate-500 mt-1">
                 <Clock className="h-3.5 w-3.5" />
                 <span>Recorded: {new Date(observation.recorded_at).toLocaleString()}</span>
               </div>
             </div>
-            <button 
+            <Button 
               onClick={onClose}
-              className="rounded p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
+              variant="ghost"
+              size="icon"
+              className="text-slate-400 hover:text-slate-700"
             >
-              <X className="h-5 w-5" />
-            </button>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Body */}
@@ -63,9 +67,9 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
             
             {/* Audio Memo Player if present */}
             {hasAudio && (
-              <div className="space-y-2 p-4 rounded-lg bg-purple-50/70 border border-purple-200">
+              <div className="space-y-2 p-4 rounded-xl bg-purple-50/70 border border-purple-200/80">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-purple-700">
+                  <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-purple-700">
                     <FileAudio className="h-4 w-4 text-purple-600" />
                     Audio Evidence Recording
                   </div>
@@ -74,7 +78,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
                       href={audioUrl} 
                       target="_blank" 
                       rel="noopener noreferrer" 
-                      className="text-[10px] font-mono text-purple-700 hover:underline flex items-center gap-1"
+                      className="text-[11px] font-sans text-purple-700 hover:underline flex items-center gap-1"
                     >
                       <span>Cloud File</span>
                       <ExternalLink className="h-3 w-3" />
@@ -90,117 +94,77 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
             {/* Stage 1: Source */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+                <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
                   <FileText className="h-3.5 w-3.5 text-slate-400" />
                   Stage 1: Raw Ingested Source
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                  DIRECT EXTRACTION
-                </span>
+                <Badge variant="secondary">DIRECT EXTRACTION</Badge>
               </div>
-              <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono leading-relaxed text-slate-800">
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 text-xs font-sans text-slate-800 leading-relaxed italic">
                 "{observation.raw_text}"
               </div>
             </div>
 
-            {/* Stage 2: AI Interpretation */}
+            {/* Stage 2: Normalization */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-blue-600">
-                  <Cpu className="h-3.5 w-3.5 text-blue-500" />
-                  Stage 2: AI Normalized Interpretation
+                <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
+                  <Cpu className="h-3.5 w-3.5 text-purple-500" />
+                  Stage 2: Entity Normalization
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                  NER & DICTIONARY
-                </span>
+                <Badge variant="cyan">faster-whisper VAD</Badge>
               </div>
-              <div className="p-4 rounded-lg bg-blue-50/40 border border-blue-100 text-xs font-mono text-slate-800 space-y-3">
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-semibold">Normalized Fact:</span>
-                  <span className="font-semibold text-slate-900">{observation.normalized_text || observation.raw_text}</span>
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 text-xs font-sans space-y-2 text-slate-700">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Normalized Text:</span>
+                  <span className="font-medium text-slate-900">{observation.normalized_text || observation.raw_text}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-blue-100 text-[11px]">
-                  <div>
-                    <span className="text-slate-500">Discipline:</span> <span className="font-bold text-slate-800">{observation.discipline || 'Unassigned'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Event Type:</span> <span className="font-bold text-slate-800">{observation.event_type || 'PROGRESS'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Reported Progress:</span> <span className="font-bold text-slate-800">{observation.reported_progress ?? 100}%</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Location:</span> <span className="font-bold text-slate-800">{observation.location || 'Pipe Rack B'}</span>
-                  </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Discipline Classification:</span>
+                  <Badge variant="secondary">{observation.discipline || 'GENERAL'}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Event Type:</span>
+                  <span className="font-mono text-slate-800 font-semibold">{observation.event_type || 'PROGRESS'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Extracted Progress:</span>
+                  <span className="font-mono text-emerald-700 font-bold">{observation.reported_progress ?? 100}%</span>
                 </div>
               </div>
             </div>
 
-            {/* Stage 3: Match Proposal & Confidence Score */}
+            {/* Stage 3: Spatial Tags */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-emerald-700">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  Stage 3: Hybrid Score & Routing
-                </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  COSINE + RAPIDFUZZ
-                </span>
-              </div>
-              
-              <div className="p-4 rounded-lg bg-emerald-50/30 border border-emerald-200 text-xs font-mono space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Hybrid Match Confidence:</span>
-                  <span className="text-base font-bold font-mono text-emerald-700">92.4%</span>
-                </div>
-                <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 h-full rounded-full" style={{ width: '92.4%' }} />
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 pt-2 border-t border-emerald-100">
-                  <div>
-                    <span className="block text-slate-400">Lexical:</span>
-                    <span className="font-bold text-slate-800">95%</span>
-                  </div>
-                  <div>
-                    <span className="block text-slate-400">Semantic:</span>
-                    <span className="font-bold text-slate-800">89%</span>
-                  </div>
-                  <div>
-                    <span className="block text-slate-400">Context Boost:</span>
-                    <span className="font-bold text-slate-800">+15%</span>
-                  </div>
+                <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" />
+                  Stage 3: Spatial & Equipment Mapping
                 </div>
               </div>
-            </div>
-
-            {/* Technical Metadata */}
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2 text-xs font-mono">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Technical Telemetry</span>
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Embedding Engine:</span>
-                <span className="text-slate-800 font-semibold">all-MiniLM-L6-v2 (384-d)</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Storage Location:</span>
-                <span className="text-slate-800 font-semibold">evidence-documents/reports</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-slate-500">Trust State:</span>
-                <span className="text-emerald-600 font-semibold">PASSED RUST VERIFICATION</span>
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 text-xs font-sans space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Equipment / Line Tag:</span>
+                  <span className="font-mono font-semibold text-slate-900">{observation.equipment_tag || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Location Area:</span>
+                  <span className="text-slate-800">{observation.location || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Zone:</span>
+                  <span className="text-slate-800">{observation.zone || '—'}</span>
+                </div>
               </div>
             </div>
 
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs font-mono">
-            <span className="text-slate-500">Project: a0000000-0000-0000-0000-000000000001</span>
-            <button
-              onClick={onClose}
-              className="px-4 py-1.5 rounded bg-slate-900 text-white font-sans font-medium text-xs hover:bg-slate-800 transition"
-            >
-              Close Sheet
-            </button>
+          <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end">
+            <Button onClick={onClose} variant="default" size="sm">
+              Done
+            </Button>
           </div>
 
         </div>

@@ -456,13 +456,13 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="signal-tick bg-purple-500" />
-            <Badge variant="secondary">ACTIVITY NETWORK & PRECEDENCE</Badge>
+            <span className="signal-tick bg-[#007AFF]" />
+            <Badge variant="secondary">Topology & Precedence Network</Badge>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight font-sans">
             Schedule Dependency Graph
           </h1>
-          <p className="mt-1 text-xs text-slate-500 max-w-[65ch]">
+          <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
             Interactive topological network map. Select any activity node to isolate its upstream predecessors, downstream successors, and field evidence.
           </p>
         </div>
@@ -476,32 +476,32 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
               placeholder="Search activity node..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
+              className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200/80 bg-white text-xs font-sans placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
             />
           </div>
 
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-mono">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/60 text-xs font-sans">
             <button
               onClick={() => setGraphMode('dependencies')}
-              className={`px-3 py-1.5 rounded transition ${graphMode === 'dependencies' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${graphMode === 'dependencies' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Dependencies
             </button>
             <button
               onClick={() => setGraphMode('critical_path')}
-              className={`px-3 py-1.5 rounded transition ${graphMode === 'critical_path' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${graphMode === 'critical_path' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Critical Path
             </button>
             <button
               onClick={() => setGraphMode('evidence')}
-              className={`px-3 py-1.5 rounded transition ${graphMode === 'evidence' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${graphMode === 'evidence' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Evidence
             </button>
             <button
               onClick={() => setGraphMode('all')}
-              className={`px-3 py-1.5 rounded transition ${graphMode === 'all' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${graphMode === 'all' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               All Nodes
             </button>
@@ -510,15 +510,15 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
       </div>
 
       {/* Canvas Viewport Container */}
-      <div ref={containerRef} className="relative w-full h-[620px] bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-lg">
+      <div ref={containerRef} className="relative w-full h-[620px] bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xs">
         
         {/* Floating Viewport Controls */}
-        <div className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-slate-900/90 border border-slate-800 p-1.5 rounded-lg text-white">
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-xl text-white shadow-lg">
           <Button
             onClick={() => setTransform(t => ({ ...t, scale: Math.min(2.5, t.scale + 0.15) }))}
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg"
             title="Zoom In"
           >
             <ZoomIn className="h-4 w-4" />
@@ -527,7 +527,7 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
             onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.4, t.scale - 0.15) }))}
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg"
             title="Zoom Out"
           >
             <ZoomOut className="h-4 w-4" />
@@ -536,7 +536,7 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
             onClick={() => setTransform({ x: 0, y: 0, scale: 0.9 })}
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+            className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg"
             title="Reset Viewport"
           >
             <RotateCcw className="h-4 w-4" />
@@ -544,19 +544,19 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
         </div>
 
         {/* Legend Overlay */}
-        <div className="absolute bottom-4 left-4 z-20 bg-slate-900/90 border border-slate-800 p-3 rounded-lg text-white text-[11px] font-mono space-y-2">
-          <span className="text-[10px] text-slate-400 uppercase font-bold block">Status Dimension</span>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-slate-300">
+        <div className="absolute bottom-4 left-4 z-20 bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl text-white text-xs font-sans space-y-2 shadow-lg">
+          <span className="text-[10px] text-slate-400 uppercase font-semibold block font-sans">Status Dimension</span>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-slate-300 text-[11px]">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#34C759]" />
               <span>Completed</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#007AFF]" />
               <span>In Progress</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full border-2 border-amber-500 bg-transparent" />
+              <span className="w-2.5 h-2.5 rounded-full border-2 border-[#FF9500] bg-transparent" />
               <span>Critical Path</span>
             </div>
             <div className="flex items-center gap-1.5">

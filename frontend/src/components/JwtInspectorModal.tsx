@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { parseJwt } from '../lib/supabase';
 import type { AuthUser } from '../types';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 
 interface JwtInspectorModalProps {
   isOpen: boolean;
@@ -51,139 +53,134 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
   };
 
   const expDate = claims.exp ? new Date(claims.exp * 1000).toUTCString() : 'N/A';
-  const iatDate = claims.iat ? new Date(claims.iat * 1000).toUTCString() : 'N/A';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
       <div 
-        className="w-full max-w-2xl rounded-xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity" 
+        onClick={onClose}
+      />
+
+      <div 
+        className="relative w-full max-w-2xl rounded-2xl border border-slate-200/80 bg-white shadow-2xl overflow-hidden z-10 font-sans"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/60">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#C38B4B]/15 border border-[#C38B4B]/30 text-[#C38B4B]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 border border-amber-200/70 text-[#C38B4B]">
               <KeyRound className="h-4 w-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-white font-mono tracking-tight">
-                  JWT AUTHENTICATION CLAIMS INSPECTOR
+                <h2 className="text-sm font-bold text-slate-900 font-sans tracking-tight">
+                  Cryptographic JWT Claims Inspector
                 </h2>
-                <span className="flex items-center gap-1 rounded bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-mono text-emerald-400">
-                  <ShieldCheck className="h-3 w-3" />
-                  <span>SIGNATURE VALID</span>
-                </span>
+                <Badge variant="success">SIGNATURE VALID</Badge>
               </div>
-              <p className="text-[11px] text-slate-400 font-mono">
+              <p className="text-[11px] text-slate-500 font-sans">
                 RFC 7519 JSON Web Token verification across Rust Trust Plane & Supabase
               </p>
             </div>
           </div>
-          <button
+          <Button
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            variant="ghost"
+            size="icon"
+            className="text-slate-400 hover:text-slate-700"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Body */}
         <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           {/* Decoded Claims Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-slate-400">
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-400">
                 <Fingerprint className="h-3 w-3 text-[#C38B4B]" />
                 <span>Subject Identifier (sub)</span>
               </div>
-              <p className="text-xs font-mono font-medium text-slate-200 truncate">{claims.sub}</p>
+              <p className="text-xs font-mono font-medium text-slate-900 truncate">{claims.sub}</p>
             </div>
 
-            <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-slate-400">
-                <ShieldCheck className="h-3 w-3 text-cyan-400" />
-                <span>Enterprise Role (role)</span>
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-400">
+                <Hash className="h-3 w-3 text-sky-500" />
+                <span>Planner / User Email</span>
+              </div>
+              <p className="text-xs font-sans font-semibold text-slate-900 truncate">{claims.email}</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-400">
+                <ShieldCheck className="h-3 w-3 text-[#34C759]" />
+                <span>Assigned RBAC Role</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded bg-cyan-500/20 px-2 py-0.5 text-xs font-mono font-bold text-cyan-300">
-                  {claims.user_metadata?.role || claims.role || 'PLANNER'}
+                <span className="text-xs font-bold text-slate-900 font-mono">
+                  {claims.user_metadata?.role || claims.role}
                 </span>
-                <span className="text-xs text-slate-400">({claims.email || user?.email})</span>
+                <Badge variant="secondary">AUTHORIZATION OK</Badge>
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-slate-400">
-                <Clock className="h-3 w-3 text-emerald-400" />
-                <span>Issued At (iat)</span>
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-400">
+                <Clock className="h-3 w-3 text-purple-500" />
+                <span>Issued At / Expiry</span>
               </div>
-              <p className="text-xs font-mono text-slate-300">{iatDate}</p>
-            </div>
-
-            <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-slate-400">
-                <Clock className="h-3 w-3 text-rose-400" />
-                <span>Expiration (exp)</span>
-              </div>
-              <p className="text-xs font-mono text-slate-300">{expDate}</p>
+              <p className="text-[11px] font-mono text-slate-600 truncate">
+                Expires: {expDate}
+              </p>
             </div>
           </div>
 
-          {/* JSON Decoded Payload */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-1.5">
+          {/* Decoded Claims JSON */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-sans text-slate-600">
+              <div className="flex items-center gap-1.5">
                 <FileCode2 className="h-3.5 w-3.5 text-[#C38B4B]" />
-                <span>Decoded Payload Claims</span>
-              </span>
-              <span className="text-[10px] font-mono text-slate-500">Header: HS256 / JWT</span>
+                <span className="font-semibold">Decoded Token Payload</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400">ALGORITHM: HS256</span>
             </div>
-            <pre className="rounded-lg border border-slate-800 bg-slate-950 p-3.5 text-xs font-mono text-emerald-400 overflow-x-auto">
+            <pre className="p-3.5 rounded-xl bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto leading-relaxed">
               {JSON.stringify(claims, null, 2)}
             </pre>
           </div>
 
-          {/* Raw Encoded Bearer Token */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-1.5">
-                <Hash className="h-3.5 w-3.5 text-[#C38B4B]" />
-                <span>Raw Bearer Token</span>
-              </span>
+          {/* Raw Encoded JWT */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-sans text-slate-600">
+              <span className="font-semibold">Raw Encoded Token String</span>
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-1 text-xs font-mono text-[#C38B4B] hover:text-[#b07d42] transition"
+                className="flex items-center gap-1 text-[11px] text-[#C38B4B] hover:underline font-semibold cursor-pointer"
               >
-                {copied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    <span>Copy Token</span>
-                  </>
-                )}
+                {copied ? <Check className="h-3 w-3 text-[#34C759]" /> : <Copy className="h-3 w-3" />}
+                <span>{copied ? 'Copied to Clipboard' : 'Copy Token'}</span>
               </button>
             </div>
-            <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-[11px] font-mono text-slate-400 break-all select-all">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 font-mono text-[10px] text-slate-600 break-all select-all">
               {rawToken}
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-800 bg-slate-950/60 px-6 py-3 text-[10px] text-slate-500 font-mono flex items-center justify-between">
-          <span>Bearer Authorization Header Attached to All API Requests</span>
-          <button
-            onClick={onClose}
-            className="rounded bg-slate-800 hover:bg-slate-700 px-3 py-1 text-xs font-mono text-white transition"
-          >
+        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-3.5 bg-slate-50/50">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-sans">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#34C759]" />
+            <span>Passed to backend in <code className="font-mono text-slate-800 font-semibold">Authorization: Bearer</code> header</span>
+          </div>
+          <Button onClick={onClose} variant="default" size="sm">
             Close
-          </button>
+          </Button>
         </div>
+
       </div>
     </div>
   );

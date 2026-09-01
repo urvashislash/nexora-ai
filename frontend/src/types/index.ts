@@ -258,7 +258,10 @@ export interface AuditEvent {
   after_state?: any;
   payload_hash: string;
   previous_hash?: string;
+  prev_hash?: string;
+  payload_diff?: any;
   created_at: string;
+  timestamp?: string;
 }
 
 export interface DashboardKPIs {

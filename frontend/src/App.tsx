@@ -753,7 +753,7 @@ export function App() {
   }, [auditEvents, activeProject.id, user]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex font-sans selection:bg-[#C38B4B]/20 selection:text-[#C38B4B]">
+    <div className="min-h-screen bg-[#F5F6F8] text-slate-900 flex font-sans selection:bg-[#C38B4B]/20 selection:text-[#C38B4B]">
       {/* Persistent Left Sidebar */}
       <Sidebar 
         activeTab={activeTab} 
@@ -769,8 +769,8 @@ export function App() {
       {/* Main Operating Surface */}
       <main className="flex-1 pl-64">
         {/* Top Header Bar */}
-        <header className="h-14 border-b border-slate-200 bg-white px-8 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center space-x-3 text-xs font-mono">
+        <header className="h-14 border-b border-slate-200/80 bg-white px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+          <div className="flex items-center space-x-2.5 text-xs font-sans">
             {/* Global Project Switcher Dropdown */}
             <ProjectSelector
               projects={projectsList}
@@ -778,8 +778,8 @@ export function App() {
               onSelectProject={handleSelectProject}
               onOpenCreateProject={() => setIsCreateProjectModalOpen(true)}
             />
-            <span className="text-slate-300">/</span>
-            <span className="font-semibold text-slate-800 uppercase">
+            <span className="text-slate-300 font-normal">/</span>
+            <span className="font-semibold text-slate-800 tracking-tight">
               {activeTab === 'dashboard' ? 'Overview' :
                activeTab === 'graph' ? 'Dependencies' :
                activeTab === 'upload' ? 'Evidence' :
@@ -791,30 +791,30 @@ export function App() {
             </span>
           </div>
 
-          <div className="flex items-center space-x-3 text-xs font-mono">
+          <div className="flex items-center space-x-3 text-xs font-sans">
             {/* Quick Command Palette Button */}
             <button
               onClick={() => setIsCommandPaletteOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-slate-700 transition cursor-pointer"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100/90 hover:bg-slate-200/90 rounded-lg text-slate-700 transition-all duration-150 cursor-pointer active:scale-[0.98]"
               title="Open Command Palette (Cmd+K / Ctrl+K)"
             >
-              <span className="text-[#C38B4B] font-bold">⌘K</span>
-              <span className="text-[11px] text-slate-500">Quick Commands</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-white text-[10px] font-semibold text-slate-700 shadow-2xs border border-slate-200/60 font-sans">⌘K</kbd>
+              <span className="text-[11px] font-medium text-slate-600">Quick Commands</span>
             </button>
 
             {/* Active User Role Indicator / JWT Modal Trigger */}
             <div 
               onClick={() => setIsJwtModalOpen(true)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200 cursor-pointer hover:bg-amber-100 transition"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 cursor-pointer transition-all duration-150"
               title="Click to Inspect Cryptographic JWT Token"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-[#C38B4B]" />
-              <span className="text-[11px] font-bold">{user?.role || currentRole}</span>
+              <span className="text-[11px] font-medium tracking-tight">{user?.role ? user.role.replace(/_/g, ' ') : currentRole.replace(/_/g, ' ')}</span>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <span className={`h-2 w-2 rounded-full ${supabaseConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              <span className="text-slate-600 hidden lg:inline">
+            <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-sans">
+              <span className={`h-1.5 w-1.5 rounded-full ${supabaseConnected ? 'bg-[#34C759]' : 'bg-[#FF9500]'}`} />
+              <span className="text-slate-600 hidden lg:inline font-normal text-[11px]">
                 {supabaseConnected ? 'Cloud Sync Active' : 'Local Standby'}
               </span>
             </div>

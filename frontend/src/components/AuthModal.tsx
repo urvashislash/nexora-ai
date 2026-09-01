@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import { 
-  ShieldCheck, 
   Lock, 
   Mail, 
   User, 
   ArrowRight, 
-  Sparkles, 
   X, 
-  AlertCircle,
-  HardHat,
-  Briefcase,
-  FileCheck
+  AlertCircle, 
+  HardHat, 
+  Briefcase, 
+  FileCheck 
 } from 'lucide-react';
 import { signInWithEmail, signUpWithEmail } from '../lib/supabase';
 import type { UserRole, AuthUser } from '../types';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -103,160 +103,149 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleDemoLogin = (role: UserRole, emailPreset: string, namePreset: string) => {
+  const handleDemoLogin = (role: UserRole, demoEmail: string, name: string) => {
     const demoUser: AuthUser = {
-      id: `usr-${role.toLowerCase()}-${Date.now().toString().slice(-6)}`,
-      email: emailPreset,
-      full_name: namePreset,
-      role: role,
+      id: `demo-${role.toLowerCase()}-${Date.now()}`,
+      email: demoEmail,
+      full_name: name,
+      role,
     };
-    onAuthSuccess(demoUser, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo_token');
+    onAuthSuccess(demoUser, 'demo-jwt-token-claims');
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
       <div 
-        className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/50">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C38B4B]/15 border border-[#C38B4B]/30">
-              <ShieldCheck className="h-4 w-4 text-[#C38B4B]" />
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity" 
+        onClick={onClose}
+      />
+
+      {/* Modal Dialog */}
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 p-6 sm:p-7 z-10 space-y-5 font-sans">
+        
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="signal-tick bg-[#C38B4B]" />
+              <Badge variant="bronze">SECURE ACCESS</Badge>
             </div>
-            <div>
-              <h2 className="text-sm font-semibold text-white font-mono tracking-tight">
-                NEXORA IDENTITY ACCESS
-              </h2>
-              <p className="text-[10px] text-slate-400 font-mono">
-                Supabase Auth & Cryptographic JWT Engine
-              </p>
-            </div>
+            <h2 className="text-xl font-bold text-slate-900 font-sans tracking-tight">
+              {tab === 'demo' ? 'Switch Enterprise Persona' :
+               tab === 'signin' ? 'Sign In to NEXORA AI' : 'Create Enterprise Account'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5 font-sans">
+              Role-based access control with cryptographic JWT authorization
+            </p>
           </div>
-          <button
+
+          <Button 
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            variant="ghost"
+            size="icon"
+            className="text-slate-400 hover:text-slate-700"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
-        {/* Tab Selector */}
-        <div className="grid grid-cols-3 border-b border-slate-800 bg-slate-950/30 p-1 text-xs font-mono font-medium">
+        {/* Tab Switcher */}
+        <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200/60 text-xs font-sans">
           <button
             onClick={() => { setTab('demo'); setErrorMsg(null); }}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded transition ${
-              tab === 'demo'
-                ? 'bg-[#C38B4B] text-slate-950 font-bold shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              tab === 'demo' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Quick Demo</span>
+            Demo Personas
           </button>
           <button
             onClick={() => { setTab('signin'); setErrorMsg(null); }}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded transition ${
-              tab === 'signin'
-                ? 'bg-slate-800 text-white font-bold shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              tab === 'signin' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Lock className="h-3.5 w-3.5" />
-            <span>Sign In</span>
+            Sign In
           </button>
           <button
             onClick={() => { setTab('signup'); setErrorMsg(null); }}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded transition ${
-              tab === 'signup'
-                ? 'bg-slate-800 text-white font-bold shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              tab === 'signup' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <User className="h-3.5 w-3.5" />
-            <span>Sign Up</span>
+            Register
           </button>
         </div>
 
         {/* Error Notification */}
         {errorMsg && (
-          <div className="m-4 mb-0 flex items-center gap-2 rounded border border-rose-500/30 bg-rose-950/40 p-3 text-xs text-rose-300">
-            <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-900 text-xs font-sans flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-[#FF3B30] shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* Tab Contents */}
-        <div className="p-6">
+        {/* Content */}
+        <div>
           {tab === 'demo' && (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-400 font-mono mb-4">
-                Select an authorized enterprise role to evaluate permissions, review queue approvals, and Trust Plane verification:
-              </p>
-
+            <div className="space-y-2.5">
               <button
                 onClick={() => handleDemoLogin('PLANNER', 'planner@nexora.ai', 'Vikram Singh (Lead Planner)')}
-                className="w-full flex items-center justify-between rounded-lg border border-slate-800 bg-slate-800/60 hover:bg-slate-800 hover:border-[#C38B4B]/50 p-3.5 text-left transition group"
+                className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded bg-[#C38B4B]/15 text-[#C38B4B]">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-[#C38B4B] border border-amber-200/70">
                     <Briefcase className="h-4 w-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-white">Lead Project Planner</span>
-                      <span className="rounded bg-[#C38B4B]/20 px-1.5 py-0.5 text-[9px] font-mono text-[#C38B4B]">
-                        PLANNER
-                      </span>
+                      <span className="text-xs font-semibold text-slate-900 font-sans">Lead Project Planner</span>
+                      <Badge variant="bronze">PLANNER</Badge>
                     </div>
-                    <p className="text-[11px] text-slate-400">Full review queue approval, override, and baseline export</p>
+                    <p className="text-[11px] text-slate-500 font-sans mt-0.5">Full review queue approval, override, and baseline export</p>
                   </div>
                 </div>
-                <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-[#C38B4B] group-hover:translate-x-0.5 transition" />
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-[#C38B4B] group-hover:translate-x-0.5 transition" />
               </button>
 
               <button
                 onClick={() => handleDemoLogin('ENGINEER', 'engineer@nexora.ai', 'Rajesh Sharma (Site Engineer)')}
-                className="w-full flex items-center justify-between rounded-lg border border-slate-800 bg-slate-800/60 hover:bg-slate-800 hover:border-cyan-500/50 p-3.5 text-left transition group"
+                className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded bg-cyan-500/15 text-cyan-400">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 border border-sky-200/70">
                     <HardHat className="h-4 w-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-white">Site Execution Engineer</span>
-                      <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-mono text-cyan-300">
-                        ENGINEER
-                      </span>
+                      <span className="text-xs font-semibold text-slate-900 font-sans">Site Execution Engineer</span>
+                      <Badge variant="cyan">ENGINEER</Badge>
                     </div>
-                    <p className="text-[11px] text-slate-400">Evidence ingestion, DPR upload, and voice memos</p>
+                    <p className="text-[11px] text-slate-500 font-sans mt-0.5">Evidence ingestion, DPR upload, and voice memos</p>
                   </div>
                 </div>
-                <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition" />
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition" />
               </button>
 
               <button
                 onClick={() => handleDemoLogin('AUDITOR', 'auditor@nexora.ai', 'Sunita Rao (Quality Auditor)')}
-                className="w-full flex items-center justify-between rounded-lg border border-slate-800 bg-slate-800/60 hover:bg-slate-800 hover:border-emerald-500/50 p-3.5 text-left transition group"
+                className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded bg-emerald-500/15 text-emerald-400">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-[#34C759] border border-emerald-200/70">
                     <FileCheck className="h-4 w-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-white">Quality & Safety Auditor</span>
-                      <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-mono text-emerald-300">
-                        AUDITOR
-                      </span>
+                      <span className="text-xs font-semibold text-slate-900 font-sans">Quality & Safety Auditor</span>
+                      <Badge variant="success">AUDITOR</Badge>
                     </div>
-                    <p className="text-[11px] text-slate-400">Cryptographic audit trail inspection & legal holds</p>
+                    <p className="text-[11px] text-slate-500 font-sans mt-0.5">Cryptographic audit trail inspection & legal holds</p>
                   </div>
                 </div>
-                <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition" />
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-[#34C759] group-hover:translate-x-0.5 transition" />
               </button>
             </div>
           )}
@@ -264,149 +253,132 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {tab === 'signin' && (
             <form onSubmit={handleSignIn} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1.5">
+                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="user@enterprise.com"
                     required
-                    className="w-full rounded-md border border-slate-700 bg-slate-950 pl-9 pr-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-[#C38B4B] focus:outline-hidden"
+                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1.5">
+                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full rounded-md border border-slate-700 bg-slate-950 pl-9 pr-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-[#C38B4B] focus:outline-hidden"
+                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
                   />
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 rounded-md bg-[#C38B4B] py-2.5 text-xs font-mono font-bold text-slate-950 hover:bg-[#b07d42] transition disabled:opacity-50"
+                variant="default"
+                className="w-full flex items-center justify-center gap-2"
               >
-                {isLoading ? (
-                  <span>Authenticating...</span>
-                ) : (
-                  <>
-                    <span>Sign In to Nexora</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </>
-                )}
-              </button>
+                {isLoading ? 'Authenticating...' : 'Sign In to NEXORA'}
+              </Button>
             </form>
           )}
 
           {tab === 'signup' && (
             <form onSubmit={handleSignUp} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
                   Full Name
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Priya Sharma"
                     required
-                    className="w-full rounded-md border border-slate-700 bg-slate-950 pl-9 pr-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-[#C38B4B] focus:outline-hidden"
+                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="priya@enterprise.com"
                     required
-                    className="w-full rounded-md border border-slate-700 bg-slate-950 pl-9 pr-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-[#C38B4B] focus:outline-hidden"
+                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
+                    placeholder="At least 6 characters"
                     required
-                    className="w-full rounded-md border border-slate-700 bg-slate-950 pl-9 pr-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-[#C38B4B] focus:outline-hidden"
+                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1">
-                  Primary Industrial Role
+                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
+                  Assigned Project Role
                 </label>
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value as UserRole)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-[#C38B4B] focus:outline-hidden font-mono"
+                  className="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#C38B4B] focus:outline-hidden font-sans"
                 >
-                  <option value="PLANNER">Lead Planner (Review & Approval)</option>
-                  <option value="ENGINEER">Site Execution Engineer</option>
-                  <option value="SUPERVISOR">Field Supervisor</option>
-                  <option value="AUDITOR">Quality & Safety Auditor</option>
-                  <option value="VIEWER">Executive Observer (Read Only)</option>
+                  <option value="PLANNER">PLANNER (Lead Project Planner)</option>
+                  <option value="ENGINEER">ENGINEER (Site Execution Engineer)</option>
+                  <option value="SUPERVISOR">SUPERVISOR (Field Supervisor)</option>
+                  <option value="AUDITOR">AUDITOR (Quality / Safety Auditor)</option>
+                  <option value="VIEWER">VIEWER (Read-Only Observer)</option>
                 </select>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 rounded-md bg-[#C38B4B] py-2.5 text-xs font-mono font-bold text-slate-950 hover:bg-[#b07d42] transition disabled:opacity-50 mt-2"
+                variant="default"
+                className="w-full flex items-center justify-center gap-2"
               >
-                {isLoading ? (
-                  <span>Registering Identity...</span>
-                ) : (
-                  <>
-                    <span>Create Account</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </>
-                )}
-              </button>
+                {isLoading ? 'Creating Account...' : 'Create Account'}
+              </Button>
             </form>
           )}
         </div>
 
-        {/* Footer info */}
-        <div className="border-t border-slate-800 bg-slate-950/60 px-6 py-3 text-[10px] text-slate-500 font-mono flex items-center justify-between">
-          <span>Zero-Trust Enterprise Protocol</span>
-          <span className="text-emerald-400">PostgreSQL RLS Active</span>
-        </div>
       </div>
     </div>
   );

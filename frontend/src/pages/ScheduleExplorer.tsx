@@ -11,11 +11,10 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import type { ActivityWithState } from '../types';
-import { ActivityDrawer } from '../components/ActivityDrawer';
+import { Activity360Drawer } from '../components/Activity360Drawer';
 import { animateStaggerEntrance } from '../lib/animations';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Card } from '../components/ui/card';
 
 interface ScheduleExplorerProps {
   activities: ActivityWithState[];
@@ -112,29 +111,29 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
   };
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-6 pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="signal-tick bg-blue-500" />
-            <Badge variant="secondary">WBS HIERARCHY & TIMELINE</Badge>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="signal-tick bg-[#007AFF]" />
+            <Badge variant="secondary">WBS Hierarchy & Timeline</Badge>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 leading-none">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
             Schedule & Activity Explorer
           </h1>
-          <p className="mt-2 text-sm text-slate-600 max-w-[65ch]">
+          <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
             Interactive Critical Path Method (CPM) network visualizer and actualization ledger. Review physical progress against Oracle Primavera P6 baseline dates.
           </p>
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/70 text-xs font-sans">
           <Button
             onClick={() => setViewMode('gantt')}
             variant={viewMode === 'gantt' ? 'default' : 'ghost'}
             size="sm"
-            className="flex items-center gap-1.5"
+            className="flex items-center gap-1.5 rounded-lg"
           >
             <Calendar className="h-3.5 w-3.5" />
             <span>Gantt Chart</span>
@@ -143,7 +142,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
             onClick={() => setViewMode('table')}
             variant={viewMode === 'table' ? 'default' : 'ghost'}
             size="sm"
-            className="flex items-center gap-1.5"
+            className="flex items-center gap-1.5 rounded-lg"
           >
             <List className="h-3.5 w-3.5" />
             <span>Table Ledger</span>
@@ -151,44 +150,44 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
         </div>
       </div>
 
-      {/* Summary KPI Pills */}
+      {/* Summary Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <Card className="p-3">
-          <span className="text-[10px] font-mono text-slate-500 uppercase block font-semibold">Total Scope</span>
-          <span className="text-xl font-bold font-mono text-slate-900">{summary.total} Activities</span>
-        </Card>
-        <Card className="p-3">
-          <span className="text-[10px] font-mono text-emerald-600 uppercase block font-semibold flex items-center gap-1">
+        <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+          <span className="text-[10px] font-sans text-slate-400 uppercase block font-semibold">Total Scope</span>
+          <span className="text-lg font-bold font-mono text-slate-900">{summary.total} Activities</span>
+        </div>
+        <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+          <span className="text-[10px] font-sans text-emerald-600 uppercase block font-semibold flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3" />
             Completed
           </span>
-          <span className="text-xl font-bold font-mono text-emerald-700">{summary.completed} Items</span>
-        </Card>
-        <Card className="p-3">
-          <span className="text-[10px] font-mono text-blue-600 uppercase block font-semibold flex items-center gap-1">
+          <span className="text-lg font-bold font-mono text-emerald-700">{summary.completed} Items</span>
+        </div>
+        <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+          <span className="text-[10px] font-sans text-blue-600 uppercase block font-semibold flex items-center gap-1">
             <Clock className="h-3 w-3" />
             In Progress
           </span>
-          <span className="text-xl font-bold font-mono text-blue-700">{summary.inProgress} Items</span>
-        </Card>
-        <Card className="p-3">
-          <span className="text-[10px] font-mono text-amber-600 uppercase block font-semibold flex items-center gap-1">
+          <span className="text-lg font-bold font-mono text-blue-700">{summary.inProgress} Items</span>
+        </div>
+        <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+          <span className="text-[10px] font-sans text-amber-600 uppercase block font-semibold flex items-center gap-1">
             <Flame className="h-3 w-3" />
             Critical Path
           </span>
-          <span className="text-xl font-bold font-mono text-amber-700">{summary.criticalPath} Items</span>
-        </Card>
-        <Card className="p-3">
-          <span className="text-[10px] font-mono text-rose-600 uppercase block font-semibold flex items-center gap-1">
+          <span className="text-lg font-bold font-mono text-amber-700">{summary.criticalPath} Items</span>
+        </div>
+        <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+          <span className="text-[10px] font-sans text-rose-600 uppercase block font-semibold flex items-center gap-1">
             <AlertTriangle className="h-3 w-3" />
-            Variance / Delay
+            Delay / Variance
           </span>
-          <span className="text-xl font-bold font-mono text-rose-700">{summary.delayed} Items</span>
-        </Card>
+          <span className="text-lg font-bold font-mono text-rose-700">{summary.delayed} Items</span>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <Card className="p-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-4">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
           <input
@@ -196,17 +195,17 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
             placeholder="Search activity code, name, tag, or area..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 rounded border border-slate-200 text-xs font-mono bg-white placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-200/80 text-xs font-sans bg-white placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-xs font-mono">
+          <div className="flex items-center gap-2 text-xs font-sans">
             <span className="text-slate-500">Discipline:</span>
             <select
               value={selectedDiscipline}
               onChange={(e) => setSelectedDiscipline(e.target.value)}
-              className="rounded border border-slate-200 bg-white py-1 px-2.5 text-xs font-mono text-slate-700 focus:outline-hidden focus:border-[#C38B4B]"
+              className="rounded-lg border border-slate-200/80 bg-white py-1 px-2.5 text-xs font-sans text-slate-700 focus:outline-hidden focus:border-[#C38B4B]"
             >
               <option value="ALL">All Disciplines</option>
               <option value="CIVIL">Civil</option>
@@ -216,12 +215,12 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
             </select>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono">
+          <div className="flex items-center gap-2 text-xs font-sans">
             <span className="text-slate-500">Status:</span>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="rounded border border-slate-200 bg-white py-1 px-2.5 text-xs font-mono text-slate-700 focus:outline-hidden focus:border-[#C38B4B]"
+              className="rounded-lg border border-slate-200/80 bg-white py-1 px-2.5 text-xs font-sans text-slate-700 focus:outline-hidden focus:border-[#C38B4B]"
             >
               <option value="ALL">All Statuses</option>
               <option value="NOT_STARTED">Not Started</option>
@@ -230,15 +229,15 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
             </select>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* GANTT TIMELINE VIEW */}
       {viewMode === 'gantt' && (
-        <Card className="overflow-hidden">
-          {/* Timeline Header Header Bar */}
-          <div className="grid grid-cols-12 bg-slate-100 border-b border-slate-200 py-2.5 px-4 text-[10px] font-mono font-bold uppercase text-slate-600">
-            <div className="col-span-4 border-r border-slate-200 pr-2">WBS Activity Scope</div>
-            <div className="col-span-8 pl-4 grid grid-cols-4 text-center">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+          {/* Timeline Header Bar */}
+          <div className="grid grid-cols-12 bg-slate-50/70 border-b border-slate-200/80 py-2.5 px-5 text-[11px] font-sans font-semibold uppercase tracking-tight text-slate-500">
+            <div className="col-span-4 border-r border-slate-200/70 pr-2">WBS Activity Scope</div>
+            <div className="col-span-8 pl-4 grid grid-cols-4 text-center font-mono text-[10px]">
               <span>01-Aug (Start)</span>
               <span>15-Aug</span>
               <span>01-Sep</span>
@@ -249,7 +248,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
           {/* Activity Rows */}
           <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
             {filtered.length === 0 ? (
-              <div className="p-8 text-center text-xs font-mono text-slate-500">
+              <div className="p-8 text-center text-xs font-sans text-slate-500">
                 No activities match the current filters.
               </div>
             ) : (
@@ -263,18 +262,18 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                   <div
                     key={activity.id}
                     onClick={() => setSelectedActivity(item)}
-                    className="schedule-row-item grid grid-cols-12 py-3 px-4 hover:bg-slate-50/80 transition cursor-pointer items-center group"
+                    className="schedule-row-item grid grid-cols-12 py-3.5 px-5 hover:bg-slate-50/80 transition-all duration-150 cursor-pointer items-center group"
                   >
                     {/* Left Column: Code & Name */}
                     <div className="col-span-4 border-r border-slate-100 pr-4 truncate">
                       <div className="flex items-center gap-2">
                         {activity.critical_path && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Critical Path" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF9500] shrink-0" title="Critical Path" />
                         )}
                         <span className="font-mono text-xs font-bold text-slate-900">{activity.code}</span>
                         <Badge variant="secondary">{activity.discipline}</Badge>
                       </div>
-                      <div className="text-xs text-slate-600 truncate mt-0.5" title={activity.name}>
+                      <div className="text-xs text-slate-600 truncate mt-0.5 font-sans" title={activity.name}>
                         {activity.name}
                       </div>
                     </div>
@@ -282,24 +281,24 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                     {/* Right Column: Timeline Bar */}
                     <div className="col-span-8 pl-4 relative h-8 flex items-center">
                       {/* Timeline Background Grid Line for Today */}
-                      <div className="absolute top-0 bottom-0 left-[50%] w-[1px] bg-emerald-300 z-0 pointer-events-none" />
+                      <div className="absolute top-0 bottom-0 left-[50%] w-[1px] bg-[#34C759]/60 z-0 pointer-events-none" />
 
                       {/* Baseline Planned Box */}
                       <div
-                        className={`absolute h-5 rounded border ${
+                        className={`absolute h-5 rounded-lg border ${
                           activity.critical_path 
-                            ? 'border-amber-400 bg-amber-50/80 shadow-xs' 
-                            : 'border-slate-300 bg-slate-100/90'
+                            ? 'border-amber-300 bg-amber-50/70 shadow-2xs' 
+                            : 'border-slate-200 bg-slate-100/80'
                         }`}
                         style={{ left: `${left}%`, width: `${width}%` }}
                       >
                         {/* Actual Progress Fill */}
                         {progress > 0 && (
                           <div
-                            className={`h-full rounded-l ${
+                            className={`h-full rounded-l-lg ${
                               progress === 100 
-                                ? 'bg-emerald-500 rounded-r' 
-                                : 'bg-cyan-500'
+                                ? 'bg-[#34C759] rounded-r-lg' 
+                                : 'bg-[#007AFF]'
                             }`}
                             style={{ width: `${progress}%` }}
                           />
@@ -321,39 +320,39 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
               })
             )}
           </div>
-        </Card>
+        </div>
       )}
 
       {/* TABLE LEDGER VIEW */}
       {viewMode === 'table' && (
-        <Card className="overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono whitespace-nowrap">
-              <thead className="bg-slate-100 border-b border-slate-200 text-[10px] uppercase text-slate-600">
+            <table className="w-full text-left text-xs font-sans whitespace-nowrap">
+              <thead className="bg-slate-50/70 border-b border-slate-200/80 text-[11px] uppercase font-semibold text-slate-500">
                 <tr>
-                  <th onClick={() => toggleSort('code')} className="py-3 px-4 cursor-pointer hover:text-slate-900">
-                    <div className="flex items-center gap-1">
+                  <th onClick={() => toggleSort('code')} className="py-3 px-5 cursor-pointer hover:text-slate-900">
+                    <div className="flex items-center gap-1 font-sans">
                       <span>Code</span>
                       <ArrowUpDown className="h-3 w-3" />
                     </div>
                   </th>
-                  <th className="py-3 px-4">Activity Name</th>
-                  <th className="py-3 px-4">Discipline</th>
-                  <th onClick={() => toggleSort('planned_start_date')} className="py-3 px-4 cursor-pointer hover:text-slate-900">
-                    <div className="flex items-center gap-1">
+                  <th className="py-3 px-5">Activity Name</th>
+                  <th className="py-3 px-5">Discipline</th>
+                  <th onClick={() => toggleSort('planned_start_date')} className="py-3 px-5 cursor-pointer hover:text-slate-900">
+                    <div className="flex items-center gap-1 font-sans">
                       <span>Baseline Window</span>
                       <ArrowUpDown className="h-3 w-3" />
                     </div>
                   </th>
-                  <th className="py-3 px-4">Status</th>
-                  <th onClick={() => toggleSort('progress')} className="py-3 px-4 text-right cursor-pointer hover:text-slate-900">
-                    <div className="flex items-center justify-end gap-1">
+                  <th className="py-3 px-5">Status</th>
+                  <th onClick={() => toggleSort('progress')} className="py-3 px-5 text-right cursor-pointer hover:text-slate-900">
+                    <div className="flex items-center justify-end gap-1 font-sans">
                       <span>Progress</span>
                       <ArrowUpDown className="h-3 w-3" />
                     </div>
                   </th>
-                  <th className="py-3 px-4 text-center">Critical</th>
-                  <th className="py-3 px-4 text-center">Inspect</th>
+                  <th className="py-3 px-5 text-center">Critical</th>
+                  <th className="py-3 px-5 text-center">Inspect</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -366,45 +365,45 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                     <tr
                       key={activity.id}
                       onClick={() => setSelectedActivity(item)}
-                      className="schedule-row-item hover:bg-slate-50 transition cursor-pointer"
+                      className="schedule-row-item hover:bg-slate-50/80 transition-all duration-150 cursor-pointer"
                     >
-                      <td className="py-3 px-4 font-bold text-slate-900">{activity.code}</td>
-                      <td className="py-3 px-4 max-w-xs truncate">{activity.name}</td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-5 font-bold font-mono text-slate-900">{activity.code}</td>
+                      <td className="py-3 px-5 max-w-xs truncate font-sans text-slate-800">{activity.name}</td>
+                      <td className="py-3 px-5">
                         <Badge variant="secondary">{activity.discipline}</Badge>
                       </td>
-                      <td className="py-3 px-4 text-slate-500">
+                      <td className="py-3 px-5 text-slate-500 font-mono text-[11px]">
                         {activity.planned_start_date} → {activity.planned_finish_date}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-5">
                         <Badge variant={status === 'COMPLETED' ? 'success' : status === 'IN_PROGRESS' ? 'warning' : 'outline'}>
                           {status}
                         </Badge>
                       </td>
-                      <td className="py-3 px-4 text-right font-bold">
+                      <td className="py-3 px-5 text-right font-bold font-mono">
                         <div className="flex items-center justify-end gap-2">
                           <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
                             <div
-                              className={`h-full ${progress === 100 ? 'bg-emerald-500' : 'bg-cyan-500'}`}
+                              className={`h-full rounded-full ${progress === 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'}`}
                               style={{ width: `${progress}%` }}
                             />
                           </div>
                           <span>{progress}%</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-5 text-center">
                         {activity.critical_path ? (
                           <Badge variant="warning">YES</Badge>
                         ) : (
-                          <span className="text-slate-400">NO</span>
+                          <span className="text-slate-400 font-sans text-xs">No</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-5 text-center">
                         <Button
                           onClick={(e) => { e.stopPropagation(); setSelectedActivity(item); }}
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 text-slate-400 hover:text-slate-700"
+                          className="h-7 w-7 text-slate-400 hover:text-slate-800"
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
@@ -415,14 +414,15 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
               </tbody>
             </table>
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* Activity Details Drawer */}
-      <ActivityDrawer
+      {/* Activity 360° Details Drawer */}
+      <Activity360Drawer
         item={selectedActivity}
         isOpen={!!selectedActivity}
         onClose={() => setSelectedActivity(null)}
+        allActivities={activities}
       />
     </div>
   );

@@ -3,16 +3,15 @@ import {
   FolderPlus, 
   X, 
   ArrowRight, 
-  FileSpreadsheet, 
   FileCode, 
-  Sparkles, 
-  CheckCircle2, 
-  AlertCircle,
-  Building2,
-  Layers
+  AlertCircle, 
+  Building2, 
+  Layers 
 } from 'lucide-react';
 import { createProjectInDB } from '../lib/supabase';
 import type { Project, ProjectCreateInput, BaselineActivityInput, Discipline } from '../types';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -98,11 +97,11 @@ const TEMPLATE_ACTIVITIES: BaselineActivityInput[] = [
     planned_duration_days: 9,
     planned_quantity: 2.0,
     unit_of_measure: 'Unit',
-    location: 'Pump House B',
+    location: 'Pump House',
     zone: 'Zone 2',
     equipment_tag: 'P-101A/B',
-    critical_path: false,
-  }
+    critical_path: true,
+  },
 ];
 
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
@@ -117,86 +116,46 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [description, setDescription] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
-  
-  // Baseline schedule method
-  const [scheduleSource, setScheduleSource] = useState<'template' | 'csv' | 'p6xml'>('template');
   const [parsedActivities, setParsedActivities] = useState<BaselineActivityInput[]>(TEMPLATE_ACTIVITIES);
-  const [fileName, setFileName] = useState<string | null>(null);
-
+  const [importSource, setImportSource] = useState<'template' | 'p6xml' | 'csv'>('template');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length < 2) {
-          setErrorMsg('CSV file is empty or missing headers.');
-          return;
-        }
-
-        const activities: BaselineActivityInput[] = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-          if (cols.length >= 5) {
-            activities.push({
-              code: cols[0] || `ACT-${i}`,
-              name: cols[1] || `Activity ${i}`,
-              discipline: (cols[2]?.toUpperCase() as Discipline) || 'GENERAL',
-              planned_start_date: cols[3] || '2026-09-01',
-              planned_finish_date: cols[4] || '2026-09-15',
-              planned_duration_days: parseInt(cols[5] || '14', 10),
-              planned_quantity: cols[6] ? parseFloat(cols[6]) : undefined,
-              unit_of_measure: cols[7] || 'Unit',
-              critical_path: cols[8]?.toUpperCase() === 'YES' || cols[8] === 'true',
-            });
-          }
-        }
-
-        if (activities.length > 0) {
-          setParsedActivities(activities);
-          setErrorMsg(null);
-        } else {
-          setErrorMsg('Could not parse valid activity rows from CSV.');
-        }
-      } catch {
-        setErrorMsg('Failed to read CSV schedule file.');
-      }
-    };
-    reader.readAsText(file);
+  const handleApplyPreset = (preset: 'refinery' | 'metro' | 'highway') => {
+    if (preset === 'refinery') {
+      setCode('PRD-HYD-PKG05');
+      setName('Paradip Refinery Hydrocracker Expansion Unit');
+      setDescription('Hydrocracker Expansion Package with High-Pressure Piping and Reactor Foundations');
+    } else if (preset === 'metro') {
+      setCode('MUM-METRO-03');
+      setName('Mumbai Metro Line 3 Underground Section');
+      setDescription('Underground Station Box and Track Laying Package');
+    } else {
+      setCode('DEL-MUM-EXP02');
+      setName('Delhi-Mumbai Expressway Package 02');
+      setDescription('Four-lane greenfield concrete pavement and culvert package');
+    }
   };
 
-  const handleP6XMLUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFileName(file.name);
 
     const reader = new FileReader();
     reader.onload = (event) => {
+      const content = event.target?.result as string;
       try {
-        const text = event.target?.result as string;
         const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(text, 'text/xml');
-        const actElements = xmlDoc.getElementsByTagName('Activity');
-
-        if (actElements.length === 0) {
-          setErrorMsg('No <Activity> elements found in XML.');
-          return;
-        }
-
+        const xmlDoc = parser.parseFromString(content, 'application/xml');
+        const acts = xmlDoc.getElementsByTagName('Activity');
         const activities: BaselineActivityInput[] = [];
-        for (let i = 0; i < actElements.length; i++) {
-          const el = actElements[i];
-          const actCode = el.getAttribute('Id') || el.getElementsByTagName('Id')[0]?.textContent || `ACT-${i+1}`;
-          const actName = el.getAttribute('Name') || el.getElementsByTagName('Name')[0]?.textContent || `Activity ${i+1}`;
+
+        for (let i = 0; i < acts.length; i++) {
+          const el = acts[i];
+          const actCode = el.getAttribute('Id') || `ACT-${i + 1}`;
+          const actName = el.getAttribute('Name') || 'Untitled Activity';
           const disc = (el.getAttribute('Discipline') || 'GENERAL').toUpperCase() as Discipline;
           const pStart = el.getAttribute('PlannedStart') || '2026-09-01';
           const pFinish = el.getAttribute('PlannedFinish') || '2026-09-20';
@@ -265,42 +224,50 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 font-sans">
+      {/* Backdrop */}
       <div 
-        className="w-full max-w-2xl rounded-xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity" 
+        onClick={onClose}
+      />
+
+      <div 
+        className="relative w-full max-w-2xl rounded-2xl border border-slate-200/80 bg-white shadow-2xl overflow-hidden z-10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/60">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#C38B4B]/15 border border-[#C38B4B]/30 text-[#C38B4B]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 border border-amber-200/70 text-[#C38B4B]">
               <FolderPlus className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-white font-mono tracking-tight">
-                CREATE NEW INDUSTRIAL PROJECT
+              <h2 className="text-sm font-bold text-slate-900 font-sans tracking-tight">
+                Create New Project Package
               </h2>
-              <p className="text-[11px] text-slate-400 font-mono">
+              <p className="text-[11px] text-slate-500 font-sans">
                 Initialize multi-tenant package with baseline Primavera / CSV schedule
               </p>
             </div>
           </div>
-          <button
+          <Button
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            variant="ghost"
+            size="icon"
+            className="text-slate-400 hover:text-slate-700"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Step Indicator */}
-        <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-950/30 text-xs font-mono">
+        <div className="grid grid-cols-2 border-b border-slate-100 bg-white text-xs font-sans">
           <button
             onClick={() => setStep(1)}
-            className={`flex items-center justify-center gap-2 py-2.5 border-b-2 transition ${
+            className={`flex items-center justify-center gap-2 py-3 border-b-2 transition cursor-pointer ${
               step === 1
-                ? 'border-[#C38B4B] text-[#C38B4B] font-bold bg-[#C38B4B]/5'
-                : 'border-transparent text-slate-400 hover:text-slate-300'
+                ? 'border-[#C38B4B] text-slate-900 font-semibold'
+                : 'border-transparent text-slate-400 hover:text-slate-700'
             }`}
           >
             <Building2 className="h-3.5 w-3.5" />
@@ -311,10 +278,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               if (code && name) setStep(2);
               else setErrorMsg('Please fill in Code and Name first.');
             }}
-            className={`flex items-center justify-center gap-2 py-2.5 border-b-2 transition ${
+            className={`flex items-center justify-center gap-2 py-3 border-b-2 transition cursor-pointer ${
               step === 2
-                ? 'border-[#C38B4B] text-[#C38B4B] font-bold bg-[#C38B4B]/5'
-                : 'border-transparent text-slate-400 hover:text-slate-300'
+                ? 'border-[#C38B4B] text-slate-900 font-semibold'
+                : 'border-transparent text-slate-400 hover:text-slate-700'
             }`}
           >
             <Layers className="h-3.5 w-3.5" />
@@ -324,8 +291,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
         {/* Error Notification */}
         {errorMsg && (
-          <div className="m-4 mb-0 flex items-center gap-2 rounded border border-rose-500/30 bg-rose-950/40 p-3 text-xs text-rose-300 font-mono">
-            <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+          <div className="m-4 mb-0 flex items-center gap-2 rounded-xl border border-rose-200/80 bg-rose-50 p-3 text-xs text-rose-900 font-sans">
+            <AlertCircle className="h-4 w-4 shrink-0 text-[#FF3B30]" />
             <span>{errorMsg}</span>
           </div>
         )}
@@ -336,7 +303,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1.5">
+                  <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
                     Project Code *
                   </label>
                   <input
@@ -345,223 +312,225 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     placeholder="e.g. MUM-METRO-04"
                     required
-                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono font-bold text-white placeholder:text-slate-600 focus:border-[#C38B4B] focus:outline-hidden uppercase"
+                    className="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden uppercase"
                   />
-                  <span className="text-[10px] text-slate-500 font-mono">Unique WBS prefix</span>
+                  <span className="text-[10px] text-slate-500 font-sans mt-0.5 block">Unique WBS prefix</span>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1.5">
-                    Currency & Region
+                  <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
+                    Currency & Timezone
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex gap-2">
                     <select
                       value={currency}
                       onChange={(e) => setCurrency(e.target.value)}
-                      className="rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs font-mono text-white focus:border-[#C38B4B] focus:outline-hidden"
+                      className="w-1/2 rounded-xl border border-slate-200/90 bg-white px-2.5 py-2 text-xs font-sans text-slate-800 focus:border-[#C38B4B] focus:outline-hidden"
                     >
                       <option value="INR">INR (₹)</option>
                       <option value="USD">USD ($)</option>
                       <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
                       <option value="AED">AED (د.إ)</option>
                     </select>
                     <select
                       value={timezone}
                       onChange={(e) => setTimezone(e.target.value)}
-                      className="rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs font-mono text-white focus:border-[#C38B4B] focus:outline-hidden truncate"
+                      className="w-1/2 rounded-xl border border-slate-200/90 bg-white px-2.5 py-2 text-xs font-sans text-slate-800 focus:border-[#C38B4B] focus:outline-hidden"
                     >
-                      <option value="Asia/Kolkata">Asia/Kolkata</option>
-                      <option value="UTC">UTC</option>
-                      <option value="Asia/Dubai">Asia/Dubai</option>
-                      <option value="America/New_York">America/New_York</option>
+                      <option value="Asia/Kolkata">IST (UTC+5:30)</option>
+                      <option value="Asia/Dubai">GST (UTC+4)</option>
+                      <option value="America/New_York">EST (UTC-5)</option>
+                      <option value="Europe/London">GMT (UTC+0)</option>
                     </select>
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1.5">
-                  Package Name *
+                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
+                  Project Package Name *
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Mumbai Metro Line 4 Underground Tunneling Package"
+                  placeholder="e.g. Mumbai Metro Line 3 Underground Package 04"
                   required
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-[#C38B4B] focus:outline-hidden"
+                  className="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-xs font-sans text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono font-medium text-slate-300 mb-1.5">
-                  Scope & Engineering Description
+                <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
+                  Package Description & Scope Summary
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Briefly describe the contractual scope, WBS boundaries, and key civil/piping milestones..."
                   rows={2}
-                  placeholder="Brief summary of engineering disciplines, EPC contractor, and critical milestones..."
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-[#C38B4B] focus:outline-hidden"
+                  className="w-full rounded-xl border border-slate-200/90 bg-white p-3 text-xs font-sans text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden"
                 />
               </div>
 
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!code || !name) {
-                      setErrorMsg('Please enter both Project Code and Package Name.');
-                      return;
-                    }
-                    setErrorMsg(null);
-                    setStep(2);
-                  }}
-                  className="flex items-center gap-2 rounded-md bg-[#C38B4B] px-4 py-2 text-xs font-mono font-bold text-slate-950 hover:bg-[#b07d42] transition"
-                >
-                  <span>Next: Configure Baseline Schedule</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </button>
+              {/* Quick Preset Buttons */}
+              <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">
+                  Quick Industrial Presets:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => handleApplyPreset('refinery')}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Paradip Hydrocracker
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => handleApplyPreset('metro')}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Mumbai Metro L3
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => handleApplyPreset('highway')}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Delhi-Mumbai Expressway
+                  </Button>
+                </div>
               </div>
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-4">
-              {/* Baseline Source Selector */}
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScheduleSource('template');
-                    setParsedActivities(TEMPLATE_ACTIVITIES);
-                    setFileName(null);
-                  }}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center transition ${
-                    scheduleSource === 'template'
-                      ? 'border-[#C38B4B] bg-[#C38B4B]/10 text-white'
-                      : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <Sparkles className="h-4 w-4 text-[#C38B4B]" />
-                  <span className="text-xs font-mono font-semibold">EPC Template</span>
-                  <span className="text-[10px] text-slate-400">6 Multi-Discipline Tasks</span>
-                </button>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-sans font-semibold text-slate-700">
+                  Select Baseline Schedule Ingestion Method
+                </span>
+                <div className="flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/60 text-xs font-sans">
+                  <button
+                    type="button"
+                    onClick={() => { setImportSource('template'); setParsedActivities(TEMPLATE_ACTIVITIES); }}
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                      importSource === 'template' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500'
+                    }`}
+                  >
+                    Standard Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImportSource('p6xml')}
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                      importSource === 'p6xml' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500'
+                    }`}
+                  >
+                    P6 XML Import
+                  </button>
+                </div>
+              </div>
 
-                <label
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center cursor-pointer transition ${
-                    scheduleSource === 'csv'
-                      ? 'border-[#C38B4B] bg-[#C38B4B]/10 text-white'
-                      : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
-                  <span className="text-xs font-mono font-semibold">Upload CSV</span>
-                  <span className="text-[10px] text-slate-400">{fileName || 'Standard Format'}</span>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={(e) => {
-                      setScheduleSource('csv');
-                      handleCSVUpload(e);
-                    }}
-                    className="hidden"
-                  />
-                </label>
-
-                <label
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center cursor-pointer transition ${
-                    scheduleSource === 'p6xml'
-                      ? 'border-[#C38B4B] bg-[#C38B4B]/10 text-white'
-                      : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <FileCode className="h-4 w-4 text-cyan-400" />
-                  <span className="text-xs font-mono font-semibold">Primavera P6 XML</span>
-                  <span className="text-[10px] text-slate-400">{fileName || 'Oracle P6 XML'}</span>
+              {importSource === 'p6xml' && (
+                <div className="p-4 rounded-xl border-2 border-dashed border-slate-200/90 text-center space-y-2 bg-slate-50/50">
+                  <FileCode className="h-6 w-6 text-[#C38B4B] mx-auto" />
+                  <p className="text-xs font-semibold text-slate-800 font-sans">
+                    Upload Primavera P6 XML Schedule (.xml)
+                  </p>
                   <input
                     type="file"
                     accept=".xml"
-                    onChange={(e) => {
-                      setScheduleSource('p6xml');
-                      handleP6XMLUpload(e);
-                    }}
-                    className="hidden"
+                    onChange={handleFileUpload}
+                    className="text-xs font-sans text-slate-500"
                   />
-                </label>
-              </div>
-
-              {/* Activities Preview Table */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono font-semibold text-slate-300">
-                    Baseline Schedule Preview ({parsedActivities.length} Activities)
-                  </span>
-                  <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" />
-                    <span>Schema Validated</span>
-                  </span>
                 </div>
+              )}
 
-                <div className="rounded-lg border border-slate-800 bg-slate-950 overflow-hidden max-h-48 overflow-y-auto">
-                  <table className="w-full text-left text-xs font-mono">
-                    <thead className="border-b border-slate-800 bg-slate-900/60 text-[10px] uppercase text-slate-400 sticky top-0">
-                      <tr>
-                        <th className="px-3 py-2">Code</th>
-                        <th className="px-3 py-2">Activity Name</th>
-                        <th className="px-3 py-2">Discipline</th>
-                        <th className="px-3 py-2">Start</th>
-                        <th className="px-3 py-2">Finish</th>
+              {/* Task Preview Table */}
+              <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white">
+                <table className="w-full text-left text-xs font-sans">
+                  <thead className="bg-slate-50/70 border-b border-slate-200/80 text-[10px] uppercase font-semibold text-slate-500">
+                    <tr>
+                      <th className="py-2 px-3">Code</th>
+                      <th className="py-2 px-3">Activity Name</th>
+                      <th className="py-2 px-3">Discipline</th>
+                      <th className="py-2 px-3 text-right">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {parsedActivities.slice(0, 5).map((act, i) => (
+                      <tr key={i} className="hover:bg-slate-50/70">
+                        <td className="py-2 px-3 font-mono font-bold text-slate-900">{act.code}</td>
+                        <td className="py-2 px-3 truncate max-w-xs">{act.name}</td>
+                        <td className="py-2 px-3"><Badge variant="secondary">{act.discipline}</Badge></td>
+                        <td className="py-2 px-3 text-right font-mono">{act.planned_duration_days}d</td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                      {parsedActivities.map((act, i) => (
-                        <tr key={i} className="hover:bg-slate-900/40">
-                          <td className="px-3 py-1.5 font-bold text-[#C38B4B]">{act.code}</td>
-                          <td className="px-3 py-1.5 truncate max-w-[200px]">{act.name}</td>
-                          <td className="px-3 py-1.5">
-                            <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px]">
-                              {act.discipline}
-                            </span>
-                          </td>
-                          <td className="px-3 py-1.5 text-slate-400">{act.planned_start_date}</td>
-                          <td className="px-3 py-1.5 text-slate-400">{act.planned_finish_date}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="rounded-md border border-slate-700 px-3 py-2 text-xs font-mono text-slate-300 hover:bg-slate-800 transition"
-                >
-                  Back
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 rounded-md bg-[#C38B4B] px-5 py-2 text-xs font-mono font-bold text-slate-950 hover:bg-[#b07d42] transition disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <span>Initializing Package...</span>
-                  ) : (
-                    <>
-                      <span>Launch Project</span>
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                    </>
-                  )}
-                </button>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
         </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50/50">
+          {step === 2 ? (
+            <Button
+              type="button"
+              onClick={() => setStep(1)}
+              variant="outline"
+              size="sm"
+            >
+              Back
+            </Button>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              onClick={onClose}
+              variant="ghost"
+              size="sm"
+            >
+              Cancel
+            </Button>
+            {step === 1 ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  if (code && name) setStep(2);
+                  else setErrorMsg('Please fill in Code and Name first.');
+                }}
+                variant="default"
+                size="sm"
+                className="flex items-center gap-1.5"
+              >
+                <span>Continue to Schedule</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isLoading}
+                variant="bronze"
+                size="sm"
+              >
+                {isLoading ? 'Creating Package...' : 'Create Project Package'}
+              </Button>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );
