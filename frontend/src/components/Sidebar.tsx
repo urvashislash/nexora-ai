@@ -4,6 +4,7 @@ import {
   UploadCloud, 
   CheckCircle2, 
   CalendarClock, 
+  Network,
   ShieldCheck, 
   FileDown,
   ChevronRight,
@@ -19,6 +20,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, pendingReviewCount }) => {
   const navItems = [
     { id: 'dashboard', label: 'Command Centre', icon: LayoutDashboard },
+    { id: 'graph', label: 'Obsidian Graph', icon: Network },
     { id: 'upload', label: 'Evidence Inbox', icon: UploadCloud },
     { 
       id: 'review', 

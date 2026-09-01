@@ -209,6 +209,15 @@ export async function fetchAuditEventsFromDB(projectId: string) {
 }
 
 /**
+ * Gets a permanent direct URL to preview or play an evidence/audio file.
+ */
+export function getEvidencePublicUrl(filePath: string): string {
+  if (!supabaseUrl) return '';
+  const cleanPath = filePath.replace(/^\/+/, '');
+  return `${supabaseUrl}/storage/v1/object/public/evidence-documents/${cleanPath}`;
+}
+
+/**
  * Gets a signed URL to download or preview a file.
  */
 export async function getEvidenceFileUrl(filePath: string): Promise<string | null> {
@@ -221,10 +230,10 @@ export async function getEvidenceFileUrl(filePath: string): Promise<string | nul
 
   if (error) {
     console.error('[NEXORA] Error getting signed URL:', error.message);
-    return null;
+    return getEvidencePublicUrl(filePath);
   }
 
-  return data.signedUrl;
+  return data.signedUrl || getEvidencePublicUrl(filePath);
 }
 
 /**
@@ -263,3 +272,48 @@ export async function getUserRole(projectId: string): Promise<string | null> {
 
   return data?.role || null;
 }
+
+/**
+ * Subscribes to real-time database changes for a specific project.
+ * Automatically broadcasts new observations, match proposals, actual events, and audit logs.
+ */
+export function subscribeToProjectRealtime(
+  projectId: string,
+  callbacks: {
+    onObservationChange?: (payload: any) => void;
+    onProposalChange?: (payload: any) => void;
+    onStateChange?: (payload: any) => void;
+    onAuditChange?: (payload: any) => void;
+  }
+) {
+  if (!supabaseInstance) return () => {};
+
+  const channel = supabaseInstance
+    .channel(`project-realtime-${projectId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'work_observations', filter: `project_id=eq.${projectId}` },
+      (payload) => callbacks.onObservationChange?.(payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'match_proposals', filter: `project_id=eq.${projectId}` },
+      (payload) => callbacks.onProposalChange?.(payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'activity_current_state', filter: `project_id=eq.${projectId}` },
+      (payload) => callbacks.onStateChange?.(payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'audit_events', filter: `project_id=eq.${projectId}` },
+      (payload) => callbacks.onAuditChange?.(payload)
+    )
+    .subscribe();
+
+  return () => {
+    supabaseInstance?.removeChannel(channel);
+  };
+}
+
