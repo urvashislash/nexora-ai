@@ -209,6 +209,15 @@ export async function fetchAuditEventsFromDB(projectId: string) {
 }
 
 /**
+ * Gets a permanent direct URL to preview or play an evidence/audio file.
+ */
+export function getEvidencePublicUrl(filePath: string): string {
+  if (!supabaseUrl) return '';
+  const cleanPath = filePath.replace(/^\/+/, '');
+  return `${supabaseUrl}/storage/v1/object/public/evidence-documents/${cleanPath}`;
+}
+
+/**
  * Gets a signed URL to download or preview a file.
  */
 export async function getEvidenceFileUrl(filePath: string): Promise<string | null> {
@@ -221,10 +230,10 @@ export async function getEvidenceFileUrl(filePath: string): Promise<string | nul
 
   if (error) {
     console.error('[NEXORA] Error getting signed URL:', error.message);
-    return null;
+    return getEvidencePublicUrl(filePath);
   }
 
-  return data.signedUrl;
+  return data.signedUrl || getEvidencePublicUrl(filePath);
 }
 
 /**
