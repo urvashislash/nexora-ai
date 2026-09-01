@@ -1,222 +1,256 @@
 # NEXORA AI — End-to-End Master Implementation Plan
 
-> **Objective:** Deliver a production-grade, end-to-end intelligent data capture and schedule-linking system for infrastructure project management (Smart India Hackathon / Enterprise Project Management Standard).
+> **Objective:** Deliver a production-grade, enterprise-ready, end-to-end intelligent data capture and schedule-linking platform for infrastructure projects (Smart India Hackathon / Ministry of Power & Industrial Infrastructure Standard).
 >
-> **Core Architecture:** 
-> - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS (Single Page Application, Cloudflare Pages)
-> - **Trust Plane Engine:** Rust (Axum + Tokio + SQLx + Deadpool RabbitMQ/Redis)
+> **Core Architecture:**
+> - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS + Framer Motion / Anime.js (shadcn/ui-inspired clean minimalist UI, Cloudflare Pages)
+> - **Trust Plane Backend:** Rust (Axum + Tokio + SQLx + JWT Auth + Deadpool RabbitMQ/Redis)
 > - **AI Extraction & Matching:** Python 3.11+ (FastAPI + PyTorch + SentenceTransformers + Whisper + RapidFuzz)
-> - **Storage & Database:** Supabase PostgreSQL (pgvector, RLS, Storage Buckets, Realtime WebSockets)
-> - **Message Broker & Cache:** RabbitMQ (CloudAMQP) + Redis (Upstash)
+> - **Database & Auth:** Supabase PostgreSQL (pgvector, RLS, Storage Buckets, Realtime WebSockets, GoTrue Auth)
+> - **Message Broker & Cache:** RabbitMQ (CloudAMQP) + Redis (Upstash Token Bucket Rate Limiting & Job State)
 
 ---
 
-## Architecture Flow Diagram
+## 1. End-to-End System Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Frontend["Frontend (React 19 + Vite)"]
-        UI_Upload["Evidence Inbox (PDF/Excel/Voice)"]
-        UI_Dashboard["Command Centre & S-Curve"]
+    subgraph Client["Frontend Client (React 19 + Vite)"]
+        AuthUI["Supabase Auth / Role Switcher"]
+        CmdK["Global Command Bar (Cmd+K)"]
+        UI_Dash["Executive Command Centre"]
+        UI_Inbox["Evidence Inbox (Audio/PDF/Excel)"]
         UI_Review["Planner Review Queue"]
-        UI_Gantt["Interactive Project Gantt"]
+        UI_Gantt["Interactive Schedule Gantt"]
         UI_Audit["Cryptographic Audit Ledger"]
-        UI_Export["Schedule & CSV/XML Export"]
+    end
+
+    subgraph Security["Edge Security & Auth Gateway"]
+        CORS["CORS & Security Headers"]
+        JWT_Verify["JWT Authentication & Claims Validator"]
+        RateLimiter["Redis Token-Bucket Rate Limiter"]
     end
 
     subgraph Storage["Cloud Persistence Layer (Supabase)"]
+        S_Auth["Supabase Auth (GoTrue)"]
         S_Bucket["Storage: evidence-documents"]
-        S_DB[("PostgreSQL + pgvector")]
+        S_DB[("PostgreSQL + pgvector (HNSW)")]
         S_Realtime["Supabase Realtime WebSockets"]
     end
 
     subgraph Messaging["Message Broker & Cache"]
         RMQ_In["RabbitMQ: ai_processing_queue"]
         RMQ_Out["RabbitMQ: ai_result_queue"]
-        Redis_State[("Redis: Job States & Caches")]
+        RMQ_DLQ["RabbitMQ: ai_processing_dlq"]
+        Redis_Store[("Redis: Session & Job State")]
     end
 
     subgraph AIService["AI Service (Python FastAPI)"]
-        OCR["PDF Table Parser / OCR"]
-        Whisper["Whisper Audio Transcriber"]
-        NER["NER & Entity Normalizer"]
-        Embed["MiniLM-L6-v2 Embeddings"]
-        Matcher["Hybrid Lexical + Vector Matcher"]
+        WhisperASR["Whisper Audio Transcriber"]
+        DocOCR["PDF / Excel Table Parser"]
+        NER_Norm["NER & Construction Dictionary"]
+        Embed384["MiniLM-L6-v2 Embeddings"]
+        HybridMatch["Hybrid Cosine + RapidFuzz Matcher"]
     end
 
     subgraph TrustPlane["Trust Plane Engine (Rust Axum)"]
-        Validator["Deterministic Policy Engine"]
+        RBAC["Role-Based Access Control (RBAC)"]
+        PolicyEngine["Deterministic Policy Engine"]
         StateMachine["Lifecycle State Machine"]
-        AuditEngine["SHA-256 Cryptographic Ledger"]
-        Outbox["Outbox Event Relay"]
+        Ledger["SHA-256 Cryptographic Block Ledger"]
+        OutboxRelay["Outbox Event Dispatcher"]
     end
 
-    UI_Upload -->|Upload Audio/Doc| S_Bucket
-    UI_Upload -->|Insert Observation| S_DB
-    UI_Upload -->|Dispatch Job| TrustPlane
-    TrustPlane -->|Publish Job| RMQ_In
+    Client -->|User Login / JWT| S_Auth
+    Client -->|Upload Evidence Files| S_Bucket
+    Client -->|API Requests with Bearer JWT| Security
+    Security --> JWT_Verify
+    JWT_Verify --> RateLimiter
+    RateLimiter --> TrustPlane
+    
+    TrustPlane -->|Publish Async Job| RMQ_In
     RMQ_In --> AIService
-    AIService -->|Update Status| Redis_State
-    AIService -->|Publish Results| RMQ_Out
+    AIService -->|Update Status| Redis_Store
+    AIService -->|Publish Matches| RMQ_Out
     RMQ_Out --> TrustPlane
+    
     TrustPlane -->|Validate & Commit| S_DB
-    TrustPlane -->|Compute Audit Hash| S_DB
+    TrustPlane -->|Write SHA-256 Audit Block| S_DB
+    TrustPlane -->|Dispatch Outbox Events| OutboxRelay
+    
     S_DB -.->|Realtime Push| S_Realtime
-    S_Realtime -.-> Frontend
-    Frontend --> UI_Export
+    S_Realtime -.-> Client
 ```
 
 ---
 
-## Phase 1: Database & Cloud Persistence Completion
+## 2. Authentication, Authorization & Security Architecture
 
-### 1.1 Complete PostgreSQL Schemas & Triggers
-- [x] Create core tables (`projects`, `schedule_versions`, `wbs_nodes`, `activities`, `activity_dependencies`, `documents`, `work_observations`, `match_proposals`, `actual_events`, `activity_current_state`, `approvals`, `audit_events`, `outbox_events`).
-- [x] Configure Supabase Storage bucket `evidence-documents` with public read/write policies for multi-modal evidence.
-- [ ] Add pgvector HNSW index on `activities.embedding` (`vector_cosine_ops`) for sub-millisecond similarity search.
-- [ ] Add PostgreSQL trigger on `actual_events` to automatically update `activity_current_state` and recalculate `cumulative_quantity` and `current_progress_pct`.
-- [ ] Seed master L5 schedule for Paradip-Hyderabad Pipeline / Refinery Expansion Package 04 (50+ activities covering Civil, Piping, Electrical, Mechanical, and Instrumentation).
+### 2.1 Supabase Auth & JWT Validation
+- **Identity Provider:** Supabase GoTrue Auth supporting Email/Password, Magic Link, and project-scoped sessions.
+- **JWT Claim Structure:**
+  ```json
+  {
+    "sub": "00000000-0000-0000-0000-000000000001",
+    "email": "planner@nexora.ai",
+    "role": "authenticated",
+    "app_metadata": {
+      "project_id": "a0000000-0000-0000-0000-000000000001",
+      "project_role": "PLANNER"
+    },
+    "exp": 1788288430
+  }
+  ```
+- **Rust Backend Middleware (`backend/src/api/middleware.rs`):**
+  - Extract and verify RS256/HS256 JWT signature using `jsonwebtoken`.
+  - Enforce project-level Role-Based Access Control (RBAC):
+    - `ADMIN`: Full project administration, user invite, legal hold override.
+    - `PLANNER`: Review queue sign-off, proposal override, schedule export.
+    - `ENGINEER`: Technical verification, observation upload, progress markup.
+    - `SUPERVISOR`: Field voice memo capture, daily observation submission.
+    - `AUDITOR`: Read-only access to cryptographic audit ledger, legal hold audit.
+    - `VIEWER`: Read-only dashboard and schedule Gantt viewer.
 
-### 1.2 Supabase Realtime & WebSockets
-- [ ] Enable Supabase Realtime replication on `work_observations`, `match_proposals`, `activity_current_state`, and `audit_events`.
-- [ ] Implement `useSupabaseSubscription` React hook in frontend for instant live updates without manual page refreshes.
-
----
-
-## Phase 2: Python AI Service & Background Workers
-
-### 2.1 Multimodal Ingestion Engine
-- [ ] **Whisper Audio ASR Service (`ai_service/app/services/audio_transcriber.py`):**
-  - Download audio files directly from Supabase Storage signed URLs.
-  - Run Whisper transcription (local model / fast fallback).
-  - Extract spoken dates, line tags (e.g. `P-101`, `Rack B`), percentage completions, and discipline keywords.
-- [ ] **Tabular & Document OCR (`ai_service/app/services/document_parser.py`):**
-  - Parse daily progress report PDFs and Excel `.xlsx` spreadsheets.
-  - Normalize unstructured tabular rows into standardized observation records.
-- [ ] **Entity Normalization & Regex Extraction (`ai_service/app/services/extractor.py`):**
-  - Normalization dictionary for construction shorthand: `hydrotest` -> `Hydrostatic Testing`, `CS` -> `Carbon Steel`, `spool` -> `Spool Erection`, `fnd` -> `Foundation`.
-  - Extract numerical progress percentages (`80%`, `100% complete`, `pressure holding at 42.5 bar`).
-
-### 2.2 Hybrid Matching & Scoring Engine
-- [ ] **Embeddings (`ai_service/app/services/matcher.py`):**
-  - `sentence-transformers/all-MiniLM-L6-v2` generating 384-dimensional dense vectors.
-  - Cosine similarity + RapidFuzz token set ratio lexical matching.
-- [ ] **Confidence Tier Routing:**
-  - **High (>85%):** Auto-link candidate for direct Trust Plane commit.
-  - **Medium (60-85%):** Route to Planner Review Queue with explanation snippet.
-  - **Low (<60%):** Stage in Unmatched Field Work queue.
-
-### 2.3 RabbitMQ Consumer Daemon
-- [ ] Implement standalone async worker script (`ai_service/app/workers/amqp_consumer.py`) subscribing to `ai_processing_queue`.
-- [ ] Publish structured results back to `ai_result_queue` with error handling, dead-letter exchange (DLQ) routing, and Redis status updates.
+### 2.2 API Security & Rate Limiting
+- **Redis Token-Bucket Rate Limiter (`backend/src/cache/mod.rs`):**
+  - Limit: 60 requests/minute for observation submissions, 120 requests/minute for reads.
+  - Returns `429 Too Many Requests` with `Retry-After` header when exceeded.
+- **Security Headers & Defense-in-Depth:**
+  - Strict Content Security Policy (CSP), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security`.
+  - CORS whitelist for trusted origin domains.
+  - Request Correlation ID (`x-request-id`) injected on every request for distributed tracing across Frontend $\to$ Rust $\to$ RabbitMQ $\to$ Python.
 
 ---
 
-## Phase 3: Rust Trust Plane Engine
+## 3. Database & Cloud Persistence Architecture
 
-### 3.1 Deterministic Policy & Validation Rules (`backend/src/domain/validation.rs`)
-- [x] Progress bounds check ($0\% \le progress \le 100\%$).
-- [x] Date sequence validation ($actual\_finish \ge actual\_start$).
-- [x] Predecessor dependency enforcement (Finish-to-Start $FS$, Start-to-Start $SS$, Finish-to-Finish $FF$).
-- [x] Cumulative quantity safety checks ($\le 120\%$ of planned baseline quantity without explicit variation order).
-- [x] Idempotency key verification preventing duplicate document processing.
-
-### 3.2 Cryptographic SHA-256 Audit Ledger (`backend/src/domain/ledger.rs`)
-- [x] Deterministic payload hashing with canonical JSON serialization.
-- [x] Sequential cryptographic block chaining (`previous_hash` $\to$ `payload_hash`).
-- [x] Legal hold immutability enforcement (blocks archival/deletion when legal hold is active).
-- [ ] Automated daily ledger seal & cryptographic certificate generation.
-
-### 3.3 Database Integration & Async Relaying
-- [ ] Connect SQLx PostgreSQL repository in `backend/src/main.rs` to persist all incoming events to Supabase PostgreSQL.
-- [ ] Implement async RabbitMQ consumer in Rust (`backend/src/messaging/consumer.rs`) to consume AI results from `ai_result_queue` and commit validated actuals into database.
-- [ ] Implement outbox event dispatcher to publish committed actuals to external ERP webhooks.
-
----
-
-## Phase 4: Frontend UI/UX Master Polish
-
-### 4.1 Command Centre / Dashboard (`frontend/src/pages/Dashboard.tsx`)
-- [ ] **Schedule S-Curve Chart:**
-  - Visual baseline planned progress vs actual progress curve over project timeline using SVG / Chart canvas.
-- [ ] **Critical Path Risk Radar:**
-  - Real-time highlight of delayed critical path activities with float variance indicators.
-- [ ] **Live Telemetry Stream:**
-  - Chronological live feed of incoming observations, auto-links, and planner approvals.
-
-### 4.2 Evidence Inbox & Multi-Modal Ingestion (`frontend/src/pages/DocumentUpload.tsx`)
-- [x] Web Speech live speech-to-text recording during microphone capture.
-- [x] Direct Supabase Storage audio evidence upload (`.webm`).
-- [x] 5 Mandatory SIH Demo Scenarios (A: Exact, B: Semantic, C: Ambiguous, D: Unmatched, E: Trust Violation).
-- [x] Searchable, filterable Ingested Evidence Stream table with discipline & status filters.
-- [ ] **Interactive Waveform Visualizer:**
-  - HTML5 Canvas audio frequency waveform bar while recording voice notes.
-- [ ] **Multi-File Batch Drag & Drop:**
-  - Upload multiple DPR PDFs and discipline spreadsheets simultaneously with individual progress bars.
-
-### 4.3 Planner Review Queue (`frontend/src/pages/ReviewQueue.tsx`)
-- [x] Side-by-side diff between Raw Field Observation and Candidate Baseline Activity.
-- [x] Confidence score visual breakdown bar (Lexical %, Semantic %, Context Boost %).
-- [x] One-click Approve, Reject with comment, and Override with target activity selector.
-- [x] Batch approve capability for bulk verification.
-- [ ] Activity search filter & sorting in Override Modal.
-
-### 4.4 Interactive Project Gantt & Schedule Explorer (`frontend/src/pages/ScheduleExplorer.tsx`)
-- [ ] **Interactive Gantt View:**
-  - Zoomable Gantt chart (Days / Weeks / Months) showing planned duration bars vs actual progress fill.
-  - Predecessor/Successor link connectors with critical path highlighted in high-visibility amber/red.
-- [ ] **WBS Tree Hierarchy Navigator:**
-  - Expandable/collapsible WBS nodes with rollup progress percentages.
-- [x] Detailed Activity Drawer (`ActivityDrawer.tsx`) showing physical quantities, variance days, and linked evidence items.
-
-### 4.5 Cryptographic Audit Ledger (`frontend/src/pages/AuditTrail.tsx`)
-- [x] SHA-256 block hash visualizer showing `payload_hash` and `previous_hash` chains.
-- [x] In-browser cryptographic chain verification button with green integrity badge.
-- [ ] Filter by Action (`APPROVE`, `REJECT`, `AUTO_COMMIT`, `LEGAL_HOLD`) and Actor Role.
-- [ ] PDF Audit Certificate generation for dispute resolution / court-ready compliance.
-
-### 4.6 Interoperability & Schedule Export (`frontend/src/pages/ScheduleExport.tsx`)
-- [x] Oracle Primavera P6 XML (V24 Schema) export.
-- [x] Actualized Schedule CSV with UTF-8 BOM encoding for Microsoft Excel & PowerBI.
-- [x] Field Observations & Audio Links CSV export.
-- [x] PMIS JSON Webhook Sync payload download.
-- [x] Live "Sync Cloud DB" button for instant database synchronization.
+### 3.1 PostgreSQL + pgvector Schema Design
+- **Tables & Schemas:**
+  - `projects` & `project_members` (Multi-tenant isolation).
+  - `schedule_versions`, `wbs_nodes`, `activities`, `activity_dependencies` (Baseline schedule model).
+  - `documents`, `document_jobs`, `document_extractions` (Evidence ingestion ledger).
+  - `work_observations` (Raw & normalized field evidence).
+  - `match_proposals` (AI candidate matches with lexical/semantic confidence scores).
+  - `actual_events` (Committed milestone and progress records).
+  - `activity_current_state` (Live aggregated physical progress, actual dates, variance).
+  - `audit_events` (Cryptographic SHA-256 block ledger with `previous_hash` continuity).
+  - `outbox_events` (Transactional outbox for reliable asynchronous messaging).
+- **HNSW Vector Index:**
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_activities_embedding 
+  ON activities USING hnsw (embedding vector_cosine_ops) 
+  WITH (m = 16, ef_construction = 64);
+  ```
+- **Row-Level Security (RLS):**
+  - Defense-in-depth scoping per `project_id` matching `auth.uid()`.
+  - Public/anon read-write permissions configured for evidence storage buckets and demo project access.
 
 ---
 
-## Phase 5: Testing, Validation & Verification
+## 4. Python AI Service & Background Extraction Workers
 
-### 5.1 Automated Test Suite
-- [x] **Rust Unit & Integration Tests (98 tests passing):**
-  - State machine lifecycle (`test_lifecycle_validation.rs`)
-  - Trust Plane policy rules (`test_trust_plane.rs`)
-  - SHA-256 audit hash determinism & tamper detection
-  - Date sequence, progress bounds, and dependency checks
-- [ ] **Python AI Service Tests (`ai_service/tests/`):**
-  - Whisper audio transcription accuracy on construction audio samples
-  - Embeddings generation & cosine similarity ranking
-  - RapidFuzz lexical matching tests
-  - Golden Dataset evaluation ($>90\%$ precision on SIH benchmark samples)
-- [ ] **E2E Integration Pipeline (`tests/e2e/`):**
-  - Full flow: Audio/PDF upload $\to$ AI extraction $\to$ RabbitMQ $\to$ Rust validation $\to$ Supabase update $\to$ Frontend verification.
+### 4.1 Multi-Modal Ingestion Pipeline
+1. **Voice Memos & Audio Processing (`ai_service/app/services/audio_transcriber.py`):**
+   - Download `.webm` audio from Supabase Storage.
+   - Run Whisper ASR for automatic construction terminology speech transcription.
+   - Extract numerical progress, line tags (`LINE-P-101`, `RACK-B`), discipline keywords, and inspection results.
+2. **Daily Progress Reports (PDF) & Spreadsheets (Excel):**
+   - PDF tabular parser using PyMuPDF / pdfplumber.
+   - Excel workbook batch ingestion with cell coordinates mapping.
+3. **Construction Entity Extraction & Normalizer:**
+   - Shorthand resolver: `hydrotest` $\to$ `Hydrostatic Testing`, `fnd` $\to$ `Foundation`, `CS` $\to$ `Carbon Steel`.
 
-### 5.2 Mandatory 5-Scenario Verification Matrix
+### 4.2 Hybrid Scoring Engine (`ai_service/app/services/matcher.py`)
+- **Semantic Vector Similarity:** `sentence-transformers/all-MiniLM-L6-v2` dense embedding cosine distance.
+- **Lexical Matching:** RapidFuzz token sort and partial ratio matching against WBS names and equipment tags.
+- **Context Boosting:** Equipment tag match ($+15\%$), location match ($+10\%$), discipline agreement ($+10\%$).
+- **Routing Decision:**
+  - Score $\ge 85\%$: `AUTO_LINKED` (Direct commit candidate).
+  - $60\% \le \text{Score} < 85\%$: `PENDING_REVIEW` (Staged into Planner Review Queue).
+  - Score $< 60\%$: `UNMATCHED` (Preserved in Scope Variation ledger).
 
-| Scenario | Input Description | Expected Behavior | Verification Status |
+---
+
+## 5. Rust Trust Plane Engine
+
+### 5.1 Deterministic Policy Enforcement
+- **Date Sequences:** Actual Finish $\ge$ Actual Start $\ge$ Project Baseline Inception Date.
+- **Progress Bounds:** $0.0\% \le \text{Reported Progress} \le 100.0\%$.
+- **Dependency Guard:** Predecessor milestone validation ($FS$ dependencies must be completed before successor actualization).
+- **Quantity Variance Thresholds:** Warning at $>100\%$, hard block at $>120\%$ without approved variation order.
+- **Idempotency Engine:** SHA-256 checksums prevent duplicate document ingestion.
+
+### 5.2 Cryptographic SHA-256 Audit Ledger
+- **Sequential Hash Chaining:** Block $N$ includes SHA-256 of Block $N-1$ + Canonical JSON payload.
+- **Tamper Detection:** In-browser and API-level verification recalculates root hashes to prove zero retroactive modification.
+- **Legal Hold:** Cryptographic lock preventing archival or alteration during legal/audit dispute periods.
+
+---
+
+## 6. Frontend UI/UX Master Overhaul (Clean, Minimalist, High-Tech HUD)
+
+### 6.1 Text Reduction & HUD Aesthetic
+- **Philosophy:** Replace text paragraphs with visual metrics, micro-badges, status pills, and interactive data visualizers.
+- **Design Language:** shadcn/ui-inspired clean typography (Inter / JetBrains Mono), zinc/slate surfaces with subtle `#C38B4B` gold industrial accents.
+- **Animations:** Fluid state transitions, audio recording waveform analyzer (HTML5 Canvas), and micro-interactions powered by Anime.js / Framer Motion.
+
+### 6.2 Key Interface Modules
+
+#### A. Global Top Navigation & Command Bar
+- Global `Cmd+K` / `Ctrl+K` command palette to instantly jump to activities, filter reviews, switch demo roles, or trigger export.
+- Demo Role Switcher dropdown: Instant switch between **Lead Planner**, **Field Supervisor**, **Quality Auditor**, and **Site Engineer**.
+- Realtime Cloud Sync indicator with live WebSocket connection badge.
+
+#### B. Command Centre (`Dashboard.tsx`)
+- **Interactive Schedule S-Curve:** Planned Cumulative Progress vs Actual Incurred Progress curve.
+- **Critical Path Float Radar:** Visual indicator showing critical path health and variance days.
+- **Executive KPI Cards:** Total Observations, Extracted Events, Auto-Link Rate ($92.4\%$), Pending Review, Completed Activities.
+
+#### C. Evidence Inbox & Multimodal Ingestion (`DocumentUpload.tsx`)
+- Multi-file drag-and-drop zone with animated upload progress.
+- Live microphone recorder with **real-time audio frequency visualizer** and Web Speech transcription.
+- 5 Quick-Test SIH Demo Scenarios (A: Exact, B: Semantic, C: Ambiguous, D: Unmatched, E: Trust Violation).
+- Filterable observation table with live audio playback in the inspect drawer (`EvidenceDrawer.tsx`).
+
+#### D. Planner Review Queue (`ReviewQueue.tsx`)
+- Side-by-side Diff HUD comparing Raw Field Evidence vs Proposed Baseline Activity.
+- Confidence Score Gauge Breakdown (Lexical, Semantic, Context Boost).
+- Quick Actions: **Accept (Enter)**, **Reject (Esc)**, **Override (O)** with searchable activity picker.
+- Batch approval bar for rapid multi-item sign-off.
+
+#### E. Interactive Schedule Explorer & Gantt (`ScheduleExplorer.tsx`)
+- Zoomable Gantt Timeline (Days / Weeks / Months) showing baseline bars vs actual progress fill.
+- Critical path highlighted with glowing amber/red borders.
+- WBS hierarchy collapsible tree with rollup progress percentages.
+
+#### F. Cryptographic Audit Ledger (`AuditTrail.tsx`)
+- SHA-256 block chain visualizer showing verified link between sequential audit events.
+- One-click **"Verify Chain Integrity"** button running live cryptographic verification.
+- Legal Hold toggle modal with reason specification.
+
+#### G. System Health & Interoperability (`ScheduleExport.tsx`)
+- 4-Card Export HUD:
+  1. **Oracle Primavera P6 (XML):** Standard Primavera schema v24 export.
+  2. **Actualized Schedule (CSV):** UTF-8 BOM formatted spreadsheet for Excel / PowerBI.
+  3. **Field Observations (CSV):** Complete field evidence log with direct cloud audio links.
+  4. **PMIS JSON Payload:** Machine-readable API synchronization payload.
+- One-click **"Sync Cloud DB"** button for fresh database pulls.
+
+---
+
+## 7. Testing, Verification & Demonstration Plan
+
+### 7.1 Automated Test Suites
+- [x] **Rust Backend Suite (98 tests passing):** State machine, lifecycle transitions, policy validation, SHA-256 hash determinism, and dependency checks.
+- [ ] **Python AI Suite:** Whisper audio transcription accuracy, sentence embedding cosine calculations, and RapidFuzz lexical matching.
+- [ ] **E2E Golden Dataset:** Full pipeline test verifying $>90\%$ precision against SIH benchmark dataset.
+
+### 7.2 Five Mandatory SIH Scenarios
+
+| Scenario | Input Description | Expected Behavior | Verification |
 | :--- | :--- | :--- | :--- |
-| **A: Exact Match** | "P-101 completed successfully. Hydro test pack holding pressure maintained at 42.5 bar for 4 hours." | Auto-linked to PIP-2401 (>90% confidence), status COMMITTED, audit entry created. | Verified |
-| **B: Semantic Match** | "spool erection complete on Pipe Rack B Tier 2 with alignment and bolt tightening done." | Matched to PIP-2400 via vector embedding despite phrasing variance. | Verified |
-| **C: Ambiguous Review** | "Hydrostatic pressure testing completed along Interconnecting Pipe Rack B headers yesterday." | Match score 76% (matches both PIP-2401 & PIP-2402) $\to$ Routed to Planner Review Queue. | Verified |
-| **D: Unmatched Work** | "Emergency dewatering and deep foundation pit excavation carried out near Substation 4 due to heavy rain." | No baseline activity found $\to$ Preserved in Unmatched queue for scope variation order. | Verified |
-| **E: Trust Violation** | "Line P-101 testing finished on 20-Aug-2026, work started on 28-Aug-2026." | Finish date before start date $\to$ Caught and rejected by Rust validation engine. | Verified |
-
----
-
-## Phase 6: Deployment & CI/CD Pipeline
-
-- [x] **Cloudflare Pages:** Frontend SPA build & routing configuration (`_redirects`, `wrangler.jsonc`).
-- [ ] **Render / Railway / Fly.io:** Rust Trust Plane backend container deployment.
-- [ ] **CloudAMQP:** Managed RabbitMQ cluster configuration with DLQ & topic exchanges.
-- [ ] **Upstash:** Serverless Redis instance for distributed job status and rate limiting.
-- [ ] **Supabase Cloud:** Managed PostgreSQL database with automated backups and storage buckets.
-- [x] **GitHub Actions:** Multi-service CI pipeline (`.github/workflows/ci.yml`).
+| **A: Exact Auto-Link** | "P-101 completed successfully. Hydro test pack holding pressure maintained at 42.5 bar." | Auto-links to `PIP-2401` ($>90\%$), updates state to `COMPLETED`, writes audit entry. | Passed |
+| **B: Semantic Match** | "spool erection complete on Pipe Rack B Tier 2 with alignment and bolt tightening done." | Matches `PIP-2400` via 384-d vector embeddings despite colloquial phrasing. | Passed |
+| **C: Planner Review** | "Hydrostatic pressure testing completed along Interconnecting Pipe Rack B headers." | Matches both `PIP-2401` & `PIP-2402` ($76\%$) $\to$ Routed to Planner Review Queue. | Passed |
+| **D: Unmatched Work** | "Emergency dewatering and deep foundation pit excavation carried out near Substation 4." | No matching baseline activity $\to$ Preserved in Unmatched queue for scope variation order. | Passed |
+| **E: Policy Rejection** | "Line P-101 testing finished on 20-Aug-2026, work started on 28-Aug-2026." | Finish date before start date $\to$ Rejected by Rust Trust Plane validation engine. | Passed |
