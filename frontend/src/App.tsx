@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
+import { ProjectGraph } from './pages/ProjectGraph';
 import { DocumentUpload } from './pages/DocumentUpload';
 import { ReviewQueue } from './pages/ReviewQueue';
 import { ScheduleExplorer } from './pages/ScheduleExplorer';
@@ -9,7 +10,8 @@ import { ScheduleExport } from './pages/ScheduleExport';
 import { ThankYou } from './pages/ThankYou';
 import { NotFound } from './pages/NotFound';
 import { DashboardSkeleton } from './components/SkeletonLoader';
-import { supabase } from './lib/supabase';
+import { CommandPalette } from './components/CommandPalette';
+import { supabase, subscribeToProjectRealtime } from './lib/supabase';
 import { api } from './lib/api';
 import type { 
   ActivityWithState, 
@@ -221,6 +223,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+  const [currentRole, setCurrentRole] = useState<string>('Lead Planner');
 
   const [activities, setActivities] = useState<ActivityWithState[]>(() =>
     safeReadStorage<ActivityWithState[]>(`${STORAGE_KEY}:activities`, initialActivities)
@@ -331,6 +335,26 @@ function App() {
 
   useEffect(() => {
     loadData();
+
+    // Subscribe to live Postgres change events
+    const unsubscribe = subscribeToProjectRealtime(PROJECT_ID, {
+      onObservationChange: () => {
+        loadData();
+      },
+      onProposalChange: () => {
+        loadData();
+      },
+      onStateChange: () => {
+        loadData();
+      },
+      onAuditChange: () => {
+        loadData();
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [loadData]);
 
   useEffect(() => {
@@ -546,6 +570,7 @@ function App() {
             <span className="text-slate-300">/</span>
             <span className="font-semibold text-slate-800 uppercase">
               {activeTab === 'dashboard' ? 'Command Centre' :
+               activeTab === 'graph' ? 'Obsidian Graph' :
                activeTab === 'upload' ? 'Evidence Inbox' :
                activeTab === 'review' ? 'Planner Review' :
                activeTab === 'schedule' ? 'Project Explorer' :
@@ -553,16 +578,34 @@ function App() {
             </span>
           </div>
 
-          <div className="flex items-center space-x-4 text-xs font-mono">
+          <div className="flex items-center space-x-3 text-xs font-mono">
+            {/* Quick Command Palette Button */}
+            <button
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-slate-700 transition cursor-pointer"
+              title="Open Command Palette (Cmd+K / Ctrl+K)"
+            >
+              <span className="text-[#C38B4B] font-bold">⌘K</span>
+              <span className="text-[11px] text-slate-500">Quick Commands</span>
+            </button>
+
+            {/* Active Demo Role Indicator */}
+            <div 
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200 cursor-pointer hover:bg-amber-100 transition"
+              title="Click to Switch Role"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#C38B4B]" />
+              <span className="text-[11px] font-bold">{currentRole}</span>
+            </div>
+
             <div className="flex items-center space-x-2">
               <span className={`h-2 w-2 rounded-full ${supabaseConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              <span className="text-slate-600">
+              <span className="text-slate-600 hidden lg:inline">
                 {supabaseConnected ? 'Cloud Sync Active' : 'Local Standby'}
               </span>
             </div>
-            <span className="text-slate-300">|</span>
-            <span className="text-slate-500 hidden sm:inline">Refinery Expansion Package 04</span>
-            <span className="text-slate-300 hidden sm:inline">|</span>
+            
             <a
               href="https://github.com/urvashislash/nexora-ai"
               target="_blank"
@@ -572,7 +615,7 @@ function App() {
               <svg className="h-3.5 w-3.5 fill-slate-700" viewBox="0 0 24 24">
                 <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
               </svg>
-              <span>GitHub</span>
+              <span className="hidden sm:inline">GitHub</span>
             </a>
           </div>
 
@@ -592,6 +635,13 @@ function App() {
                   kpis={kpis} 
                   activities={activities} 
                   onNavigateTab={setActiveTab} 
+                />
+              )}
+
+              {activeTab === 'graph' && (
+                <ProjectGraph 
+                  activities={activities} 
+                  observations={observations}
                 />
               )}
 
@@ -639,7 +689,7 @@ function App() {
                 />
               )}
 
-              {!['dashboard', 'upload', 'review', 'schedule', 'audit', 'export', 'thank-you'].includes(activeTab) && (
+              {!['dashboard', 'graph', 'upload', 'review', 'schedule', 'audit', 'export', 'thank-you'].includes(activeTab) && (
                 <NotFound 
                   onNavigateHome={() => setActiveTab('dashboard')}
                 />
@@ -647,6 +697,16 @@ function App() {
             </>
           )}
         </div>
+
+        {/* Global Command Palette Modal */}
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onNavigateTab={setActiveTab}
+          activities={activities}
+          currentRole={currentRole}
+          onSelectRole={setCurrentRole}
+        />
       </main>
     </div>
   );

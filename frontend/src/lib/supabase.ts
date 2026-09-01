@@ -272,3 +272,48 @@ export async function getUserRole(projectId: string): Promise<string | null> {
 
   return data?.role || null;
 }
+
+/**
+ * Subscribes to real-time database changes for a specific project.
+ * Automatically broadcasts new observations, match proposals, actual events, and audit logs.
+ */
+export function subscribeToProjectRealtime(
+  projectId: string,
+  callbacks: {
+    onObservationChange?: (payload: any) => void;
+    onProposalChange?: (payload: any) => void;
+    onStateChange?: (payload: any) => void;
+    onAuditChange?: (payload: any) => void;
+  }
+) {
+  if (!supabaseInstance) return () => {};
+
+  const channel = supabaseInstance
+    .channel(`project-realtime-${projectId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'work_observations', filter: `project_id=eq.${projectId}` },
+      (payload) => callbacks.onObservationChange?.(payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'match_proposals', filter: `project_id=eq.${projectId}` },
+      (payload) => callbacks.onProposalChange?.(payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'activity_current_state', filter: `project_id=eq.${projectId}` },
+      (payload) => callbacks.onStateChange?.(payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'audit_events', filter: `project_id=eq.${projectId}` },
+      (payload) => callbacks.onAuditChange?.(payload)
+    )
+    .subscribe();
+
+  return () => {
+    supabaseInstance?.removeChannel(channel);
+  };
+}
+

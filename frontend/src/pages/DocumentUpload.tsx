@@ -70,6 +70,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   const speechRecognitionRef = useRef<any>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  const visualizerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animFrameRef = useRef<number | null>(null);
 
   // Table filtering & search
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,6 +91,8 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioContextRef.current) audioContextRef.current.close();
     };
   }, [isRecording]);
 
@@ -98,7 +103,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     };
   }, [audioUrl]);
 
-  // Start in-browser microphone recording
+  // Start in-browser microphone recording & real-time waveform visualizer
   const startRecording = async () => {
     try {
       setSourceType('VOICE');
@@ -107,6 +112,44 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
+      // Setup Web Audio Analyser for live visualizer
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = audioCtx;
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const drawWaveform = () => {
+        if (!visualizerCanvasRef.current) return;
+        const canvas = visualizerCanvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        analyser.getByteFrequencyData(dataArray);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const barWidth = (canvas.width / bufferLength) * 2;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          const barHeight = (dataArray[i] / 255) * canvas.height;
+          const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+          gradient.addColorStop(0, '#E11D48');
+          gradient.addColorStop(1, '#F59E0B');
+
+          ctx.fillStyle = gradient;
+          ctx.fillRect(x, canvas.height - barHeight, barWidth - 2, barHeight);
+          x += barWidth + 1;
+        }
+
+        animFrameRef.current = requestAnimationFrame(drawWaveform);
+      };
+      drawWaveform();
+
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
@@ -114,6 +157,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       };
 
       mediaRecorder.onstop = () => {
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        if (audioContextRef.current) {
+          audioContextRef.current.close();
+          audioContextRef.current = null;
+        }
         const recordedBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(recordedBlob);
         const url = URL.createObjectURL(recordedBlob);
@@ -540,6 +588,18 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   </span>
                 )}
               </div>
+
+              {/* Real-time Frequency Waveform Visualizer */}
+              {isRecording && (
+                <div className="w-full bg-slate-900 rounded-lg p-2 flex items-center justify-center shadow-inner">
+                  <canvas 
+                    ref={visualizerCanvasRef} 
+                    width={400} 
+                    height={40} 
+                    className="w-full h-10 block rounded"
+                  />
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-3">
                 {!isRecording ? (
