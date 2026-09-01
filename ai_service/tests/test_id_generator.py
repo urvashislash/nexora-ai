@@ -1,13 +1,13 @@
 """Unit tests for Python RFC 9562 UUIDv7 & TypeID Generation Engine."""
 
-import time
 from datetime import datetime, timezone
+
 from app.core.id_generator import (
-    generate_uuidv7,
-    generate_entity_id,
-    extract_timestamp_from_uuidv7,
-    generate_idempotency_key,
     CROCKFORD_ALPHABET,
+    extract_timestamp_from_uuidv7,
+    generate_entity_id,
+    generate_idempotency_key,
+    generate_uuidv7,
 )
 
 
