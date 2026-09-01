@@ -9,4 +9,4 @@ Disallow: /storage/
 Disallow: /admin/
 
 # Sitemap Location
-Sitemap: https://nexora-ai.pages.dev/sitemap.xml
+Sitemap: https://nexora-ai.uspali212.workers.dev/sitemap.xml
