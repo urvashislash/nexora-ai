@@ -1,49 +1,65 @@
-import * as React from 'react';
-import { cn } from '../../lib/utils';
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "../../lib/utils";
 
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'bronze';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
-  isLoading?: boolean;
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-xs font-semibold font-sans tracking-tight transition-all duration-150 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0 cursor-pointer active:scale-[0.98]",
+  {
+    variants: {
+      variant: {
+        default:
+          "bg-slate-900 text-white shadow-2xs hover:bg-slate-800 border border-slate-900",
+        primary:
+          "bg-slate-900 text-white shadow-2xs hover:bg-slate-800 border border-slate-900",
+        secondary:
+          "bg-slate-100 text-slate-900 hover:bg-slate-200/80 border border-slate-200/60 shadow-2xs",
+        outline:
+          "border border-slate-200/90 bg-white text-slate-800 shadow-2xs hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300",
+        ghost:
+          "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+        destructive:
+          "bg-rose-50 text-[#FF3B30] border border-rose-200 hover:bg-rose-100/80 shadow-2xs",
+        success:
+          "bg-[#34C759] text-white hover:bg-[#2db34e] shadow-2xs border border-[#2db34e]",
+        bronze:
+          "bg-[#C38B4B] text-white hover:bg-[#b07d42] shadow-2xs border border-[#b07d42]",
+        link:
+          "text-slate-900 underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-8 px-3 py-1.5",
+        sm: "h-7 rounded-md px-2.5 text-[11px]",
+        lg: "h-9 rounded-xl px-4 text-xs",
+        icon: "h-8 w-8 rounded-lg",
+        "icon-sm": "h-7 w-7 rounded-md",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
 }
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'default', size = 'default', isLoading, children, disabled, ...props }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center rounded-lg font-sans text-xs font-semibold tracking-tight transition-all duration-150 ease-out focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400/50 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer active:scale-[0.98]';
-
-    const variants = {
-      default: 'bg-[#18181B] text-white hover:bg-[#27272A] shadow-xs active:bg-[#09090B]',
-      destructive: 'bg-[#FF3B30] text-white hover:bg-[#E02E24] shadow-xs',
-      outline: 'border border-slate-200/90 bg-white text-slate-800 hover:bg-slate-50 hover:border-slate-300 shadow-2xs',
-      secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200/80',
-      ghost: 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900',
-      link: 'text-[#C38B4B] underline-offset-4 hover:underline p-0 h-auto font-medium',
-      bronze: 'bg-[#C38B4B] text-white font-semibold hover:bg-[#B07A3E] shadow-xs',
-    };
-
-    const sizes = {
-      default: 'h-9 px-4 py-2 text-xs',
-      sm: 'h-7 rounded-md px-2.5 text-[11px]',
-      lg: 'h-10 rounded-xl px-6 text-sm',
-      icon: 'h-8 w-8 rounded-lg',
-    };
-
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
     return (
-      <button
-        className={cn(baseStyles, variants[variant], sizes[size], className)}
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
-        disabled={disabled || isLoading}
         {...props}
-      >
-        {isLoading && (
-          <svg className="mr-2 h-3.5 w-3.5 animate-spin text-current" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        )}
-        {children}
-      </button>
+      />
     );
   }
 );
-Button.displayName = 'Button';
+Button.displayName = "Button";
+
+export { Button, buttonVariants };

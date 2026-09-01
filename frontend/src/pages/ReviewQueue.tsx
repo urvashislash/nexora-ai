@@ -14,7 +14,12 @@ import type { ReviewQueueItem, Activity, ReviewQueueFilters, ToastMessage } from
 import { animateStaggerEntrance } from '../lib/animations';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Card } from '../components/ui/card';
+import { Card, CardTitle } from '../components/ui/card';
+import { Progress } from '../components/ui/progress';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
+import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
 
 // ── Toast Notification Component ───────────────────────────────────────────
 const Toast: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void }> = ({ toast, onDismiss }) => {
@@ -98,263 +103,216 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
         return false;
       }
       if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
-        const rawMatch = item.observation?.raw_text?.toLowerCase().includes(query);
-        const codeMatch = item.activity?.code.toLowerCase().includes(query);
-        const nameMatch = item.activity?.name.toLowerCase().includes(query);
-        if (!rawMatch && !codeMatch && !nameMatch) return false;
+        const q = filters.searchQuery.toLowerCase();
+        const obsMatch = item.observation?.raw_text.toLowerCase().includes(q);
+        const actMatch = item.activity?.name.toLowerCase().includes(q) || item.activity?.code.toLowerCase().includes(q);
+        if (!obsMatch && !actMatch) return false;
       }
       return true;
     }).sort((a, b) => {
-      if (filters.sortBy === 'confidence_desc') {
-        return b.proposal.confidence_score - a.proposal.confidence_score;
-      }
-      if (filters.sortBy === 'confidence_asc') {
-        return a.proposal.confidence_score - b.proposal.confidence_score;
-      }
-      return new Date(b.proposal.created_at).getTime() - new Date(a.proposal.created_at).getTime();
+      if (filters.sortBy === 'confidence_desc') return b.proposal.confidence_score - a.proposal.confidence_score;
+      if (filters.sortBy === 'confidence_asc') return a.proposal.confidence_score - b.proposal.confidence_score;
+      return 0;
     });
   }, [items, filters]);
 
-  const advanceSelection = useCallback((currentId: string, direction: 'next' | 'prev' = 'next') => {
-    const currentIndex = filteredItems.findIndex(i => i.proposal.id === currentId);
-    if (currentIndex === -1) return;
-    
-    if (direction === 'next') {
-      const nextItem = filteredItems[currentIndex + 1] || filteredItems[0];
-      if (nextItem) setSelectedItemId(nextItem.proposal.id);
-    } else {
-      const prevItem = filteredItems[currentIndex - 1] || filteredItems[filteredItems.length - 1];
-      if (prevItem) setSelectedItemId(prevItem.proposal.id);
-    }
-  }, [filteredItems]);
-
   const selectedItem = useMemo(() => {
     return items.find(i => i.proposal.id === selectedItemId) || filteredItems[0] || null;
-  }, [items, selectedItemId, filteredItems]);
+  }, [items, filteredItems, selectedItemId]);
 
   // Actions
   const handleApprove = useCallback(async (item: ReviewQueueItem) => {
     try {
       await onApprove(item.proposal.id, commentText);
-      addToast(
-        'success',
-        'Proposal Approved & Committed',
-        `Reconciled with ${item.activity?.code || 'activity'}. Immutable actual event committed to ledger.`
-      );
+      addToast('success', 'Proposal Approved & Committed', `Event committed to ledger for activity ${item.activity?.code || ''}.`);
       setCommentText('');
-      advanceSelection(item.proposal.id, 'next');
     } catch {
-      addToast('error', 'Approval Failed', 'Unable to commit state update to Trust Plane ledger.');
+      addToast('error', 'Commit Failed', 'Could not record event in deterministic ledger.');
     }
-  }, [onApprove, commentText, advanceSelection]);
+  }, [onApprove, commentText]);
 
   const handleConfirmReject = async () => {
     if (!selectedItem) return;
     try {
       await onReject(selectedItem.proposal.id, rejectReason || 'Rejected by Lead Planner');
-      addToast('info', 'Proposal Rejected', `Proposal ${selectedItem.proposal.id.slice(0, 8)} logged as REJECTED in audit trail.`);
+      addToast('info', 'Proposal Rejected', `Proposal rejected and logged to immutable audit trail.`);
       setIsRejectModalOpen(false);
       setRejectReason('');
-      advanceSelection(selectedItem.proposal.id, 'next');
     } catch {
-      addToast('error', 'Rejection Failed', 'Network or validation error occurred.');
+      addToast('error', 'Rejection Failed', 'Could not complete rejection request.');
     }
   };
 
   const handleCommitOverride = async () => {
-    if (!selectedItem || !selectedOverrideActivityId) {
-      addToast('error', 'Select Activity', 'Please select a valid alternate schedule activity.');
-      return;
-    }
+    if (!selectedItem || !selectedOverrideActivityId) return;
     try {
-      await onOverride(selectedItem.proposal.id, selectedOverrideActivityId, commentText || 'Planner manual match override');
-      const act = activities.find(a => a.id === selectedOverrideActivityId);
-      addToast(
-        'success',
-        'Match Overridden',
-        `Linked observation to ${act?.code || 'new activity'} and committed actual progress.`
-      );
+      await onOverride(selectedItem.proposal.id, selectedOverrideActivityId, 'Planner override match selection');
+      addToast('success', 'Match Override Committed', `Observation linked to selected activity.`);
       setShowOverridePanel(false);
       setSelectedOverrideActivityId(null);
-      setCommentText('');
-      advanceSelection(selectedItem.proposal.id, 'next');
     } catch {
-      addToast('error', 'Override Failed', 'Could not apply manual schedule link.');
+      addToast('error', 'Override Failed', 'Could not save override.');
     }
   };
 
-  // Keyboard Shortcuts for Rapid Planner Review
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore when typing inside input/textarea
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
-        return;
-      }
-
-      if (!selectedItem) return;
-
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === 'a' || e.key === 'A') {
-        e.preventDefault();
-        void handleApprove(selectedItem);
+        if (selectedItem) handleApprove(selectedItem);
       } else if (e.key === 'r' || e.key === 'R') {
-        e.preventDefault();
         setIsRejectModalOpen(true);
-      } else if (e.key === 'o' || e.key === 'O') {
-        e.preventDefault();
-        setShowOverridePanel(prev => !prev);
-      } else if (e.key === 'n' || e.key === 'N') {
-        e.preventDefault();
-        advanceSelection(selectedItem.proposal.id, 'next');
-      } else if (e.key === 'p' || e.key === 'P') {
-        e.preventDefault();
-        advanceSelection(selectedItem.proposal.id, 'prev');
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItem, handleApprove, advanceSelection]);
+  }, [selectedItem, handleApprove]);
 
-  // Anime.js entrance animation on items
   useEffect(() => {
-    if (filteredItems.length > 0) {
-      animateStaggerEntrance('.queue-item-card', { stagger: 30 });
-    }
-  }, [filteredItems.length]);
+    animateStaggerEntrance('.review-queue-card', { stagger: 60 });
+  }, [filteredItems]);
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Fixed Toast Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
-        {toasts.map(t => <Toast key={t.id} toast={t} onDismiss={dismissToast} />)}
+      {/* Toast Notification Container */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+        {toasts.map(toast => (
+          <Toast key={toast.id} toast={toast} onDismiss={dismissToast} />
+        ))}
       </div>
 
-      {/* Hero Decision Header */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-7 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header & Hotkey Guide */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="signal-tick bg-[#FF9500]" />
-            <span className="text-[10px] font-sans text-amber-800 font-semibold uppercase tracking-wider">
-              Human-in-the-Loop Gateway
-            </span>
+            <Badge variant="warning">Planner Review Queue</Badge>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight font-sans">
-            Planner Review Queue
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
+            AI Proposal Review Console
           </h1>
           <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
-            AI proposes &rarr; Rust Trust Plane validates &rarr; You approve. Human verification guarantees zero phantom progress.
+            Deterministic human-in-the-loop authorization console. Unambiguous match evidence &ge; 88% confidence auto-links, while ambiguous items require explicit planner approval.
           </p>
         </div>
 
         {/* Hotkey Guide Pill */}
-        <div className="hidden lg:flex items-center gap-3 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200/70 text-xs font-sans text-slate-600">
-          <span className="text-[10px] text-slate-400 uppercase font-semibold">Hotkeys:</span>
-          <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-800 font-semibold shadow-2xs font-sans">A</kbd> Approve</span>
-          <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-800 font-semibold shadow-2xs font-sans">R</kbd> Reject</span>
-          <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-800 font-semibold shadow-2xs font-sans">O</kbd> Override</span>
-          <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-800 font-semibold shadow-2xs font-sans">N</kbd>/<kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-800 font-semibold shadow-2xs font-sans">P</kbd> Nav</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs text-[11px] font-sans text-slate-600">
+          <span className="text-slate-400">Hotkeys:</span>
+          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-semibold font-sans text-[10px]">A</kbd>
+          <span>Approve</span>
+          <span className="text-slate-300">&bull;</span>
+          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-semibold font-sans text-[10px]">R</kbd>
+          <span>Reject</span>
         </div>
       </div>
 
-      {/* Main Review Console Layout */}
-      {items.length === 0 ? (
-        <Card className="p-12 text-center">
-          <CheckCircle2 className="h-10 w-10 text-[#34C759] mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-slate-900 font-sans">You're all caught up</h3>
-          <p className="text-xs text-slate-500 font-sans mt-1">
-            No ambiguous proposals require review. Last processed at 16:40.
-          </p>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Left Column: Queue Triage List */}
-          <div className="lg:col-span-4 space-y-3">
-            {/* Search & Sorting Bar */}
-            <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 space-y-2 shadow-2xs">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Filter queue by code or text..."
-                  value={filters.searchQuery}
-                  onChange={(e) => setFilters(f => ({ ...f, searchQuery: e.target.value }))}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200/80 text-xs font-sans placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] font-sans text-slate-500 pt-1">
-                <span>{filteredItems.length} items awaiting review</span>
-                <select
-                  value={filters.sortBy}
-                  onChange={(e) => setFilters(f => ({ ...f, sortBy: e.target.value as any }))}
-                  className="bg-transparent font-sans text-slate-700 font-medium focus:outline-hidden cursor-pointer"
-                >
-                  <option value="confidence_desc">Highest Confidence</option>
-                  <option value="confidence_asc">Lowest Confidence</option>
-                  <option value="date_desc">Newest First</option>
-                </select>
-              </div>
+      {/* Filters Toolbar */}
+      <Card className="p-4 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Search proposals by WBS code, description, location..."
+                value={filters.searchQuery || ''}
+                onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+                className="pl-8"
+              />
             </div>
 
-            {/* Queue Item Cards */}
-            <div className="space-y-2 max-h-[620px] overflow-y-auto pr-1">
-              {filteredItems.map(({ proposal, observation, activity }) => {
-                const isSelected = selectedItem?.proposal.id === proposal.id;
-                const confPct = Math.round(proposal.confidence_score * 100);
-
-                return (
-                  <div
-                    key={proposal.id}
-                    onClick={() => setSelectedItemId(proposal.id)}
-                    className={`queue-item-card p-3.5 rounded-xl border transition-all duration-150 cursor-pointer relative shadow-2xs ${
-                      isSelected 
-                        ? 'bg-white border-[#C38B4B] ring-2 ring-[#C38B4B]/30' 
-                        : 'bg-white border-slate-200/80 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        {activity?.critical_path && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF9500] shrink-0" title="Critical Path" />
-                        )}
-                        <span className="font-mono font-bold text-xs text-slate-900">{activity?.code || 'UNMATCHED'}</span>
-                        <span className="text-[10px] text-slate-500 font-sans">&bull; {activity?.discipline}</span>
-                      </div>
-                      <Badge variant={confPct >= 85 ? 'success' : confPct >= 70 ? 'warning' : 'destructive'}>
-                        {confPct}% Match
-                      </Badge>
-                    </div>
-
-                    <p className="text-xs text-slate-600 font-sans line-clamp-2 mb-2">
-                      "{observation?.raw_text}"
-                    </p>
-
-                    <div className="flex items-center justify-between text-[10px] font-sans text-slate-400 pt-2 border-t border-slate-100">
-                      <span>{observation?.location || 'Zone 2'}</span>
-                      <span>{new Date(proposal.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Discipline Filter */}
+            <div className="flex items-center gap-1 text-xs font-sans">
+              <span className="text-slate-400 text-[11px] mr-1">Discipline:</span>
+              {(['ALL', 'CIVIL', 'PIPING', 'ELECTRICAL', 'MECHANICAL'] as const).map(disc => (
+                <button
+                  key={disc}
+                  onClick={() => setFilters(prev => ({ ...prev, discipline: disc }))}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                    filters.discipline === disc 
+                      ? 'bg-slate-900 text-white font-semibold shadow-2xs' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80'
+                  }`}
+                >
+                  {disc}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Right Column: Hero Proposal Decision Console */}
+          <div className="flex items-center gap-3 text-xs font-sans text-slate-500">
+            <span>Showing <strong className="text-slate-900 font-semibold">{filteredItems.length}</strong> of {items.length} pending items</span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Main Review Console: Side-by-Side Master/Detail */}
+      {filteredItems.length === 0 ? (
+        <Card className="p-16 text-center shadow-2xs space-y-3">
+          <CheckCircle2 className="h-10 w-10 text-[#34C759] mx-auto" />
+          <h3 className="text-base font-bold text-slate-900 font-sans">Queue Clear</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto font-sans">
+            All AI match proposals have been processed. New site evidence will stream here when uploaded.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* Left: Proposal List (Master) */}
+          <div className="lg:col-span-4 space-y-3">
+            {filteredItems.map(item => {
+              const isSelected = item.proposal.id === selectedItemId;
+              const confPct = Math.round(item.proposal.confidence_score * 100);
+
+              return (
+                <div
+                  key={item.proposal.id}
+                  onClick={() => setSelectedItemId(item.proposal.id)}
+                  className={`review-queue-card p-4 rounded-2xl border transition-all duration-150 cursor-pointer shadow-2xs space-y-3 ${
+                    isSelected 
+                      ? 'bg-white border-slate-900 ring-2 ring-slate-900/10' 
+                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-slate-900">
+                      {item.activity?.code || 'UNLINKED'}
+                    </span>
+                    <Badge variant={confPct >= 80 ? 'success' : 'warning'}>
+                      {confPct}% Match
+                    </Badge>
+                  </div>
+
+                  <p className="text-xs text-slate-800 font-medium line-clamp-2 font-sans leading-snug">
+                    {item.activity?.name || item.observation?.raw_text}
+                  </p>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 font-sans pt-1 border-t border-slate-100">
+                    <span>{item.observation?.discipline || 'GENERAL'}</span>
+                    <span className="font-mono">{item.observation?.recorded_at ? new Date(item.observation.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Right: Decision Details (Detail Panel) */}
           {selectedItem ? (
             <div className="lg:col-span-8 space-y-6">
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-7 space-y-6 shadow-2xs">
+              <Card className="p-6 sm:p-7 shadow-2xs space-y-6">
                 
-                {/* Decision Header */}
+                {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
                   <div>
                     <span className="text-[10px] font-sans uppercase tracking-wider text-slate-400 block font-semibold">
                       Proposed Target Match
                     </span>
-                    <h2 className="text-lg font-bold text-slate-900 mt-0.5 font-sans">
+                    <CardTitle className="text-lg font-bold text-slate-900 mt-0.5">
                       {selectedItem.activity?.name}
-                    </h2>
+                    </CardTitle>
                   </div>
                   <Badge variant="warning" className="text-xs py-1 px-2.5">
                     {Math.round(selectedItem.proposal.confidence_score * 100)}% Confidence Score
@@ -412,9 +370,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                         <span className="text-slate-500 text-[11px]">Semantic Similarity:</span>
                         <span className="font-semibold font-mono">{Math.round((selectedItem.proposal.semantic_score || 0.78) * 100)}%</span>
                       </div>
-                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-[#007AFF] h-full rounded-full" style={{ width: `${(selectedItem.proposal.semantic_score || 0.78) * 100}%` }} />
-                      </div>
+                      <Progress value={(selectedItem.proposal.semantic_score || 0.78) * 100} className="h-1.5" indicatorClassName="bg-[#007AFF]" />
                     </div>
 
                     <div>
@@ -422,9 +378,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                         <span className="text-slate-500 text-[11px]">Activity Terminology:</span>
                         <span className="font-semibold font-mono">{Math.round((selectedItem.proposal.lexical_score || 0.72) * 100)}%</span>
                       </div>
-                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-[#34C759] h-full rounded-full" style={{ width: `${(selectedItem.proposal.lexical_score || 0.72) * 100}%` }} />
-                      </div>
+                      <Progress value={(selectedItem.proposal.lexical_score || 0.72) * 100} className="h-1.5" indicatorClassName="bg-[#34C759]" />
                     </div>
 
                     <div>
@@ -432,20 +386,18 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                         <span className="text-slate-500 text-[11px]">Spatial & Context:</span>
                         <span className="font-semibold font-mono">+{Math.round((selectedItem.proposal.context_boost || 0.15) * 100)}%</span>
                       </div>
-                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-[#C38B4B] h-full rounded-full" style={{ width: `${(selectedItem.proposal.context_boost || 0.15) * 100}%` }} />
-                      </div>
+                      <Progress value={(selectedItem.proposal.context_boost || 0.15) * 100} className="h-1.5" indicatorClassName="bg-[#C38B4B]" />
                     </div>
                   </div>
                 </div>
 
                 {/* Pre-Commit Safety Validation Checklist */}
-                <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200/80 space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-900 font-semibold text-xs font-sans">
-                    <ShieldCheck className="h-4 w-4 text-[#34C759]" />
-                    <span>Why This Is Safe to Commit (Trust Plane Pre-Validation)</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-sans text-emerald-950">
+                <Alert variant="success" className="bg-emerald-50/60 border-emerald-200/80">
+                  <ShieldCheck className="h-4 w-4 text-[#34C759]" />
+                  <AlertTitle className="text-emerald-900 font-semibold text-xs">
+                    Trust Plane Pre-Validation (Safe to Commit)
+                  </AlertTitle>
+                  <AlertDescription className="grid grid-cols-2 gap-2 text-xs font-sans text-emerald-950 mt-2">
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3.5 w-3.5 text-[#34C759]" />
                       <span>Activity exists in baseline</span>
@@ -462,8 +414,8 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                       <Check className="h-3.5 w-3.5 text-[#34C759]" />
                       <span>Planner authorized</span>
                     </div>
-                  </div>
-                </div>
+                  </AlertDescription>
+                </Alert>
 
                 {/* Override Modal / Panel */}
                 {showOverridePanel && (
@@ -528,7 +480,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                   </div>
                 </div>
 
-              </div>
+              </Card>
             </div>
           ) : (
             <Card className="lg:col-span-8 p-12 text-center">
@@ -539,45 +491,43 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
         </div>
       )}
 
-      {/* Rejection Modal with Mandatory Rationale */}
-      {isRejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setIsRejectModalOpen(false)}>
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
-          <div 
-            className="relative bg-white rounded-2xl p-6 max-w-md w-full border border-slate-200/80 shadow-2xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* Rejection Dialog with Mandatory Rationale */}
+      <Dialog open={isRejectModalOpen} onOpenChange={setIsRejectModalOpen}>
+        <DialogContent className="sm:max-w-md p-6 font-sans">
+          <DialogHeader>
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-[#FF3B30]">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 font-sans">Reject AI Match Proposal</h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-sans">
+                <DialogTitle className="text-sm font-semibold text-slate-900 font-sans">
+                  Reject AI Match Proposal
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5 font-sans">
                   Rejections are permanently registered in the immutable audit trail with your engineering rationale.
-                </p>
+                </DialogDescription>
               </div>
             </div>
+          </DialogHeader>
 
-            <textarea
-              placeholder="Enter engineering rationale (e.g. Activity already completed under Package 03)..."
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              rows={3}
-              className="w-full p-3 rounded-xl border border-slate-200 text-xs font-sans focus:border-[#FF3B30] focus:outline-hidden"
-            />
+          <Textarea
+            placeholder="Enter engineering rationale (e.g. Activity already completed under Package 03)..."
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={3}
+            className="w-full text-xs font-sans"
+          />
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button onClick={() => setIsRejectModalOpen(false)} variant="outline" size="sm">
-                Cancel
-              </Button>
-              <Button onClick={handleConfirmReject} variant="destructive" size="sm">
-                Confirm Rejection
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+          <DialogFooter className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button onClick={() => setIsRejectModalOpen(false)} variant="outline" size="sm">
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmReject} variant="destructive" size="sm">
+              Confirm Rejection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

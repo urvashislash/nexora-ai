@@ -17,6 +17,7 @@ import { JwtInspectorModal } from './components/JwtInspectorModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { ProjectSelector } from './components/ProjectSelector';
 import { generateUUIDv7, generateAuditPayloadHash } from './lib/idGenerator';
+import { Toaster } from './components/ui/sonner';
 import { 
   supabase, 
   subscribeToProjectRealtime, 
@@ -944,6 +945,9 @@ export function App() {
           onProjectCreated={handleProjectCreated}
           userId={user?.id}
         />
+
+        {/* Global Toast Notifications */}
+        <Toaster position="top-right" richColors />
       </main>
     </div>
   );

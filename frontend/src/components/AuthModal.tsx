@@ -4,7 +4,6 @@ import {
   Mail, 
   User, 
   ArrowRight, 
-  X, 
   AlertCircle, 
   HardHat, 
   Briefcase, 
@@ -14,6 +13,9 @@ import { signInWithEmail, signUpWithEmail } from '../lib/supabase';
 import type { UserRole, AuthUser } from '../types';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { Input } from './ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -33,8 +35,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [selectedRole, setSelectedRole] = useState<UserRole>('PLANNER');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  if (!isOpen) return null;
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,156 +115,116 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity" 
-        onClick={onClose}
-      />
-
-      {/* Modal Dialog */}
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 p-6 sm:p-7 z-10 space-y-5 font-sans">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-md p-6 font-sans">
         
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="signal-tick bg-[#C38B4B]" />
-              <Badge variant="bronze">SECURE ACCESS</Badge>
-            </div>
-            <h2 className="text-xl font-bold text-slate-900 font-sans tracking-tight">
-              {tab === 'demo' ? 'Switch Enterprise Persona' :
-               tab === 'signin' ? 'Sign In to NEXORA AI' : 'Create Enterprise Account'}
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5 font-sans">
-              Role-based access control with cryptographic JWT authorization
-            </p>
+        <DialogHeader>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="signal-tick bg-[#C38B4B]" />
+            <Badge variant="bronze">SECURE ACCESS</Badge>
           </div>
-
-          <Button 
-            onClick={onClose}
-            variant="ghost"
-            size="icon"
-            className="text-slate-400 hover:text-slate-700"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+          <DialogTitle className="text-xl font-bold text-slate-900 font-sans tracking-tight">
+            {tab === 'demo' ? 'Switch Enterprise Persona' :
+             tab === 'signin' ? 'Sign In to NEXORA AI' : 'Create Enterprise Account'}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 font-sans">
+            Role-based access control with cryptographic JWT authorization
+          </DialogDescription>
+        </DialogHeader>
 
         {/* Tab Switcher */}
-        <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200/60 text-xs font-sans">
-          <button
-            onClick={() => { setTab('demo'); setErrorMsg(null); }}
-            className={`flex-1 py-1.5 rounded-lg font-medium transition cursor-pointer ${
-              tab === 'demo' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Demo Personas
-          </button>
-          <button
-            onClick={() => { setTab('signin'); setErrorMsg(null); }}
-            className={`flex-1 py-1.5 rounded-lg font-medium transition cursor-pointer ${
-              tab === 'signin' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Sign In
-          </button>
-          <button
-            onClick={() => { setTab('signup'); setErrorMsg(null); }}
-            className={`flex-1 py-1.5 rounded-lg font-medium transition cursor-pointer ${
-              tab === 'signup' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Register
-          </button>
-        </div>
+        <Tabs value={tab} onValueChange={(v) => { setTab(v as any); setErrorMsg(null); }} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 h-9 mb-4">
+            <TabsTrigger value="demo">Demo Personas</TabsTrigger>
+            <TabsTrigger value="signin">Sign In</TabsTrigger>
+            <TabsTrigger value="signup">Register</TabsTrigger>
+          </TabsList>
 
-        {/* Error Notification */}
-        {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-900 text-xs font-sans flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 text-[#FF3B30] shrink-0 mt-0.5" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
-
-        {/* Content */}
-        <div>
-          {tab === 'demo' && (
-            <div className="space-y-2.5">
-              <button
-                onClick={() => handleDemoLogin('PLANNER', 'planner@nexora.ai', 'Vikram Singh (Lead Planner)')}
-                className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-[#C38B4B] border border-amber-200/70">
-                    <Briefcase className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-900 font-sans">Lead Project Planner</span>
-                      <Badge variant="bronze">PLANNER</Badge>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-sans mt-0.5">Full review queue approval, override, and baseline export</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-[#C38B4B] group-hover:translate-x-0.5 transition" />
-              </button>
-
-              <button
-                onClick={() => handleDemoLogin('ENGINEER', 'engineer@nexora.ai', 'Rajesh Sharma (Site Engineer)')}
-                className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 border border-sky-200/70">
-                    <HardHat className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-900 font-sans">Site Execution Engineer</span>
-                      <Badge variant="cyan">ENGINEER</Badge>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-sans mt-0.5">Evidence ingestion, DPR upload, and voice memos</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition" />
-              </button>
-
-              <button
-                onClick={() => handleDemoLogin('AUDITOR', 'auditor@nexora.ai', 'Sunita Rao (Quality Auditor)')}
-                className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-[#34C759] border border-emerald-200/70">
-                    <FileCheck className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-900 font-sans">Quality & Safety Auditor</span>
-                      <Badge variant="success">AUDITOR</Badge>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-sans mt-0.5">Cryptographic audit trail inspection & legal holds</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-[#34C759] group-hover:translate-x-0.5 transition" />
-              </button>
+          {/* Error Notification */}
+          {errorMsg && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-900 text-xs font-sans flex items-start gap-2 mb-4">
+              <AlertCircle className="h-4 w-4 text-[#FF3B30] shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
             </div>
           )}
 
-          {tab === 'signin' && (
+          {/* Demo Tab */}
+          <TabsContent value="demo" className="space-y-2.5 mt-0">
+            <button
+              onClick={() => handleDemoLogin('PLANNER', 'planner@nexora.ai', 'Vikram Singh (Lead Planner)')}
+              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-[#C38B4B] border border-amber-200/70">
+                  <Briefcase className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-900 font-sans">Lead Project Planner</span>
+                    <Badge variant="bronze">PLANNER</Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-sans mt-0.5">Full review queue approval, override, and baseline export</p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-[#C38B4B] group-hover:translate-x-0.5 transition" />
+            </button>
+
+            <button
+              onClick={() => handleDemoLogin('ENGINEER', 'engineer@nexora.ai', 'Rajesh Sharma (Site Engineer)')}
+              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 border border-sky-200/70">
+                  <HardHat className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-900 font-sans">Site Execution Engineer</span>
+                    <Badge variant="cyan">ENGINEER</Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-sans mt-0.5">Evidence ingestion, DPR upload, and voice memos</p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition" />
+            </button>
+
+            <button
+              onClick={() => handleDemoLogin('AUDITOR', 'auditor@nexora.ai', 'Sunita Rao (Quality Auditor)')}
+              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-[#34C759] border border-emerald-200/70">
+                  <FileCheck className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-900 font-sans">Quality & Safety Auditor</span>
+                    <Badge variant="success">AUDITOR</Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-sans mt-0.5">Cryptographic audit trail inspection & legal holds</p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-[#34C759] group-hover:translate-x-0.5 transition" />
+            </button>
+          </TabsContent>
+
+          {/* Sign In Tab */}
+          <TabsContent value="signin" className="mt-0">
             <form onSubmit={handleSignIn} className="space-y-4">
               <div>
                 <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
+                  <Mail className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="user@enterprise.com"
                     required
-                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
+                    className="pl-9"
                   />
                 </div>
               </div>
@@ -274,14 +234,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
+                  <Lock className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
+                    className="pl-9"
                   />
                 </div>
               </div>
@@ -295,23 +255,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {isLoading ? 'Authenticating...' : 'Sign In to NEXORA'}
               </Button>
             </form>
-          )}
+          </TabsContent>
 
-          {tab === 'signup' && (
+          {/* Sign Up Tab */}
+          <TabsContent value="signup" className="mt-0">
             <form onSubmit={handleSignUp} className="space-y-3.5">
               <div>
                 <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1">
                   Full Name
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
+                  <User className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Priya Sharma"
                     required
-                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
+                    className="pl-9"
                   />
                 </div>
               </div>
@@ -321,14 +282,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
+                  <Mail className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="priya@enterprise.com"
                     required
-                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
+                    className="pl-9"
                   />
                 </div>
               </div>
@@ -338,14 +299,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
+                  <Lock className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="At least 6 characters"
                     required
-                    className="w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden font-sans"
+                    className="pl-9"
                   />
                 </div>
               </div>
@@ -357,7 +318,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value as UserRole)}
-                  className="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#C38B4B] focus:outline-hidden font-sans"
+                  className="w-full rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-[#C38B4B] focus:outline-hidden font-sans"
                 >
                   <option value="PLANNER">PLANNER (Lead Project Planner)</option>
                   <option value="ENGINEER">ENGINEER (Site Execution Engineer)</option>
@@ -376,10 +337,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {isLoading ? 'Creating Account...' : 'Create Account'}
               </Button>
             </form>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
 
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

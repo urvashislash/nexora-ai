@@ -10,6 +10,7 @@ import { Activity360Drawer } from '../components/Activity360Drawer';
 import { EvidenceDrawer } from '../components/EvidenceDrawer';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
 
 interface GraphNode {
   id: string;
@@ -470,13 +471,13 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
         {/* Search & Graph Mode Buttons */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-            <input
+            <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-400" />
+            <Input
               type="text"
               placeholder="Search activity node..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200/80 bg-white text-xs font-sans placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
+              className="pl-8 w-48 sm:w-64"
             />
           </div>
 

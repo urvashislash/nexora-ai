@@ -1,6 +1,5 @@
 import React from 'react';
 import { 
-  X, 
   Cpu, 
   Lock, 
   Database, 
@@ -10,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from './ui/sheet';
 
 interface PipelineInspectorDrawerProps {
   step: number | null;
@@ -22,7 +22,7 @@ export const PipelineInspectorDrawer: React.FC<PipelineInspectorDrawerProps> = (
   isOpen,
   onClose,
 }) => {
-  if (!isOpen || step === null) return null;
+  if (step === null) return null;
 
   const stepDetails = [
     {
@@ -136,18 +136,11 @@ COMMIT;`,
   const Icon = currentDetail.icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity" 
-        onClick={onClose} 
-      />
-
-      {/* Drawer */}
-      <div className="relative w-full max-w-xl bg-white shadow-2xl flex flex-col h-full z-10 border-l border-slate-200/80 rounded-l-2xl overflow-hidden">
+    <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="p-0 sm:max-w-xl md:max-w-2xl bg-white shadow-2xl">
         
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between gap-4">
+        <SheetHeader className="p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-start gap-3">
             <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
               <Icon className={`h-6 w-6 ${currentDetail.color}`} />
@@ -156,19 +149,15 @@ COMMIT;`,
               <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-400 block">
                 {currentDetail.category}
               </span>
-              <h2 className="text-base font-bold text-slate-900 leading-snug font-sans">{currentDetail.title}</h2>
+              <SheetTitle className="text-base font-bold text-slate-900 leading-snug">
+                {currentDetail.title}
+              </SheetTitle>
+              <SheetDescription className="text-xs text-slate-500">
+                NEXORA Trust Plane &bull; Stage {currentDetail.step} of 5
+              </SheetDescription>
             </div>
           </div>
-
-          <Button 
-            onClick={onClose} 
-            variant="ghost" 
-            size="icon" 
-            className="text-slate-400 hover:text-slate-600 shrink-0"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        </SheetHeader>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -213,16 +202,16 @@ COMMIT;`,
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <SheetFooter className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between sm:justify-between">
           <span className="text-[11px] font-sans text-slate-500">
             Stage {currentDetail.step} of 5 &bull; NEXORA Trust Plane Pipeline
           </span>
           <Button onClick={onClose} variant="default" size="sm">
             Close Inspector
           </Button>
-        </div>
+        </SheetFooter>
 
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 };

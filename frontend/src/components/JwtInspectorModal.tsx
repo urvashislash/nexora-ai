@@ -3,7 +3,6 @@ import {
   KeyRound, 
   Copy, 
   Check, 
-  X, 
   ShieldCheck, 
   Clock, 
   FileCode2, 
@@ -14,6 +13,7 @@ import { parseJwt } from '../lib/supabase';
 import type { AuthUser } from '../types';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 
 interface JwtInspectorModalProps {
   isOpen: boolean;
@@ -29,8 +29,6 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
   user,
 }) => {
   const [copied, setCopied] = useState(false);
-
-  if (!isOpen) return null;
 
   const rawToken = token || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpdHhnc2hyanB5dmN6aWR6dnRvIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJzdWIiOiI2N2M2ODkwNC04YTkxLTRjMTktOWU1Zi1jMGM4Mzc0OWFhNjEiLCJlbWFpbCI6InBsYW5uZXJAbmV4b3JhLmFpIiwiZXhwIjoyMTAzNjU2NzY3LCJpYXQiOjE3ODgwODA3NjcsInVzZXJfbWV0YWRhdGEiOnsiZnVsbF9uYW1lIjoiVmlrcmFtIFNpbmdoIiwicm9sZSI6IlBMQU5ORVIifX0.demo_signature_hash_verified';
   const claims = parseJwt(rawToken) || {
@@ -55,47 +53,31 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
   const expDate = claims.exp ? new Date(claims.exp * 1000).toUTCString() : 'N/A';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity" 
-        onClick={onClose}
-      />
-
-      <div 
-        className="relative w-full max-w-2xl rounded-2xl border border-slate-200/80 bg-white shadow-2xl overflow-hidden z-10 font-sans"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl p-0 overflow-hidden font-sans">
+        
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
+        <DialogHeader className="p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 border border-amber-200/70 text-[#C38B4B]">
               <KeyRound className="h-4 w-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-slate-900 font-sans tracking-tight">
+                <DialogTitle className="text-sm font-bold text-slate-900 font-sans tracking-tight">
                   Cryptographic JWT Claims Inspector
-                </h2>
+                </DialogTitle>
                 <Badge variant="success">SIGNATURE VALID</Badge>
               </div>
-              <p className="text-[11px] text-slate-500 font-sans">
+              <DialogDescription className="text-[11px] text-slate-500 font-sans">
                 RFC 7519 JSON Web Token verification across Rust Trust Plane & Supabase
-              </p>
+              </DialogDescription>
             </div>
           </div>
-          <Button
-            onClick={onClose}
-            variant="ghost"
-            size="icon"
-            className="text-slate-400 hover:text-slate-700"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        </DialogHeader>
 
         {/* Body */}
-        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto">
           {/* Decoded Claims Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
@@ -171,7 +153,7 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-3.5 bg-slate-50/50">
+        <DialogFooter className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between sm:justify-between">
           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-sans">
             <span className="h-1.5 w-1.5 rounded-full bg-[#34C759]" />
             <span>Passed to backend in <code className="font-mono text-slate-800 font-semibold">Authorization: Bearer</code> header</span>
@@ -179,9 +161,9 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
           <Button onClick={onClose} variant="default" size="sm">
             Close
           </Button>
-        </div>
+        </DialogFooter>
 
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

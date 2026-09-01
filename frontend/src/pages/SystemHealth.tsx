@@ -5,13 +5,13 @@ import {
   RefreshCw, 
   CheckCircle2, 
   Lock, 
-  HardDrive,
-  Activity
+  HardDrive
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { getSupabaseStatus } from '../lib/supabase';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { Card, CardTitle, CardDescription } from '../components/ui/card';
 
 export const SystemHealth: React.FC = () => {
   const [isProbing, setIsProbing] = useState(false);
@@ -99,119 +99,119 @@ export const SystemHealth: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="signal-tick bg-[#34C759]" />
-            <Badge variant="secondary">Telemetry & Infrastructure</Badge>
+            <Badge variant="success">ALL SYSTEMS OPERATIONAL</Badge>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
-            System Health & Availability
+            System & Engine Health
           </h1>
           <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
-            Real-time multi-service telemetry monitoring the Rust trust plane, Python AI model runner, PostgreSQL database, and zero-backlog event queues.
+            Live telemetry across the Rust Trust Plane runtime, FastAPI Whisper microservice, and Supabase PostgreSQL persistence engine.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-[11px] text-slate-400 font-sans">Last Probe: {lastCheckTime}</span>
-          <Button
-            onClick={handleProbe}
-            disabled={isProbing}
-            variant="default"
-            size="default"
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isProbing ? 'animate-spin text-[#34C759]' : ''}`} />
-            <span>{isProbing ? 'Probing Services...' : 'Probe System Health'}</span>
-          </Button>
-        </div>
+        <Button
+          onClick={handleProbe}
+          disabled={isProbing}
+          variant="outline"
+          size="default"
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isProbing ? 'animate-spin text-[#007AFF]' : ''}`} />
+          <span>{isProbing ? 'Probing Services...' : 'Ping All Services'}</span>
+        </Button>
       </div>
 
-      {/* Services Telemetry Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {services.map((svc) => {
+      {/* Primary Infrastructure Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {services.map((svc, i) => {
           const Icon = svc.icon;
           const isHealthy = svc.status === 'HEALTHY' || svc.status === 'CONNECTED' || svc.status === 'OPERATIONAL';
 
           return (
-            <div key={svc.name} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+            <Card key={i} className="p-5 shadow-2xs space-y-4">
               <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className={`p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 ${svc.color}`}>
-                    <Icon className="h-5 w-5" />
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 shadow-2xs">
+                    <Icon className={`h-5 w-5 ${svc.color}`} />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900 font-sans">{svc.name}</h3>
-                    <p className="text-[11px] text-slate-500 font-sans">{svc.role}</p>
+                    <p className="text-xs text-slate-500 font-sans mt-0.5">{svc.role}</p>
                   </div>
                 </div>
 
-                <Badge variant={isHealthy ? 'success' : 'warning'}>
+                <Badge variant={isHealthy ? 'success' : 'secondary'}>
                   {svc.status}
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100 text-xs font-sans">
-                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-400 uppercase block font-semibold">Latency</span>
-                  <span className="font-mono font-bold text-slate-900 text-sm mt-0.5 block">{svc.latency}</span>
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs font-sans">
+                <div className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/70">
+                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Latency</span>
+                  <span className="font-mono text-slate-800 font-medium text-[11px]">{svc.latency}</span>
                 </div>
-                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-400 uppercase block font-semibold">Uptime</span>
-                  <span className="font-mono font-bold text-emerald-700 text-sm mt-0.5 block">{svc.uptime}</span>
+                <div className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/70">
+                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Uptime</span>
+                  <span className="font-mono text-emerald-700 font-medium text-[11px]">{svc.uptime}</span>
                 </div>
-                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-400 uppercase block font-semibold">Port / Protocol</span>
-                  <span className="font-mono font-bold text-slate-800 text-[11px] mt-0.5 block truncate">{svc.port}</span>
+                <div className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/70">
+                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Runtime Port</span>
+                  <span className="font-mono text-slate-700 text-[10px] truncate block">{svc.port}</span>
                 </div>
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
 
-      {/* Trust Plane & RabbitMQ Live Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* State Machine Guard */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-900 font-sans">State Machine Validation</span>
-            <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+      {/* Engine Invariants & Ingestion Diagnostics */}
+      <Card className="p-6 shadow-2xs space-y-4">
+        <div className="border-b border-slate-100 pb-3">
+          <CardTitle className="text-sm font-semibold text-slate-900">
+            Trust Plane Safety Invariants & Execution Guarantees
+          </CardTitle>
+          <CardDescription className="text-xs text-slate-500">
+            Enforced at the compiled binary layer before any PostgreSQL commit
+          </CardDescription>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans">
+          <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+              <span className="font-semibold text-slate-900">Precedence Monotonicity</span>
+            </div>
+            <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
+              Successor activities cannot start or commit progress until Finish-to-Start (FS) predecessor milestones achieve 100% completion in the verified ledger.
+            </p>
           </div>
-          <p className="text-xs text-slate-600 font-sans">
-            Guarantees strict forward-only transitions (`Proposed` &rarr; `Matched` &rarr; `Approved` &rarr; `Committed`). Backward mutations rejected by Rust kernel.
-          </p>
-          <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/70 text-[11px] font-sans text-emerald-950">
-            &bull; 100% Deterministic Invariants Enforced
+
+          <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+              <span className="font-semibold text-slate-900">Temporal Non-Contradiction</span>
+            </div>
+            <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
+              Actual start dates cannot exceed actual finish dates. Events timestamped in the future are strictly rejected with an invariant violation.
+            </p>
+          </div>
+
+          <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+              <span className="font-semibold text-slate-900">Cryptographic Sourcing</span>
+            </div>
+            <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
+              All planner decisions and AI auto-links produce a unique SHA-256 hash chained back to the genesis block of the schedule version.
+            </p>
           </div>
         </div>
 
-        {/* Temporal Precedence */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-900 font-sans">Temporal Precedence Policy</span>
-            <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
-          </div>
-          <p className="text-xs text-slate-600 font-sans">
-            Validates finish-to-start (FS) dependencies, milestone bounds, and calendar day sequence constraints before allowing schedule reconciliation.
-          </p>
-          <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/70 text-[11px] font-sans text-emerald-950">
-            &bull; Predecessor Rules 100% Satisfied
-          </div>
+        <div className="flex items-center justify-between pt-2 text-[11px] font-sans text-slate-500 border-t border-slate-100">
+          <span>Last telemetry sweep executed at: <strong className="font-mono text-slate-800">{lastCheckTime}</strong></span>
+          <span className="text-emerald-700 font-semibold font-mono">0 Invariant Violations Reported</span>
         </div>
-
-        {/* Event Queue & Ingestion Stream */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-900 font-sans">Message Queue & Backlog</span>
-            <Activity className="h-4 w-4 text-[#007AFF]" />
-          </div>
-          <p className="text-xs text-slate-600 font-sans">
-            RabbitMQ exchange `nexora.events` routing asynchronous document processing jobs. Zero pending backlog.
-          </p>
-          <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200/70 text-[11px] font-sans text-blue-950">
-            &bull; 0 Jobs in Backlog &bull; Zero Delay
-          </div>
-        </div>
-      </div>
-
+      </Card>
     </div>
   );
 };

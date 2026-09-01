@@ -10,6 +10,8 @@ import type { DashboardKPIs, ActivityWithState } from '../types';
 import { animateCounter, animateSvgDraw } from '../lib/animations';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Card, CardTitle, CardDescription } from '../components/ui/card';
+import { Progress } from '../components/ui/progress';
 
 interface DashboardProps {
   kpis: DashboardKPIs;
@@ -45,14 +47,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
       transition={{ duration: 0.2 }}
     >
       {/* LEVEL 1: PRIMARY DECISION HERO BANNER */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-7 shadow-2xs space-y-6">
+      <Card className="p-6 sm:p-7 shadow-2xs space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="signal-tick bg-[#34C759]" />
-              <span className="text-[10px] font-sans text-slate-500 font-semibold uppercase tracking-wider">
-                Project Schedule Status
-              </span>
+              <Badge variant="success">ON SCHEDULE</Badge>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight font-sans">
               Project is on schedule <span className="text-[#34C759] font-medium text-lg md:text-xl font-sans">(+2 days ahead of baseline)</span>
@@ -86,12 +86,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </span>
           </div>
 
-          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-[#34C759] h-full rounded-full transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(100, Math.max(5, kpis.overall_progress_pct))}%` }}
-            />
-          </div>
+          <Progress 
+            value={Math.min(100, Math.max(5, kpis.overall_progress_pct))} 
+            className="h-2.5 bg-slate-100"
+            indicatorClassName="bg-[#34C759]"
+          />
 
           {/* 3 Compact Decision Count Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -100,12 +99,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
               className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:border-slate-300 hover:bg-slate-100/70 transition-all duration-150 cursor-pointer flex items-center justify-between"
             >
               <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-amber-50 text-[#FF9500]">
-                  <Flame className="h-4 w-4" />
+                <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
+                  <Flame className="h-4 w-4 text-[#FF9500]" />
                 </div>
-                <span className="text-xs font-medium text-slate-800 font-sans">Critical Path</span>
+                <div>
+                  <span className="text-xs font-semibold text-slate-900 font-sans block">
+                    {criticalActivities.length} Critical Path Tasks
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-sans">0 currently at risk</span>
+                </div>
               </div>
-              <span className="text-xs font-mono font-bold text-slate-900">{criticalActivities.length} items</span>
+              <span className="text-xs font-mono font-bold text-slate-900">&rarr;</span>
+            </div>
+
+            <div 
+              onClick={() => onNavigateTab('review')}
+              className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:border-slate-300 hover:bg-slate-100/70 transition-all duration-150 cursor-pointer flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
+                  <Clock className="h-4 w-4 text-[#C38B4B]" />
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-slate-900 font-sans block">
+                    {kpis.review_queue_count} Reviews Pending
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-sans">Requires planner decision</span>
+                </div>
+              </div>
+              <span className="text-xs font-mono font-bold text-[#C38B4B]">&rarr;</span>
             </div>
 
             <div 
@@ -113,38 +135,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
               className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:border-slate-300 hover:bg-slate-100/70 transition-all duration-150 cursor-pointer flex items-center justify-between"
             >
               <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-rose-50 text-[#FF3B30]">
-                  <AlertTriangle className="h-4 w-4" />
+                <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
+                  <AlertTriangle className="h-4 w-4 text-slate-500" />
                 </div>
-                <span className="text-xs font-medium text-slate-800 font-sans">Delayed Activities</span>
-              </div>
-              <span className="text-xs font-mono font-bold text-slate-900">{delayedActivities.length} items</span>
-            </div>
-
-            <div 
-              onClick={() => onNavigateTab('review')}
-              className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-200/70 hover:border-amber-300 hover:bg-amber-50/80 transition-all duration-150 cursor-pointer flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-amber-100/80 text-amber-800">
-                  <Clock className="h-4 w-4" />
+                <div>
+                  <span className="text-xs font-semibold text-slate-900 font-sans block">
+                    {delayedActivities.length} Delayed Tasks
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-sans">Within tolerance limits</span>
                 </div>
-                <span className="text-xs font-medium text-amber-900 font-sans">Review Required</span>
               </div>
-              <Badge variant="warning">{kpis.review_queue_count} pending</Badge>
+              <span className="text-xs font-mono font-bold text-slate-900">&rarr;</span>
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
-      {/* LEVEL 2: SCHEDULE PERFORMANCE S-CURVE */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-7 space-y-4 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
+      {/* LEVEL 2: S-CURVE PERFORMANCE CHART */}
+      <Card className="p-6 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 tracking-tight font-sans">Project schedule performance</h2>
-            <p className="text-xs text-slate-500 mt-0.5 font-sans">
-              Cumulative physical S-curve actuals measured against baseline L5 target
-            </p>
+            <CardTitle className="text-base font-bold text-slate-900">
+              S-Curve Physical Progress Variance
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500">
+              Cumulative planned baseline vs actual reconciled progress over time
+            </CardDescription>
           </div>
 
           <div className="flex items-center gap-4 text-xs font-sans">
@@ -219,17 +235,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <text x="480" y="154" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">30-Sep</text>
           </svg>
         </div>
-      </div>
+      </Card>
 
       {/* LEVEL 3: ACTION REQUIRED & RECENT FIELD DIGEST */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Needs Attention Table */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+        <Card className="lg:col-span-7 p-6 shadow-2xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 tracking-tight font-sans">Needs planner attention</h3>
-              <p className="text-xs text-slate-500 font-sans">Unresolved AI match proposals requiring human signoff</p>
+              <CardTitle className="text-sm font-semibold text-slate-900">Needs planner attention</CardTitle>
+              <CardDescription className="text-xs text-slate-500">Unresolved AI match proposals requiring human signoff</CardDescription>
             </div>
             <Button 
               onClick={() => onNavigateTab('review')}
@@ -268,14 +284,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             ))}
           </div>
-        </div>
+        </Card>
 
         {/* Recent Field Digest */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+        <Card className="lg:col-span-5 p-6 shadow-2xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 tracking-tight font-sans">Recent field activity</h3>
-              <p className="text-xs text-slate-500 font-sans">Latest extracted observation facts</p>
+              <CardTitle className="text-sm font-semibold text-slate-900">Recent field activity</CardTitle>
+              <CardDescription className="text-xs text-slate-500">Latest extracted observation facts</CardDescription>
             </div>
             <Badge variant="outline">{kpis.total_observations} TOTAL</Badge>
           </div>
@@ -297,7 +313,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <p className="text-slate-700 font-sans text-xs">Hydrostatic testing completed along Pipe Rack B headers.</p>
             </div>
           </div>
-        </div>
+        </Card>
 
       </div>
     </motion.div>

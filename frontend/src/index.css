@@ -12,29 +12,60 @@
   --color-status-red: #FF3B30;
   --color-status-blue: #007AFF;
   
-  --color-bg-base: #F5F6F8;
+  --color-bg-base: #F8F9FA;
   --color-bg-card: #FFFFFF;
-  --color-bg-subtle: #F0F2F5;
+  --color-bg-subtle: #F1F3F5;
   
-  --color-text-primary: #1D1D1F;
-  --color-text-secondary: #6E6E73;
-  --color-text-tertiary: #86868B;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #94A3B8;
   
-  --color-border-subtle: #E5E7EB;
-  --color-border-strong: #D1D5DB;
+  --color-border-subtle: #E2E8F0;
+  --color-border-strong: #CBD5E1;
 }
 
 @layer base {
   :root {
-    --bg-base: #F5F6F8;
-    --bg-card: #FFFFFF;
-    --text-primary: #1D1D1F;
-    --text-secondary: #6E6E73;
+    --background: 210 20% 98%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.75rem;
+
+    /* NEXORA Brand Accents */
+    --brand-bronze: 32 50% 53%;
+    --status-success: 142 69% 49%;
+    --status-warning: 38 92% 50%;
+    --status-info: 211 100% 50%;
   }
 
   body {
-    background-color: var(--bg-base);
-    color: var(--text-primary);
+    background-color: #F8F9FA;
+    color: #0F172A;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
     letter-spacing: -0.011em;
     -webkit-font-smoothing: antialiased;
@@ -42,33 +73,17 @@
   }
 }
 
-/* Field Ledger & Apple Craftsmanship Utility Classes */
+/* NEXORA Utility Classes */
 @layer components {
   .ledger-rule {
     @apply border-t border-slate-200/80 w-full;
   }
   
   .signal-tick {
-    @apply w-1.5 h-1.5 rounded-full flex-shrink-0;
+    @apply w-1.5 h-1.5 rounded-full shrink-0;
   }
   
   .provenance-strip {
     @apply flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] uppercase font-mono tracking-wider font-semibold;
-  }
-  
-  .glass-card {
-    @apply bg-white border border-slate-200/80 rounded-xl transition-all duration-200 shadow-2xs;
-  }
-  
-  .glass-card:hover {
-    @apply border-slate-300;
-  }
-  
-  .glass-panel {
-    @apply bg-white border border-slate-200/80 rounded-xl;
-  }
-
-  .gradient-text {
-    @apply text-slate-900 bg-none font-semibold;
   }
 }

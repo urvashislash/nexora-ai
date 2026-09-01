@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   FolderPlus, 
-  X, 
   ArrowRight, 
   FileCode, 
   AlertCircle, 
@@ -12,6 +11,10 @@ import { createProjectInDB } from '../lib/supabase';
 import type { Project, ProjectCreateInput, BaselineActivityInput, Discipline } from '../types';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from './ui/table';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -121,8 +124,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
   const handleApplyPreset = (preset: 'refinery' | 'metro' | 'highway') => {
     if (preset === 'refinery') {
       setCode('PRD-HYD-PKG05');
@@ -224,41 +225,25 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 font-sans">
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity" 
-        onClick={onClose}
-      />
-
-      <div 
-        className="relative w-full max-w-2xl rounded-2xl border border-slate-200/80 bg-white shadow-2xl overflow-hidden z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl p-0 overflow-hidden font-sans">
+        
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
+        <DialogHeader className="p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 border border-amber-200/70 text-[#C38B4B]">
               <FolderPlus className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-900 font-sans tracking-tight">
+              <DialogTitle className="text-sm font-bold text-slate-900 font-sans tracking-tight">
                 Create New Project Package
-              </h2>
-              <p className="text-[11px] text-slate-500 font-sans">
+              </DialogTitle>
+              <DialogDescription className="text-[11px] text-slate-500 font-sans">
                 Initialize multi-tenant package with baseline Primavera / CSV schedule
-              </p>
+              </DialogDescription>
             </div>
           </div>
-          <Button
-            onClick={onClose}
-            variant="ghost"
-            size="icon"
-            className="text-slate-400 hover:text-slate-700"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        </DialogHeader>
 
         {/* Step Indicator */}
         <div className="grid grid-cols-2 border-b border-slate-100 bg-white text-xs font-sans">
@@ -298,7 +283,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         )}
 
         {/* Form Body */}
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {step === 1 && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -306,13 +291,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
                     Project Code *
                   </label>
-                  <input
+                  <Input
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     placeholder="e.g. MUM-METRO-04"
                     required
-                    className="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden uppercase"
+                    className="font-mono font-bold uppercase"
                   />
                   <span className="text-[10px] text-slate-500 font-sans mt-0.5 block">Unique WBS prefix</span>
                 </div>
@@ -325,7 +310,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     <select
                       value={currency}
                       onChange={(e) => setCurrency(e.target.value)}
-                      className="w-1/2 rounded-xl border border-slate-200/90 bg-white px-2.5 py-2 text-xs font-sans text-slate-800 focus:border-[#C38B4B] focus:outline-hidden"
+                      className="w-1/2 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-sans text-slate-800 focus:border-[#C38B4B] focus:outline-hidden"
                     >
                       <option value="INR">INR (₹)</option>
                       <option value="USD">USD ($)</option>
@@ -336,7 +321,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     <select
                       value={timezone}
                       onChange={(e) => setTimezone(e.target.value)}
-                      className="w-1/2 rounded-xl border border-slate-200/90 bg-white px-2.5 py-2 text-xs font-sans text-slate-800 focus:border-[#C38B4B] focus:outline-hidden"
+                      className="w-1/2 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-sans text-slate-800 focus:border-[#C38B4B] focus:outline-hidden"
                     >
                       <option value="Asia/Kolkata">IST (UTC+5:30)</option>
                       <option value="Asia/Dubai">GST (UTC+4)</option>
@@ -351,13 +336,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
                   Project Package Name *
                 </label>
-                <input
+                <Input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Mumbai Metro Line 3 Underground Package 04"
                   required
-                  className="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-xs font-sans text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden"
                 />
               </div>
 
@@ -365,12 +349,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 <label className="block text-[11px] font-sans font-semibold text-slate-700 mb-1.5">
                   Package Description & Scope Summary
                 </label>
-                <textarea
+                <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Briefly describe the contractual scope, WBS boundaries, and key civil/piping milestones..."
                   rows={2}
-                  className="w-full rounded-xl border border-slate-200/90 bg-white p-3 text-xs font-sans text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden"
                 />
               </div>
 
@@ -454,33 +437,33 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
               {/* Task Preview Table */}
               <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white">
-                <table className="w-full text-left text-xs font-sans">
-                  <thead className="bg-slate-50/70 border-b border-slate-200/80 text-[10px] uppercase font-semibold text-slate-500">
-                    <tr>
-                      <th className="py-2 px-3">Code</th>
-                      <th className="py-2 px-3">Activity Name</th>
-                      <th className="py-2 px-3">Discipline</th>
-                      <th className="py-2 px-3 text-right">Duration</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Activity Name</TableHead>
+                      <TableHead>Discipline</TableHead>
+                      <TableHead className="text-right">Duration</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {parsedActivities.slice(0, 5).map((act, i) => (
-                      <tr key={i} className="hover:bg-slate-50/70">
-                        <td className="py-2 px-3 font-mono font-bold text-slate-900">{act.code}</td>
-                        <td className="py-2 px-3 truncate max-w-xs">{act.name}</td>
-                        <td className="py-2 px-3"><Badge variant="secondary">{act.discipline}</Badge></td>
-                        <td className="py-2 px-3 text-right font-mono">{act.planned_duration_days}d</td>
-                      </tr>
+                      <TableRow key={i}>
+                        <TableCell className="font-mono font-bold text-slate-900">{act.code}</TableCell>
+                        <TableCell className="truncate max-w-xs">{act.name}</TableCell>
+                        <TableCell><Badge variant="secondary">{act.discipline}</Badge></TableCell>
+                        <TableCell className="text-right font-mono">{act.planned_duration_days}d</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50/50">
+        <DialogFooter className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between sm:justify-between">
           {step === 2 ? (
             <Button
               type="button"
@@ -529,9 +512,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </Button>
             )}
           </div>
-        </div>
+        </DialogFooter>
 
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

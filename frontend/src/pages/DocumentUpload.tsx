@@ -28,6 +28,7 @@ import { generateUUIDv7 } from '../lib/idGenerator';
 import { animateStaggerEntrance } from '../lib/animations';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../components/ui/table';
 
 interface DocumentUploadProps {
   observations: WorkObservation[];
@@ -989,52 +990,52 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white">
-          <table className="w-full text-left text-xs font-sans">
-            <thead className="border-b border-slate-200/80 bg-slate-50/70 text-[11px] uppercase font-semibold text-slate-500">
-              <tr>
-                <th className="py-2.5 px-4 font-sans">Obs ID</th>
-                <th className="py-2.5 px-4 font-sans">Recorded At</th>
-                <th className="py-2.5 px-4 font-sans">Raw Fact / Voice Transcript</th>
-                <th className="py-2.5 px-4 font-sans">Discipline</th>
-                <th className="py-2.5 px-4 font-sans">Location / Tag</th>
-                <th className="py-2.5 px-4 font-sans">Progress</th>
-                <th className="py-2.5 px-4 text-right font-sans">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+        <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Obs ID</TableHead>
+                <TableHead>Recorded At</TableHead>
+                <TableHead>Raw Fact / Voice Transcript</TableHead>
+                <TableHead>Discipline</TableHead>
+                <TableHead>Location / Tag</TableHead>
+                <TableHead>Progress</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filteredObservations.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400 font-sans">
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8 text-center text-slate-400 font-sans">
                     No observations found matching your search. Ingest a report or scenario above.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 filteredObservations.map((obs) => (
-                  <tr 
+                  <TableRow 
                     key={obs.id} 
                     onClick={() => setSelectedObsForDrawer(obs)}
-                    className="hover:bg-slate-50/80 cursor-pointer transition-all duration-150"
+                    className="cursor-pointer"
                   >
-                    <td className="py-2.5 px-4 font-mono font-bold text-slate-900">
+                    <TableCell className="font-mono font-bold text-slate-900">
                       <span className="truncate block max-w-[90px]">{obs.id}</span>
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap font-mono text-[11px]">
+                    </TableCell>
+                    <TableCell className="text-slate-500 whitespace-nowrap font-mono text-[11px]">
                       {new Date(obs.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-800 font-sans max-w-xs truncate">
+                    </TableCell>
+                    <TableCell className="text-slate-800 font-sans max-w-xs truncate">
                       {obs.raw_text}
-                    </td>
-                    <td className="py-2.5 px-4">
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="secondary">{obs.discipline || 'GENERAL'}</Badge>
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-600 truncate max-w-[120px] font-sans">
+                    </TableCell>
+                    <TableCell className="text-slate-600 truncate max-w-[120px] font-sans">
                       {obs.location || obs.equipment_tag || '—'}
-                    </td>
-                    <td className="py-2.5 px-4 font-mono font-bold text-emerald-700">
+                    </TableCell>
+                    <TableCell className="font-mono font-bold text-emerald-700">
                       {obs.reported_progress ?? 100}%
-                    </td>
-                    <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1047,12 +1048,12 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                         <Eye className="h-3.5 w-3.5 mr-1" />
                         <span>Inspect</span>
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
