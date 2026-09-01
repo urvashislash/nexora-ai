@@ -1,8 +1,11 @@
 import json
+import logging
 import time
+from typing import Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from pydantic import BaseModel
 
 from app.core.security import (
     embed_rate_limiter,
@@ -31,6 +34,10 @@ from app.services.extractor import DocumentExtractor
 from app.services.matcher import HybridMatcher
 from app.services.media import MediaProcessingError
 from app.services.normalizer import default_normalizer
+from app.services.rabbit_publisher import get_publisher
+from app.workers.job_state import build_job_state_store
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -44,12 +51,31 @@ def _get_client_ip(request: Request) -> str:
 @router.get("/health")
 async def health_check():
     embedding_info = embedding_backend_info()
+
+    # RabbitMQ status
+    publisher = get_publisher()
+    rabbit_status = "not_configured"
+    if publisher is not None:
+        rabbit_status = "connected" if await publisher.ping() else "unreachable"
+
+    # Redis status
+    redis_status = "not_configured"
+    try:
+        state_store = build_job_state_store()
+        if hasattr(state_store, "client"):
+            state_store.client.ping()
+            redis_status = "connected"
+    except Exception:  # noqa: BLE001
+        redis_status = "unreachable"
+
     return {
         "status": "healthy",
         "service": "ai_service",
         "model": embedding_info["model"],
         "dimension": embedding_info["dimension"],
         "embeddings": embedding_info,
+        "rabbitmq": rabbit_status,
+        "redis": redis_status,
     }
 
 
@@ -290,3 +316,119 @@ async def process_file_pipeline(
         review_required_count=sum(proposal.decision == MatchDecisionEnum.REVIEW_REQUIRED for proposal in proposals),
         unmatched_count=sum(proposal.decision == MatchDecisionEnum.REJECTED for proposal in proposals),
     )
+
+
+# =============================================================================
+# Async Job Submission & Status
+# =============================================================================
+
+
+class AsyncSubmitRequest(BaseModel):
+    project_id: UUID
+    document_id: Optional[UUID] = None
+    text_content: Optional[str] = None
+    content_base64: Optional[str] = None
+    storage_key: Optional[str] = None
+    storage_bucket: Optional[str] = None
+    filename: Optional[str] = None
+    mime_type: Optional[str] = None
+    source_type: str = "DAILY_REPORT"
+    activities: list = []
+
+
+@router.post("/pipeline/submit-async")
+async def submit_async(payload: AsyncSubmitRequest, request: Request):
+    """
+    Submits a document processing job to the RabbitMQ queue for asynchronous
+    processing by the AI worker. Returns immediately with a job_id that can
+    be polled via GET /jobs/{job_id}/status.
+    """
+    pipeline_rate_limiter.check(_get_client_ip(request))
+
+    publisher = get_publisher()
+    if publisher is None or not publisher.is_connected:
+        raise HTTPException(
+            status_code=503,
+            detail="RabbitMQ publisher is not available. Use /pipeline/process for synchronous processing.",
+        )
+
+    job_id = uuid4()
+    document_id = payload.document_id or uuid4()
+    correlation_id = str(uuid4())
+
+    job_payload = {
+        "job_id": str(job_id),
+        "correlation_id": correlation_id,
+        "project_id": str(payload.project_id),
+        "document_id": str(document_id),
+        "text_content": payload.text_content,
+        "content_base64": payload.content_base64,
+        "storage_key": payload.storage_key,
+        "storage_bucket": payload.storage_bucket,
+        "filename": payload.filename,
+        "mime_type": payload.mime_type,
+        "source_type": payload.source_type,
+        "attempt": 0,
+        "activities": payload.activities,
+    }
+
+    try:
+        await publisher.publish_document_job(job_payload)
+    except Exception as exc:
+        logger.exception("Failed to publish async job: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to enqueue job: {exc}",
+        ) from exc
+
+    return {
+        "job_id": str(job_id),
+        "correlation_id": correlation_id,
+        "project_id": str(payload.project_id),
+        "document_id": str(document_id),
+        "status": "QUEUED",
+        "message": "Job submitted for async processing. Poll GET /jobs/{job_id}/status for updates.",
+    }
+
+
+@router.get("/jobs/{job_id}/status")
+async def get_job_status(job_id: str):
+    """
+    Returns the current status of an async processing job from Redis.
+    Status values: QUEUED → PROCESSING → COMPLETED / FAILED / RETRYING.
+    """
+    try:
+        state_store = build_job_state_store()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Job state backend unavailable: {exc}",
+        ) from exc
+
+    if not hasattr(state_store, "_read"):
+        raise HTTPException(
+            status_code=503,
+            detail="Job state backend does not support status queries (running in-memory mode).",
+        )
+
+    state = state_store._read(job_id)  # noqa: SLF001
+    status = state.get("status", "UNKNOWN")
+    checkpoints = state.get("checkpoints", {})
+
+    response = {
+        "job_id": job_id,
+        "status": status,
+        "checkpoints": list(checkpoints.keys()),
+    }
+
+    if status == "COMPLETED" and "result" in state:
+        response["result"] = state["result"]
+    elif status in ("FAILED", "RETRYING"):
+        response["error"] = state.get("last_error")
+
+    if "updated_at" in state:
+        response["updated_at"] = state["updated_at"]
+    if "completed_at" in state:
+        response["completed_at"] = state["completed_at"]
+
+    return response

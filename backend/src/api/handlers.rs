@@ -10,10 +10,12 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use crate::cache::{CacheTtl, RedisCache};
 use crate::domain::ledger::EventLedger;
 use crate::domain::models::*;
 use crate::domain::state_machine::StateMachine;
 use crate::domain::validation::ValidationEngine;
+use crate::messaging::publisher::RabbitPublisher;
 
 // =============================================================================
 // Structured API Error
@@ -93,10 +95,28 @@ pub struct AppState {
     pub last_audit_hash: Arc<RwLock<Option<String>>>,
     pub audit_archives: Arc<RwLock<Vec<crate::domain::ledger::AuditArchiveBatch>>>,
     pub legal_holds: Arc<RwLock<std::collections::HashMap<Uuid, bool>>>,
+    // --- Infrastructure ---
+    pub rabbit_publisher: Option<Arc<RabbitPublisher>>,
+    pub redis_cache: Option<Arc<RedisCache>>,
+    pub cache_ttl: CacheTtl,
 }
 
 impl AppState {
+    pub fn new(
+        rabbit_publisher: Option<Arc<RabbitPublisher>>,
+        redis_cache: Option<Arc<RedisCache>>,
+    ) -> Self {
+        Self::build(rabbit_publisher, redis_cache)
+    }
+
     pub fn new_with_demo_data() -> Self {
+        Self::build(None, None)
+    }
+
+    fn build(
+        rabbit_publisher: Option<Arc<RabbitPublisher>>,
+        redis_cache: Option<Arc<RedisCache>>,
+    ) -> Self {
         let project_id = Uuid::parse_str("a0000000-0000-0000-0000-000000000001").unwrap();
         let schedule_version_id = Uuid::parse_str("b0000000-0000-0000-0000-000000000001").unwrap();
         let wbs_id = Uuid::parse_str("c0000000-0000-0000-0000-000000000003").unwrap();
@@ -262,6 +282,9 @@ impl AppState {
             last_audit_hash: Arc::new(RwLock::new(None)),
             audit_archives: Arc::new(RwLock::new(Vec::new())),
             legal_holds: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            rabbit_publisher,
+            redis_cache,
+            cache_ttl: CacheTtl::default(),
         }
     }
 }
@@ -270,12 +293,31 @@ impl AppState {
 // Health Check
 // =============================================================================
 
-pub async fn health_check() -> impl IntoResponse {
+pub async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
+    let rabbit_status = if state.rabbit_publisher.is_some() {
+        "connected"
+    } else {
+        "not_configured"
+    };
+
+    let redis_status = match &state.redis_cache {
+        Some(cache) => {
+            if cache.ping().await {
+                "connected"
+            } else {
+                "unreachable"
+            }
+        }
+        None => "not_configured",
+    };
+
     Json(serde_json::json!({
         "status": "healthy",
         "service": "nexora-trust-plane",
         "version": env!("CARGO_PKG_VERSION"),
-        "timestamp": Utc::now().to_rfc3339()
+        "timestamp": Utc::now().to_rfc3339(),
+        "rabbitmq": rabbit_status,
+        "redis": redis_status
     }))
 }
 
@@ -283,7 +325,7 @@ pub async fn health_check() -> impl IntoResponse {
 // Dashboard & Query Handlers
 // =============================================================================
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[allow(dead_code)]
 pub struct DashboardKPIs {
     pub total_observations: usize,
@@ -298,8 +340,19 @@ pub struct DashboardKPIs {
 
 pub async fn get_dashboard(
     State(state): State<AppState>,
-    Path(_project_id): Path<Uuid>,
+    Path(project_id): Path<Uuid>,
 ) -> impl IntoResponse {
+    // Try Redis cache first
+    if let Some(cache) = &state.redis_cache {
+        if let Some(cached) = cache
+            .get::<DashboardKPIs>("dashboard", Some(project_id))
+            .await
+        {
+            tracing::debug!("Dashboard cache HIT for project {}", project_id);
+            return Json(cached);
+        }
+    }
+
     let obs = state.observations.read().await;
     let proposals = state.proposals.read().await;
     let events = state.events.read().await;
@@ -344,6 +397,18 @@ pub async fn get_dashboard(
         overall_progress_pct: (overall_pct * 100.0).round() / 100.0,
     };
 
+    // Cache the result
+    if let Some(cache) = &state.redis_cache {
+        cache
+            .set(
+                "dashboard",
+                Some(project_id),
+                &kpis,
+                state.cache_ttl.dashboard_secs,
+            )
+            .await;
+    }
+
     Json(kpis)
 }
 
@@ -351,6 +416,17 @@ pub async fn get_activities(
     State(state): State<AppState>,
     Path(project_id): Path<Uuid>,
 ) -> impl IntoResponse {
+    // Try Redis cache first
+    if let Some(cache) = &state.redis_cache {
+        if let Some(cached) = cache
+            .get::<serde_json::Value>("activities", Some(project_id))
+            .await
+        {
+            tracing::debug!("Activities cache HIT for project {}", project_id);
+            return Json(cached);
+        }
+    }
+
     let acts = state.activities.read().await;
     let states = state.activity_states.read().await;
 
@@ -372,13 +448,38 @@ pub async fn get_activities(
         })
         .collect();
 
-    Json(combined)
+    let value = serde_json::to_value(&combined).unwrap_or(serde_json::json!([]));
+
+    // Cache the result
+    if let Some(cache) = &state.redis_cache {
+        cache
+            .set(
+                "activities",
+                Some(project_id),
+                &value,
+                state.cache_ttl.activities_secs,
+            )
+            .await;
+    }
+
+    Json(value)
 }
 
 pub async fn get_review_queue(
     State(state): State<AppState>,
     Path(project_id): Path<Uuid>,
 ) -> impl IntoResponse {
+    // Try Redis cache first
+    if let Some(cache) = &state.redis_cache {
+        if let Some(cached) = cache
+            .get::<serde_json::Value>("review_queue", Some(project_id))
+            .await
+        {
+            tracing::debug!("Review queue cache HIT for project {}", project_id);
+            return Json(cached);
+        }
+    }
+
     let proposals = state.proposals.read().await;
     let obs = state.observations.read().await;
     let acts = state.activities.read().await;
@@ -404,7 +505,21 @@ pub async fn get_review_queue(
         })
         .collect();
 
-    Json(pending)
+    let value = serde_json::to_value(&pending).unwrap_or(serde_json::json!([]));
+
+    // Cache the result
+    if let Some(cache) = &state.redis_cache {
+        cache
+            .set(
+                "review_queue",
+                Some(project_id),
+                &value,
+                state.cache_ttl.review_queue_secs,
+            )
+            .await;
+    }
+
+    Json(value)
 }
 
 /// GET /api/v1/projects/:id/observations — list all observations for a project
@@ -771,6 +886,11 @@ pub async fn approve_proposal(
     events.push(new_event.clone());
     audit_trail.push(audit);
 
+    // Invalidate caches after state mutation
+    if let Some(cache) = &state.redis_cache {
+        cache.invalidate_project(project_id).await;
+    }
+
     Ok(Json(serde_json::json!({
         "status": "APPROVED",
         "event_id": new_event.id,
@@ -843,6 +963,11 @@ pub async fn reject_proposal(
     );
     *last_hash_lock = Some(audit.payload_hash.clone());
     audit_trail.push(audit);
+
+    // Invalidate caches after state mutation
+    if let Some(cache) = &state.redis_cache {
+        cache.invalidate_project(project_id).await;
+    }
 
     Ok(Json(
         serde_json::json!({"status": "REJECTED", "proposal_id": proposal_id}),
@@ -978,6 +1103,11 @@ pub async fn override_proposal(
 
     events.push(new_event.clone());
     audit_trail.push(audit);
+
+    // Invalidate caches after state mutation
+    if let Some(cache) = &state.redis_cache {
+        cache.invalidate_project(project_id).await;
+    }
 
     Ok(Json(serde_json::json!({
         "status": "OVERRIDDEN",
@@ -1169,6 +1299,14 @@ pub async fn batch_approve_proposals(
 
         events.push(new_event);
         audit_trail.push(audit);
+    }
+
+    // Invalidate caches for all affected projects
+    if let Some(cache) = &state.redis_cache {
+        let projects_guard = state.projects.read().await;
+        for p in projects_guard.iter() {
+            cache.invalidate_project(p.id).await;
+        }
     }
 
     Ok(Json(serde_json::json!({
@@ -1482,6 +1620,11 @@ pub async fn ingest_observations(
         review_required,
         unmatched,
     };
+
+    // Invalidate caches after ingestion
+    if let Some(cache) = &state.redis_cache {
+        cache.invalidate_project(project_id).await;
+    }
 
     Ok((StatusCode::CREATED, Json(resp)))
 }

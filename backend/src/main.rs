@@ -1,9 +1,15 @@
 mod api;
+mod cache;
 mod domain;
+mod messaging;
 
 use api::handlers::AppState;
 use api::routes::create_router;
+use cache::RedisCache;
+use messaging::consumer::ResultConsumer;
+use messaging::publisher::{OutboxRelay, RabbitPublisher};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -18,9 +24,91 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Starting NEXORA AI Trust Plane Backend...");
 
-    let state = AppState::new_with_demo_data();
-    let app = create_router(state);
+    // -------------------------------------------------------------------------
+    // Redis Cache
+    // -------------------------------------------------------------------------
+    let redis_url = std::env::var("REDIS_URL").ok();
+    let redis_cache: Option<Arc<RedisCache>> = match &redis_url {
+        Some(url) => match RedisCache::new(url).await {
+            Ok(cache) => {
+                tracing::info!("Redis cache initialized");
+                Some(Arc::new(cache))
+            }
+            Err(e) => {
+                tracing::warn!("Redis cache unavailable (continuing without cache): {}", e);
+                None
+            }
+        },
+        None => {
+            tracing::warn!("REDIS_URL not set — running without Redis cache");
+            None
+        }
+    };
 
+    // -------------------------------------------------------------------------
+    // RabbitMQ Connection Pool
+    // -------------------------------------------------------------------------
+    let rabbit_url = std::env::var("RABBITMQ_URL").ok();
+    let rabbit_pool = match &rabbit_url {
+        Some(url) => match messaging::create_rabbit_pool(url).await {
+            Ok(pool) => {
+                tracing::info!("RabbitMQ pool initialized");
+                Some(pool)
+            }
+            Err(e) => {
+                tracing::warn!("RabbitMQ unavailable (continuing without messaging): {}", e);
+                None
+            }
+        },
+        None => {
+            tracing::warn!("RABBITMQ_URL not set — running without RabbitMQ");
+            None
+        }
+    };
+
+    // -------------------------------------------------------------------------
+    // Application State
+    // -------------------------------------------------------------------------
+    let publisher: Option<Arc<RabbitPublisher>> = rabbit_pool
+        .as_ref()
+        .map(|p| Arc::new(RabbitPublisher::new(p.clone())));
+
+    // Declare topology if publisher is available
+    if let Some(pub_ref) = &publisher {
+        if let Err(e) = pub_ref.declare_topology().await {
+            tracing::error!("Failed to declare RabbitMQ topology: {}", e);
+        }
+    }
+
+    let state = AppState::new(publisher.clone(), redis_cache.clone());
+    let app = create_router(state.clone());
+
+    // -------------------------------------------------------------------------
+    // Background Tasks: Result Consumer + Outbox Relay
+    // -------------------------------------------------------------------------
+    if let Some(pool) = rabbit_pool {
+        // Spawn the result consumer
+        let consumer = ResultConsumer::new(pool.clone(), state.clone(), redis_cache.clone());
+        tokio::spawn(async move {
+            consumer.run().await;
+        });
+
+        // Spawn the outbox relay
+        if let Some(pub_ref) = publisher {
+            let relay = OutboxRelay::new(
+                pub_ref,
+                state.outbox_events.clone(),
+                std::time::Duration::from_secs(5),
+            );
+            tokio::spawn(async move {
+                relay.run().await;
+            });
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // HTTP Server
+    // -------------------------------------------------------------------------
     let port = std::env::var("PORT")
         .or_else(|_| std::env::var("BACKEND_PORT"))
         .unwrap_or_else(|_| "3000".to_string())

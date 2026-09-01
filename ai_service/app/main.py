@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,10 +11,37 @@ from app.core.config import settings
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+
+# -----------------------------------------------------------------------------
+# Lifespan — Connect/Disconnect RabbitMQ Publisher
+# -----------------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage async resources: RabbitMQ publisher connection."""
+    from app.services.rabbit_publisher import close_publisher, init_publisher
+
+    # Startup
+    try:
+        await init_publisher()
+        logger.info("RabbitMQ async publisher initialized")
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "RabbitMQ async publisher failed to connect — async endpoints will return 503",
+            exc_info=True,
+        )
+
+    yield
+
+    # Shutdown
+    await close_publisher()
+    logger.info("RabbitMQ async publisher closed")
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",
+    lifespan=lifespan,
 )
 
 
