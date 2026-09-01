@@ -8,15 +8,17 @@ Implements:
 4. Timestamp deserialization from UUIDv7 strings.
 """
 
+import json
 import time
 import secrets
 import hashlib
 from datetime import datetime, timezone
-from typing import Optional, Literal
+from typing import Optional, Literal, Union, Any
 from uuid import UUID
 
 CROCKFORD_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
-EntityType = Literal["obs", "prp", "evt", "aud", "doc", "act", "req", "job"]
+EntityPrefix = Literal["obs", "prp", "evt", "aud", "doc", "act", "req", "job"]
+EntityType = EntityPrefix
 
 _last_timestamp_ms: int = 0
 _sequence_counter: int = 0
@@ -115,10 +117,13 @@ def extract_timestamp_from_uuidv7(uuid_val: UUID | str) -> Optional[datetime]:
     return datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc)
 
 
-def generate_idempotency_key(scope: str, payload: str | dict) -> str:
+def generate_idempotency_key(scope: str, payload: Union[str, dict, Any]) -> str:
     """
     Derives a deterministic SHA-256 idempotency key from a request payload and scope.
     """
-    raw_str = payload if isinstance(payload, str) else str(sorted(payload.items()))
+    if isinstance(payload, str):
+        raw_str = payload
+    else:
+        raw_str = json.dumps(payload, sort_keys=True, default=str)
     combined = f"{scope}::{raw_str}".encode("utf-8")
     return hashlib.sha256(combined).hexdigest()
