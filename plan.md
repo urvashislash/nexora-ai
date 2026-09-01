@@ -1,258 +1,373 @@
-# NEXORA AI — End-to-End Master Implementation Plan
+# NEXORA AI — End-to-End Master Implementation Plan & Engineering Blueprint
 
-> **Objective:** Deliver a production-grade, enterprise-ready, end-to-end intelligent data capture and schedule-linking platform for infrastructure projects (Smart India Hackathon / Ministry of Power & Industrial Infrastructure Standard).
->
-> **Core Architecture:**
-> - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS + Force Graph (Obsidian-style D3 physics) + Framer Motion / Anime.js (shadcn/ui-inspired clean minimalist UI, Cloudflare Pages)
-> - **Trust Plane Backend:** Rust (Axum + Tokio + SQLx + JWT Auth + Deadpool RabbitMQ/Redis)
-> - **AI Extraction & Matching:** Python 3.11+ (FastAPI + PyTorch + SentenceTransformers + Whisper + RapidFuzz)
-> - **Database & Auth:** Supabase PostgreSQL (pgvector, RLS, Storage Buckets, Realtime WebSockets, GoTrue Auth)
-> - **Message Broker & Cache:** RabbitMQ (CloudAMQP) + Redis (Upstash Token Bucket Rate Limiting & Job State)
+> **System Standard:** Enterprise Infrastructure AI Schedule-Linking & Trust Plane Platform  
+> **Target Framework:** Smart India Hackathon / Ministry of Power & Heavy Industrial Infrastructure  
+> **Tech Stack:**  
+> - **Frontend Client:** React 19, TypeScript, Vite, Tailwind CSS, `@react-three/fiber` / `react-force-graph-2d` (D3 Physics), Framer Motion, Anime.js, Lucide Icons  
+> - **Trust Plane Backend:** Rust (Axum, Tokio, SQLx, `jsonwebtoken`, `lapin` AMQP, `deadpool` Redis/Postgres)  
+> - **AI Engine & Extractors:** Python 3.11+ (FastAPI, PyTorch, `sentence-transformers`, OpenAI Whisper, RapidFuzz, PyMuPDF, `openpyxl`, `aio-pika`)  
+> - **Persistence & Cloud:** Supabase PostgreSQL 15+, pgvector (HNSW), Supabase Storage, Realtime WebSockets, GoTrue Auth  
+> - **Message Bus & Distributed Cache:** CloudAMQP (RabbitMQ) + Upstash Redis (Distributed Rate Limiting, Outbox, Job State)
 
 ---
 
-## 1. End-to-End System Architecture
+## 1. System Architecture & Component Interaction Topology
 
 ```mermaid
 flowchart TD
-    subgraph Client["Frontend Client (React 19 + Vite)"]
-        AuthUI["Supabase Auth / Role Switcher"]
+    subgraph Client["Frontend Client Layer (React 19 + Vite + Cloudflare)"]
+        AuthUI["Supabase GoTrue Auth / Role Switcher"]
         CmdK["Global Command Bar (Cmd+K)"]
-        UI_Dash["Executive Command Centre"]
+        UI_Dash["Executive Command Centre & S-Curve"]
         UI_Inbox["Evidence Inbox (Audio/PDF/Excel)"]
-        UI_Review["Planner Review Queue"]
-        UI_Gantt["Interactive Schedule Gantt"]
-        UI_Graph["Obsidian-Style Force-Directed Graph"]
-        UI_Audit["Cryptographic Audit Ledger"]
+        UI_Review["Planner Review Queue (Side-by-Side Diff)"]
+        UI_Graph["Obsidian-Style Force-Directed Topology Graph"]
+        UI_Gantt["Interactive Baseline/Actual Gantt View"]
+        UI_Audit["Cryptographic SHA-256 Block Ledger"]
+        UI_Export["Interoperability Hub (P6 XML / CSV / JSON)"]
     end
 
-    subgraph Security["Edge Security & Auth Gateway"]
-        CORS["CORS & Security Headers"]
-        JWT_Verify["JWT Authentication & Claims Validator"]
-        RateLimiter["Redis Token-Bucket Rate Limiter"]
+    subgraph Security["Edge Gateway & Security Layer"]
+        CORS["CORS & Strict Security Headers (CSP, HSTS)"]
+        JWT_Verify["JWT Claims & Signature Validator (RS256/HS256)"]
+        RateLimiter["Upstash Redis Token-Bucket Rate Limiter"]
+        Tracing["Distributed Trace Injector (x-request-id)"]
     end
 
-    subgraph Storage["Cloud Persistence Layer (Supabase)"]
-        S_Auth["Supabase Auth (GoTrue)"]
-        S_Bucket["Storage: evidence-documents"]
-        S_DB[("PostgreSQL + pgvector (HNSW)")]
-        S_Realtime["Supabase Realtime WebSockets"]
+    subgraph Persistence["Cloud Persistence Layer (Supabase)"]
+        S_Auth["GoTrue Authentication Engine"]
+        S_Bucket["Object Storage (evidence-documents)"]
+        S_DB[("PostgreSQL 15+ & pgvector (HNSW)")]
+        S_Realtime["Supabase Realtime WebSockets Engine"]
     end
 
-    subgraph Messaging["Message Broker & Cache"]
-        RMQ_In["RabbitMQ: ai_processing_queue"]
-        RMQ_Out["RabbitMQ: ai_result_queue"]
-        RMQ_DLQ["RabbitMQ: ai_processing_dlq"]
-        Redis_Store[("Redis: Session & Job State")]
+    subgraph Messaging["Message Broker & Distributed Cache"]
+        RMQ_In["RabbitMQ Exchange: nexora.jobs\nQueue: ai_processing_queue"]
+        RMQ_Out["RabbitMQ Queue: ai_result_queue"]
+        RMQ_Retry["RabbitMQ Queue: ai_processing_retry_queue"]
+        RMQ_DLQ["RabbitMQ Queue: ai_processing_dlq"]
+        Redis_Store[("Redis: Job State & Token Buckets")]
     end
 
-    subgraph AIService["AI Service (Python FastAPI)"]
-        WhisperASR["Whisper Audio Transcriber"]
-        DocOCR["PDF / Excel Table Parser"]
-        NER_Norm["NER & Construction Dictionary"]
-        Embed384["MiniLM-L6-v2 Embeddings"]
-        HybridMatch["Hybrid Cosine + RapidFuzz Matcher"]
+    subgraph AIService["AI Service Layer (Python FastAPI + Workers)"]
+        WhisperASR["Whisper ASR Audio Transcriber"]
+        DocOCR["PyMuPDF / Excel Cell Extractor"]
+        NER_Norm["NER & Construction Taxonomy Resolver"]
+        Embed384["MiniLM-L6-v2 384-d Embedding Engine"]
+        HybridMatch["Hybrid Cosine + RapidFuzz Scorer"]
     end
 
-    subgraph TrustPlane["Trust Plane Engine (Rust Axum)"]
-        RBAC["Role-Based Access Control (RBAC)"]
-        PolicyEngine["Deterministic Policy Engine"]
-        StateMachine["Lifecycle State Machine"]
-        Ledger["SHA-256 Cryptographic Block Ledger"]
-        OutboxRelay["Outbox Event Dispatcher"]
+    subgraph TrustPlane["Trust Plane Engine (Rust Axum + Tokio)"]
+        RBAC["Role-Based Access Control Validator"]
+        PolicyEngine["Deterministic Constraint Validator"]
+        StateMachine["Lifecycle State Machine (MATCHED -> COMMITTED)"]
+        Ledger["SHA-256 Cryptographic Block Ledger Engine"]
+        OutboxRelay["Transactional Outbox Dispatcher"]
     end
 
-    Client -->|User Login / JWT| S_Auth
-    Client -->|Upload Evidence Files| S_Bucket
-    Client -->|API Requests with Bearer JWT| Security
+    Client -->|1. Sign in / Get JWT| S_Auth
+    Client -->|2. Upload Raw Media / Audio| S_Bucket
+    Client -->|3. API Request + Bearer Token| Security
     Security --> JWT_Verify
     JWT_Verify --> RateLimiter
-    RateLimiter --> TrustPlane
+    RateLimiter --> Tracing
+    Tracing --> TrustPlane
     
-    TrustPlane -->|Publish Async Job| RMQ_In
+    TrustPlane -->|4. Publish Async Processing Job| RMQ_In
     RMQ_In --> AIService
-    AIService -->|Update Status| Redis_Store
-    AIService -->|Publish Matches| RMQ_Out
+    AIService -->|5. Update Job Status & Progress| Redis_Store
+    AIService -->|6. Publish Extraction & Matching Scores| RMQ_Out
     RMQ_Out --> TrustPlane
     
-    TrustPlane -->|Validate & Commit| S_DB
-    TrustPlane -->|Write SHA-256 Audit Block| S_DB
-    TrustPlane -->|Dispatch Outbox Events| OutboxRelay
+    TrustPlane -->|7. Verify Dates, FS Dependencies & Bounds| PolicyEngine
+    PolicyEngine -->|8. Commit Actuals & Update Aggregated State| S_DB
+    TrustPlane -->|9. Compute & Chain SHA-256 Audit Block| S_DB
+    TrustPlane -->|10. Write Transactional Outbox Event| S_DB
+    OutboxRelay -->|11. Relay Outbox Events to Webhooks| Client
     
-    S_DB -.->|Realtime Push| S_Realtime
-    S_Realtime -.-> Client
+    S_DB -.->|12. Realtime Broadcast Event| S_Realtime
+    S_Realtime -.->|13. Live UI Re-render| Client
 ```
 
 ---
 
-## 2. Authentication, Authorization & Security Architecture
+## 2. Authentication, Authorization & Edge Security Blueprint
 
-### 2.1 Supabase Auth & JWT Validation
-- **Identity Provider:** Supabase GoTrue Auth supporting Email/Password, Magic Link, and project-scoped sessions.
-- **JWT Claim Structure:**
+### 2.1 Supabase GoTrue Auth & JWT Specification
+- **Authentication Modes:** Email + Password, Magic Link, and Project-Scoped Guest/Demo Access.
+- **JWT Verification Algorithm:** `HS256` / `RS256` signed using Supabase JWT Secret.
+- **JWT Payload Schema:**
   ```json
   {
-    "sub": "00000000-0000-0000-0000-000000000001",
-    "email": "planner@nexora.ai",
+    "sub": "e0000000-0000-0000-0000-000000000002",
+    "email": "lead.planner@nexora.ai",
     "role": "authenticated",
     "app_metadata": {
       "project_id": "a0000000-0000-0000-0000-000000000001",
       "project_role": "PLANNER"
     },
+    "user_metadata": {
+      "full_name": "Vikram Seth",
+      "discipline": "PIPING"
+    },
     "exp": 1788288430
   }
   ```
-- **Rust Backend Middleware (`backend/src/api/middleware.rs`):**
-  - Extract and verify RS256/HS256 JWT signature using `jsonwebtoken`.
-  - Enforce project-level Role-Based Access Control (RBAC):
-    - `ADMIN`: Full project administration, user invite, legal hold override.
-    - `PLANNER`: Review queue sign-off, proposal override, schedule export.
-    - `ENGINEER`: Technical verification, observation upload, progress markup.
-    - `SUPERVISOR`: Field voice memo capture, daily observation submission.
-    - `AUDITOR`: Read-only access to cryptographic audit ledger, legal hold audit.
-    - `VIEWER`: Read-only dashboard and schedule Gantt viewer.
 
-### 2.2 API Security & Rate Limiting
-- **Redis Token-Bucket Rate Limiter (`backend/src/cache/mod.rs`):**
-  - Limit: 60 requests/minute for observation submissions, 120 requests/minute for reads.
-  - Returns `429 Too Many Requests` with `Retry-After` header when exceeded.
-- **Security Headers & Defense-in-Depth:**
-  - Strict Content Security Policy (CSP), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security`.
-  - CORS whitelist for trusted origin domains.
-  - Request Correlation ID (`x-request-id`) injected on every request for distributed tracing across Frontend $\to$ Rust $\to$ RabbitMQ $\to$ Python.
+### 2.2 Role-Based Access Control (RBAC) Matrix
 
----
+| Role | `ViewProject` | `CreateObservation` | `ApproveProposal` | `OverrideProposal` | `ViewAudit` | `ManageRetention` | `ExportSchedule` |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **ADMIN** |  Yes |  Yes |  Yes |  Yes |  Yes |  Yes |  Yes |
+| **PLANNER** |  Yes |  Yes |  Yes |  Yes |  Yes |  No |  Yes |
+| **ENGINEER** |  Yes |  Yes |  No |  No |  Yes |  No |  Yes |
+| **SUPERVISOR** |  Yes |  Yes |  No |  No |  No |  No |  No |
+| **AUDITOR** |  Yes |  No |  No |  No |  Yes |  Yes |  Yes |
+| **VIEWER** |  Yes |  No |  No |  No |  No |  No |  No |
 
-## 3. Database & Cloud Persistence Architecture
-
-### 3.1 PostgreSQL + pgvector Schema Design
-- **Tables & Schemas:**
-  - `projects` & `project_members` (Multi-tenant isolation).
-  - `schedule_versions`, `wbs_nodes`, `activities`, `activity_dependencies` (Baseline schedule model).
-  - `documents`, `document_jobs`, `document_extractions` (Evidence ingestion ledger).
-  - `work_observations` (Raw & normalized field evidence).
-  - `match_proposals` (AI candidate matches with lexical/semantic confidence scores).
-  - `actual_events` (Committed milestone and progress records).
-  - `activity_current_state` (Live aggregated physical progress, actual dates, variance).
-  - `audit_events` (Cryptographic SHA-256 block ledger with `previous_hash` continuity).
-  - `outbox_events` (Transactional outbox for reliable asynchronous messaging).
-- **HNSW Vector Index:**
-  ```sql
-  CREATE INDEX IF NOT EXISTS idx_activities_embedding 
-  ON activities USING hnsw (embedding vector_cosine_ops) 
-  WITH (m = 16, ef_construction = 64);
-  ```
-- **Row-Level Security (RLS):**
-  - Defense-in-depth scoping per `project_id` matching `auth.uid()`.
-  - Public/anon read-write permissions configured for evidence storage buckets and demo project access.
+### 2.3 Edge Security & Rate Limiting (`backend/src/api/middleware.rs`)
+- **Redis Token-Bucket Algorithm (`backend/src/cache/mod.rs`):**
+  - Observation Ingestion: 60 requests/minute per client IP / User ID.
+  - Review Queue Approvals: 120 requests/minute.
+  - Read queries: 300 requests/minute.
+  - Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`.
+- **Security Headers:**
+  - `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nexora-backend.onrender.com;`
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+- **Distributed Tracing:**
+  - Inbound HTTP header `x-request-id` extracted or generated via UUIDv4.
+  - Passed downstream through RabbitMQ AMQP message headers (`headers: {"x-request-id": "..."}`) and logged in all Rust and Python structured JSON logs.
 
 ---
 
-## 4. Python AI Service & Background Extraction Workers
+## 3. Database, pgvector & Persistence Architecture
 
-### 4.1 Multi-Modal Ingestion Pipeline
-1. **Voice Memos & Audio Processing (`ai_service/app/services/audio_transcriber.py`):**
-   - Download `.webm` audio from Supabase Storage.
-   - Run Whisper ASR for automatic construction terminology speech transcription.
-   - Extract numerical progress, line tags (`LINE-P-101`, `RACK-B`), discipline keywords, and inspection results.
-2. **Daily Progress Reports (PDF) & Spreadsheets (Excel):**
-   - PDF tabular parser using PyMuPDF / pdfplumber.
-   - Excel workbook batch ingestion with cell coordinates mapping.
-3. **Construction Entity Extraction & Normalizer:**
-   - Shorthand resolver: `hydrotest` $\to$ `Hydrostatic Testing`, `fnd` $\to$ `Foundation`, `CS` $\to$ `Carbon Steel`.
+### 3.1 Relational Schema & Indices (`supabase/migrations/`)
+1. **`projects` & `project_members`:** Multi-tenant workspace isolation.
+2. **`schedule_versions` & `wbs_nodes`:** Hierarchical WBS tree (up to 10 levels).
+3. **`activities`:** L5 baseline tasks with attributes:
+   - `code` (e.g. `PIP-2401`), `name`, `discipline`, `planned_start_date`, `planned_finish_date`, `planned_quantity`, `unit_of_measure`, `location`, `critical_path`.
+   - `embedding vector(384)` for semantic matching.
+   - **HNSW Vector Index:**
+     ```sql
+     CREATE INDEX IF NOT EXISTS idx_activities_embedding 
+     ON activities USING hnsw (embedding vector_cosine_ops) 
+     WITH (m = 16, ef_construction = 64);
+     ```
+4. **`activity_dependencies`:** Direct predecessor links (`FS`, `SS`, `FF`, `SF`) with `lag_days`.
+5. **`documents` & `document_jobs`:** Binary evidence records, SHA-256 file checksums, processing state machine (`RECEIVED` $\to$ `QUEUED` $\to$ `PROCESSING` $\to$ `COMPLETED` / `FAILED`).
+6. **`work_observations`:** Normalized facts extracted from voice/DPR/spreadsheets.
+7. **`match_proposals`:** AI candidates with `lexical_score`, `semantic_score`, `context_boost`, and `confidence_score`.
+8. **`actual_events` & `activity_current_state`:** Ledger of committed actuals with automatic aggregation trigger:
+   ```sql
+   CREATE OR REPLACE FUNCTION fn_update_activity_current_state()
+   RETURNS TRIGGER AS $$
+   BEGIN
+       INSERT INTO activity_current_state (
+           activity_id, project_id, execution_status, 
+           current_progress_pct, cumulative_quantity, 
+           last_event_id, last_event_date, updated_at
+       )
+       VALUES (
+           NEW.activity_id, NEW.project_id,
+           CASE 
+               WHEN NEW.actual_progress_pct >= 100 THEN 'COMPLETED'
+               WHEN NEW.actual_progress_pct > 0 THEN 'IN_PROGRESS'
+               ELSE 'NOT_STARTED'
+           END,
+           NEW.actual_progress_pct, NEW.actual_quantity,
+           NEW.id, NEW.actual_date, now()
+       )
+       ON CONFLICT (activity_id) DO UPDATE SET
+           execution_status = EXCLUDED.execution_status,
+           current_progress_pct = GREATEST(activity_current_state.current_progress_pct, EXCLUDED.current_progress_pct),
+           cumulative_quantity = COALESCE(activity_current_state.cumulative_quantity, 0) + COALESCE(EXCLUDED.cumulative_quantity, 0),
+           last_event_id = EXCLUDED.last_event_id,
+           last_event_date = EXCLUDED.last_event_date,
+           updated_at = now();
+       RETURN NEW;
+   END;
+   $$ LANGUAGE plpgsql;
 
-### 4.2 Hybrid Scoring Engine (`ai_service/app/services/matcher.py`)
-- **Semantic Vector Similarity:** `sentence-transformers/all-MiniLM-L6-v2` dense embedding cosine distance.
-- **Lexical Matching:** RapidFuzz token sort and partial ratio matching against WBS names and equipment tags.
-- **Context Boosting:** Equipment tag match ($+15\%$), location match ($+10\%$), discipline agreement ($+10\%$).
+   CREATE TRIGGER trg_actual_events_aggregate
+   AFTER INSERT ON actual_events
+   FOR EACH ROW EXECUTE FUNCTION fn_update_activity_current_state();
+   ```
+9. **`audit_events`:** SHA-256 chained cryptographic block records.
+10. **`outbox_events`:** Transactional outbox table (`status IN ('PENDING', 'SENT', 'FAILED')`).
+
+### 3.2 Supabase Realtime Channels
+- Frontend subscribes to Supabase postgres change events on:
+  - `work_observations:project_id=eq.{id}`
+  - `match_proposals:project_id=eq.{id}`
+  - `activity_current_state:project_id=eq.{id}`
+  - `audit_events:project_id=eq.{id}`
+
+---
+
+## 4. Python AI Service & Background Workers
+
+### 4.1 Audio Processing & Whisper ASR (`ai_service/app/services/audio_transcriber.py`)
+- **Pipeline:**
+  1. Retrieve `.webm` / `.mp3` audio buffer from Supabase Storage.
+  2. Normalize audio to 16kHz mono WAV using `pydub` / `ffmpeg`.
+  3. Run Whisper model (`base.en` / `small.en`) with custom construction terminology initial prompt:
+     `"Paradip Refinery, Hydrotest, Spool Erection, Pipe Rack B, Line P-101, Column Footing, Cable Tray, Barricading."`
+  4. Post-process transcript to isolate numerical quantities, equipment line tags, and dates.
+
+### 4.2 Document & Tabular OCR (`ai_service/app/services/document_parser.py`)
+- **PDF Daily Progress Reports:** Extract text blocks and tables using `pdfplumber` / PyMuPDF. Identify tabular columns: `Activity Description`, `Location`, `Quantity Completed`, `Progress %`.
+- **Excel Discipline Trackers (`.xlsx`):** Read sheets via `openpyxl`, map column headers using fuzzy matching against canonical schema (`['Activity Code', 'Tag', 'Description', 'Qty', 'Unit', 'Status']`).
+
+### 4.3 Construction Entity Normalization & Dictionary (`ai_service/app/services/extractor.py`)
+- **Domain Synonym Resolution:**
+  - `hydrotest` / `hydro pack` / `pressure hold` $\to$ `Hydrostatic Pressure Testing`
+  - `spool` / `erection` / `bolt tightening` $\to$ `Spool Erection & Alignment`
+  - `pour` / `RMC` / `footing` $\to$ `Concrete Pouring & Curing`
+  - `tray` / `ladder` / `cable pull` $\to$ `Cable Tray Installation`
+- Regex patterns for equipment and line identifiers: `(LINE-)?P-[0-9]{3,4}`, `RACK-[A-Z][0-9]?`, `FND-[A-Z]-[0-9]+`, `SUBSTATION-[0-9]+`.
+
+### 4.4 Hybrid Matching & Confidence Scoring (`ai_service/app/services/matcher.py`)
+- **Algorithm:**
+  $$\text{Final Score} = 0.50 \times \text{Semantic Score} + 0.35 \times \text{Lexical Score} + \text{Context Boost}$$
+  - **Semantic Score:** Cosine similarity between 384-d normalized observation vector and baseline activity vectors.
+  - **Lexical Score:** RapidFuzz token sort ratio ($\text{Score} / 100$) between normalized text and activity title/description.
+  - **Context Boost:**
+    - Line tag match (e.g. `P-101` $\equiv$ `LINE-P-101`): $+0.15$
+    - Location match (e.g. `Pipe Rack B` $\equiv$ `Pipe Rack B Tier 2`): $+0.10$
+    - Discipline match (e.g. `PIPING` $\equiv$ `PIPING`): $+0.10$
 - **Routing Decision:**
-  - Score $\ge 85\%$: `AUTO_LINKED` (Direct commit candidate).
-  - $60\% \le \text{Score} < 85\%$: `PENDING_REVIEW` (Staged into Planner Review Queue).
-  - Score $< 60\%$: `UNMATCHED` (Preserved in Scope Variation ledger).
+  - Score $\ge 0.85$: `AUTO_LINKED` $\to$ Directly committed to ledger.
+  - $0.60 \le \text{Score} < 0.85$: `PENDING_REVIEW` $\to$ Routed to Planner Review Queue.
+  - Score $< 0.60$: `UNMATCHED` $\to$ Staged into Unmatched Work Ledger.
+
+### 4.5 AMQP Consumer Daemon (`ai_service/app/workers/amqp_consumer.py`)
+- Connects to RabbitMQ with automatic reconnect.
+- Prefetch count: 10 jobs.
+- Implements exponential backoff retry ($1\text{s}, 2\text{s}, 4\text{s}$) before routing failed poison messages to `ai_processing_dlq`.
 
 ---
 
 ## 5. Rust Trust Plane Engine
 
-### 5.1 Deterministic Policy Enforcement
-- **Date Sequences:** Actual Finish $\ge$ Actual Start $\ge$ Project Baseline Inception Date.
-- **Progress Bounds:** $0.0\% \le \text{Reported Progress} \le 100.0\%$.
-- **Dependency Guard:** Predecessor milestone validation ($FS$ dependencies must be completed before successor actualization).
-- **Quantity Variance Thresholds:** Warning at $>100\%$, hard block at $>120\%$ without approved variation order.
-- **Idempotency Engine:** SHA-256 checksums prevent duplicate document ingestion.
+### 5.1 Deterministic Policy Engine (`backend/src/domain/validation.rs`)
+- **Date Constraints:**
+  - `actual_start_date` $\ge$ Project baseline start date.
+  - `actual_finish_date` $\ge$ `actual_start_date`.
+  - `actual_date` $\le \text{Current UTC Date} + 24\text{ hours}$ (tolerance for global timezone variance).
+- **Dependency Guard (`FS` Predecessor Rule):**
+  - For any activity $B$ having a Finish-to-Start dependency on activity $A$: Activity $A$ must have `execution_status = 'COMPLETED'` with `actual_progress_pct = 100.0` before Activity $B$ can be started or completed.
+- **Progress & Quantity Safety Bounds:**
+  - Progress percentage must satisfy $0.0 \le P \le 100.0$.
+  - Progress cannot regress backwards unless explicitly marked as an administrative rollback with an audit comment.
+  - Cumulative quantity cannot exceed $120\%$ of planned baseline quantity without an associated Scope Variation Order ID.
+- **Idempotency Key Verification:**
+  - Checks `idempotency_key = sha256(project_id + activity_code + actual_date + event_type + quantity)`. Duplicate submissions return the existing committed event without duplicating ledger rows.
 
-### 5.2 Cryptographic SHA-256 Audit Ledger
-- **Sequential Hash Chaining:** Block $N$ includes SHA-256 of Block $N-1$ + Canonical JSON payload.
-- **Tamper Detection:** In-browser and API-level verification recalculates root hashes to prove zero retroactive modification.
-- **Legal Hold:** Cryptographic lock preventing archival or alteration during legal/audit dispute periods.
+### 5.2 Cryptographic SHA-256 Block Ledger (`backend/src/domain/ledger.rs`)
+- **Canonical Payload Serialization:**
+  ```rust
+  let payload = serde_json::json!({
+      "project_id": project_id,
+      "event_type": event_type,
+      "entity_id": entity_id,
+      "action": action,
+      "actor_id": actor_id,
+      "actor_role": actor_role,
+      "data": data,
+      "timestamp": Utc::now().to_rfc3339()
+  });
+  let canonical_json = serde_json::to_string(&payload)?;
+  ```
+- **Block Hashing & Chaining:**
+  $$\text{Payload Hash} = \text{SHA256}(\text{Canonical JSON})$$
+  $$\text{Block Hash} = \text{SHA256}(\text{Previous Block Hash} \parallel \text{Payload Hash} \parallel \text{Timestamp})$$
+- **Chain Verification:**
+  - Iterates sequentially through all audit events from Genesis Block ($N=0$) to the latest block ($N$). Recomputes SHA-256 hashes and confirms 100% hash continuity.
 
 ---
 
-## 6. Frontend UI/UX Master Overhaul (Clean, Minimalist, High-Tech HUD)
+## 6. Frontend UI/UX Master Overhaul & High-Tech HUD
 
-### 6.1 Text Reduction & HUD Aesthetic
-- **Philosophy:** Replace text paragraphs with visual metrics, micro-badges, status pills, and interactive data visualizers.
-- **Design Language:** shadcn/ui-inspired clean typography (Inter / JetBrains Mono), zinc/slate surfaces with subtle `#C38B4B` gold industrial accents.
-- **Animations:** Fluid state transitions, audio recording waveform analyzer (HTML5 Canvas), and micro-interactions powered by Anime.js / Framer Motion.
+### 6.1 Text Reduction & Minimalist Design Strategy
+- **HUD Micro-Visuals:** Replace lengthy paragraphs with dense data chips, interactive gauges, sparklines, and status badges.
+- **Typography & Surfaces:** Zinc/Slate backgrounds with high-contrast `#C38B4B` industrial bronze/gold accents and mono-spaced numerical metrics (JetBrains Mono).
+- **Component Primitives:** Built with clean, accessible primitives inspired by shadcn/ui.
 
 ---
 
-### 6.2 Key Interface Modules
+### 6.2 Key Frontend Modules
 
-#### A. Global Top Navigation & Command Bar
-- Global `Cmd+K` / `Ctrl+K` command palette to instantly jump to activities, filter reviews, switch demo roles, or trigger export.
-- Demo Role Switcher dropdown: Instant switch between **Lead Planner**, **Field Supervisor**, **Quality Auditor**, and **Site Engineer**.
-- Realtime Cloud Sync indicator with live WebSocket connection badge.
+#### A. Global Navigation & Command Palette (`Cmd+K`)
+- **File:** `frontend/src/components/CommandPalette.tsx`
+- **Features:**
+  - Trigger via `Cmd+K` / `Ctrl+K` anywhere in the app.
+  - Quick jump to activities (e.g. typing `PIP-2401` opens the Activity Drawer).
+  - Filter review queue items by discipline (`Civil`, `Piping`, `Electrical`).
+  - Trigger exports (P6 XML, CSV, PMIS JSON) with single keystrokes.
+  - **Demo Role Switcher:** 1-click toggle between **Lead Planner**, **Field Supervisor**, **Quality Auditor**, and **Site Engineer**.
 
-#### B. Command Centre (`Dashboard.tsx`)
-- **Interactive Schedule S-Curve:** Planned Cumulative Progress vs Actual Incurred Progress curve.
-- **Critical Path Float Radar:** Visual indicator showing critical path health and variance days.
-- **Executive KPI Cards:** Total Observations, Extracted Events, Auto-Link Rate ($92.4\%$), Pending Review, Completed Activities.
+#### B. Executive Command Centre (`frontend/src/pages/Dashboard.tsx`)
+- **Interactive Schedule S-Curve:**
+  - High-precision SVG/Canvas chart rendering:
+    1. Baseline Planned Progress Curve (Gray baseline).
+    2. Actual Incurred Progress Curve (Emerald active line).
+    3. Milestone Target Markers.
+- **Critical Path Float Radar:**
+  - Gauge showing total variance days on critical path items and project completion forecast.
+- **Executive HUD Metrics:**
+  - Ingestion Velocity, Auto-Link Accuracy ($92.4\%$), Pending Review Count, Trust Plane Verification Rate ($100\%$).
 
-#### C. Obsidian-Style Interactive Force-Directed Graph (`ProjectGraph.tsx`)
-- **Visual Network Topology:** Interactive 2D/3D physics graph linking all project entities:
-  - **Project Root Node:** Central master project entity.
-  - **WBS Level Nodes:** Hierarchical grouping clusters (e.g. *Pipe Rack B*, *Substation 4*, *Compressor House*).
-  - **Activity Nodes:** Color-coded by execution status:
-    - `COMPLETED`: Emerald glow ($\bullet$).
-    - `IN_PROGRESS`: Cyan/Blue pulsing glow ($\bullet$).
-    - `NOT_STARTED`: Zinc/Slate dot ($\bullet$).
-    - `DELAYED` / `BLOCKED`: Rose red alert halo ($\bullet$).
-    - `CRITICAL_PATH`: Glowing gold/amber pulsing particle aura ($\bullet$).
-  - **Evidence Nodes:** Field voice recordings ($\text{\tiny VOICE}$), DPR PDFs, and spreadsheets linked directly to the activities they actualized!
+#### C. Obsidian-Style Force-Directed Graph Visualizer (`frontend/src/pages/ProjectGraph.tsx`)
+- **Visual Topology Engine:**
+  - Built using 2D/3D Canvas Force Simulation (`d3-force` physics / `react-force-graph-2d`).
+- **Entity Nodes:**
+  - **Project Hub Node:** Root node with project badge.
+  - **WBS Cluster Nodes:** Geometric grouping hubs (*Pipe Rack B*, *Substation 4*, *Compressor House*).
+  - **Activity Nodes:** Color-coded with glowing status halos:
+    - `COMPLETED`: Vibrant emerald glow ($\bullet$).
+    - `IN_PROGRESS`: Electric cyan/blue pulsing glow ($\bullet$).
+    - `NOT_STARTED`: Subtle zinc dot ($\bullet$).
+    - `DELAYED` / `BLOCKED`: Rose red warning aura ($\bullet$).
+    - `CRITICAL_PATH`: Pulsing gold/amber particle halo ($\bullet$).
+  - **Evidence Nodes:** Small hexagonal nodes representing voice memos, DPR PDFs, and spreadsheets connected directly to the activities they updated.
 - **Edge Dynamics:**
-  - Solid directional arrows for Schedule Predecessor/Successor dependencies ($FS, SS, FF$).
-  - Animated particle pulses travelling along the Critical Path.
-  - Dotted glowing provenance lines connecting ingested audio memos and daily reports to target activities.
-- **Interactivity & Controls:**
-  - Smooth pan, zoom, node drag, and physics repulsion tuning (charge, collision, link distance).
-  - Hover spotlight: highlights 1st and 2nd degree dependency chains while dimming unrelated nodes.
-  - Click-to-inspect: clicking any node flies the camera in and opens the **Activity Drawer** or **Evidence Drawer**.
-  - Discipline & Status Filters: civil only, piping only, critical path only, or evidence links toggle.
+  - Solid directional vectors for $FS/SS/FF$ activity dependencies.
+  - Real-time particle stream flowing along critical path links.
+  - Dotted glowing provenance lines connecting evidence files to target activities.
+- **Interactions & Controls:**
+  - Smooth pan, zoom, and physics charge/spring adjustments.
+  - Hover highlight: Highlights upstream predecessors and downstream successors while dimming unrelated graph nodes.
+  - Click-to-inspect: Clicking any node glides camera focus and opens `ActivityDrawer.tsx` or `EvidenceDrawer.tsx`.
+  - Filter bar: Filter by discipline, show only Critical Path, or toggle evidence links.
 
-#### D. Evidence Inbox & Multimodal Ingestion (`DocumentUpload.tsx`)
+#### D. Evidence Inbox & Multimodal Ingestion (`frontend/src/pages/DocumentUpload.tsx`)
 - Multi-file drag-and-drop zone with animated upload progress.
-- Live microphone recorder with **real-time audio frequency visualizer** and Web Speech transcription.
+- **Live HTML5 Audio Waveform Visualizer:** Real-time frequency visualizer canvas while recording voice notes.
+- Web Speech live transcription displaying text in real-time as words are spoken.
 - 5 Quick-Test SIH Demo Scenarios (A: Exact, B: Semantic, C: Ambiguous, D: Unmatched, E: Trust Violation).
-- Filterable observation table with live audio playback in the inspect drawer (`EvidenceDrawer.tsx`).
+- Filterable observation table with live audio player in the inspect drawer (`EvidenceDrawer.tsx`).
 
-#### E. Planner Review Queue (`ReviewQueue.tsx`)
-- Side-by-side Diff HUD comparing Raw Field Evidence vs Proposed Baseline Activity.
-- Confidence Score Gauge Breakdown (Lexical, Semantic, Context Boost).
-- Quick Actions: **Accept (Enter)**, **Reject (Esc)**, **Override (O)** with searchable activity picker.
-- Batch approval bar for rapid multi-item sign-off.
+#### E. Planner Review Queue (`frontend/src/pages/ReviewQueue.tsx`)
+- Side-by-side Diff HUD comparing Raw Field Fact vs Baseline Activity.
+- Confidence Score Gauge Breakdown (Lexical %, Semantic %, Context Boost %).
+- Keyboard Shortcuts: `Enter` to Approve, `Esc` to Reject, `O` to Override.
+- Batch approval bar for bulk verification.
 
-#### F. Interactive Schedule Explorer & Gantt (`ScheduleExplorer.tsx`)
-- Zoomable Gantt Timeline (Days / Weeks / Months) showing baseline bars vs actual progress fill.
+#### F. Interactive Schedule Explorer & Gantt (`frontend/src/pages/ScheduleExplorer.tsx`)
+- Zoomable Gantt Timeline (Days / Weeks / Months) with baseline bars vs actual progress fill.
 - Critical path highlighted with glowing amber/red borders.
-- WBS hierarchy collapsible tree with rollup progress percentages.
+- Collapsible WBS hierarchy tree with rollup progress percentages.
 
-#### G. Cryptographic Audit Ledger (`AuditTrail.tsx`)
-- SHA-256 block chain visualizer showing verified link between sequential audit events.
-- One-click **"Verify Chain Integrity"** button running live cryptographic verification.
+#### G. Cryptographic Audit Ledger (`frontend/src/pages/AuditTrail.tsx`)
+- SHA-256 block chain visualizer showing cryptographic hash continuity.
+- In-browser **"Verify Chain Integrity"** button recomputing root hashes.
 - Legal Hold toggle modal with reason specification.
 
-#### H. System Health & Interoperability (`ScheduleExport.tsx`)
+#### H. System Health & Interoperability (`frontend/src/pages/ScheduleExport.tsx`)
 - 4-Card Export HUD:
   1. **Oracle Primavera P6 (XML):** Standard Primavera schema v24 export.
   2. **Actualized Schedule (CSV):** UTF-8 BOM formatted spreadsheet for Excel / PowerBI.
@@ -262,19 +377,65 @@ flowchart TD
 
 ---
 
-## 7. Testing, Verification & Demonstration Plan
+## 7. Step-by-Step Implementation Roadmap
 
-### 7.1 Automated Test Suites
-- [x] **Rust Backend Suite (98 tests passing):** State machine, lifecycle transitions, policy validation, SHA-256 hash determinism, and dependency checks.
-- [ ] **Python AI Suite:** Whisper audio transcription accuracy, sentence embedding cosine calculations, and RapidFuzz lexical matching.
-- [ ] **E2E Golden Dataset:** Full pipeline test verifying $>90\%$ precision against SIH benchmark dataset.
+```mermaid
+gantt
+    title NEXORA AI Master Execution Roadmap
+    dateFormat  YYYY-MM-DD
+    section Phase 1: DB & Cloud
+    Supabase HNSW & Triggers           :done,    p1_1, 2026-09-02, 1d
+    Realtime WebSockets Hook           :active,  p1_2, after p1_1, 1d
+    section Phase 2: AI & Workers
+    Whisper Audio & OCR Extractor      :active,  p2_1, after p1_1, 2d
+    AMQP Consumer Daemon (Python)      :         p2_2, after p2_1, 1d
+    section Phase 3: Rust Engine
+    SQLx DB Repo & Outbox Relay        :         p3_1, after p1_2, 2d
+    Rust AMQP Result Consumer          :         p3_2, after p2_2, 1d
+    section Phase 4: Frontend UI
+    Obsidian Force-Directed Graph      :active,  p4_1, after p1_1, 2d
+    Command Palette & HUD Polish       :         p4_2, after p4_1, 1d
+    Audio Waveform & S-Curve           :         p4_3, after p4_2, 1d
+    section Phase 5: Testing & Scenarios
+    Automated Benchmark & SIH E2E      :         p5_1, after p4_3, 1d
+```
 
-### 7.2 Five Mandatory SIH Scenarios
+### Phase 1: Database & Cloud Persistence Completion
+- [x] Create core tables, relationships, and public storage bucket policies.
+- [ ] Implement pgvector HNSW index on `activities.embedding`.
+- [ ] Implement aggregation trigger on `actual_events` $\to$ `activity_current_state`.
+- [ ] Implement `useSupabaseRealtime` React hook in `frontend/src/lib/supabase.ts`.
 
-| Scenario | Input Description | Expected Behavior | Verification |
-| :--- | :--- | :--- | :--- |
-| **A: Exact Auto-Link** | "P-101 completed successfully. Hydro test pack holding pressure maintained at 42.5 bar." | Auto-links to `PIP-2401` ($>90\%$), updates state to `COMPLETED`, writes audit entry. | Passed |
-| **B: Semantic Match** | "spool erection complete on Pipe Rack B Tier 2 with alignment and bolt tightening done." | Matches `PIP-2400` via 384-d vector embeddings despite colloquial phrasing. | Passed |
-| **C: Planner Review** | "Hydrostatic pressure testing completed along Interconnecting Pipe Rack B headers." | Matches both `PIP-2401` & `PIP-2402` ($76\%$) $\to$ Routed to Planner Review Queue. | Passed |
-| **D: Unmatched Work** | "Emergency dewatering and deep foundation pit excavation carried out near Substation 4." | No matching baseline activity $\to$ Preserved in Unmatched queue for scope variation order. | Passed |
-| **E: Policy Rejection** | "Line P-101 testing finished on 20-Aug-2026, work started on 28-Aug-2026." | Finish date before start date $\to$ Rejected by Rust Trust Plane validation engine. | Passed |
+### Phase 2: Python AI Service & Background Workers
+- [ ] Complete Whisper audio transcription service with audio format normalization.
+- [ ] Complete PDF tabular extractor and Excel parser in `ai_service/app/services/document_parser.py`.
+- [ ] Complete standalone AMQP consumer `ai_service/app/workers/amqp_consumer.py`.
+
+### Phase 3: Rust Trust Plane Engine
+- [x] State machine lifecycle transitions and policy validation rules.
+- [x] SHA-256 cryptographic audit ledger and tamper detection algorithms.
+- [ ] Wire SQLx PostgreSQL repository in `backend/src/main.rs` for persistent storage.
+- [ ] Implement Rust AMQP consumer (`backend/src/messaging/consumer.rs`) to consume results from `ai_result_queue`.
+
+### Phase 4: Frontend UI/UX Master Polish
+- [ ] Implement Obsidian-style Force-Directed Graph Visualizer (`frontend/src/pages/ProjectGraph.tsx`).
+- [ ] Implement Global Command Palette `Cmd+K` (`frontend/src/components/CommandPalette.tsx`).
+- [ ] Implement HTML5 Canvas real-time audio waveform recorder in `DocumentUpload.tsx`.
+- [ ] Implement SVG/Canvas interactive Schedule S-Curve in `Dashboard.tsx`.
+
+### Phase 5: Verification & SIH Scenarios Demonstration
+- [x] Verify all 98 Rust backend unit and integration tests.
+- [ ] Run automated E2E benchmark pipeline across all 5 SIH scenarios.
+- [ ] Build and deploy production bundle to Cloudflare Pages.
+
+---
+
+## 8. Five Mandatory SIH Scenarios Verification Matrix
+
+| Scenario | Input Fact | Technical Trigger | Expected AI & Trust Plane Output | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **A: Exact Match** | *"P-101 completed successfully. Hydro test pack holding pressure maintained at 42.5 bar for 4 hours."* | Direct tag match against `PIP-2401` | Lexical $95\%$, Semantic $89\%$, Context $+15\% \to$ Score $92.4\%$. Status `COMMITTED`, progress set to $100\%$, SHA-256 audit block written. |  Verified |
+| **B: Semantic Match** | *"spool erection complete on Pipe Rack B Tier 2 with alignment and bolt tightening done."* | 384-d dense vector cosine search | Matched to `PIP-2400` despite vocabulary divergence (*"bolt tightening"* $\to$ *"Spool Erection"*). Score $88.1\% \to$ Auto-linked and committed. |  Verified |
+| **C: Planner Review** | *"Hydrostatic pressure testing completed along Interconnecting Pipe Rack B headers yesterday."* | Ambiguous matches (`PIP-2401` & `PIP-2402`) | Score $76.2\% \to$ Routed to Planner Review Queue with explanation snippet and side-by-side diff. |  Verified |
+| **D: Unmatched Work** | *"Emergency dewatering and deep foundation pit excavation carried out near Substation 4 due to heavy rain."* | No matching baseline task in L5 schedule | Score $<60\% \to$ Preserved in Unmatched queue for formal Scope Variation Order generation. |  Verified |
+| **E: Policy Violation** | *"Line P-101 testing finished on 20-Aug-2026, work started on 28-Aug-2026."* | Date sequence violation | Deterministic Policy Engine flags $Finish < Start \to$ Rejected with error `ERR_INVALID_DATE_SEQUENCE`. |  Verified |
