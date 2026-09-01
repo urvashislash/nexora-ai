@@ -67,6 +67,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const speechRecognitionRef = useRef<any>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
 
@@ -100,6 +101,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   // Start in-browser microphone recording
   const startRecording = async () => {
     try {
+      setSourceType('VOICE');
       audioChunksRef.current = [];
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -122,6 +124,30 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         stream.getTracks().forEach((track) => track.stop());
       };
 
+      // Optional: live Web Speech transcription if available
+      const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRec) {
+        try {
+          const rec = new SpeechRec();
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.lang = 'en-US';
+          rec.onresult = (evt: any) => {
+            let fullTranscript = '';
+            for (let i = 0; i < evt.results.length; i++) {
+              fullTranscript += evt.results[i][0].transcript + ' ';
+            }
+            if (fullTranscript.trim()) {
+              setInputText(fullTranscript.trim());
+            }
+          };
+          rec.start();
+          speechRecognitionRef.current = rec;
+        } catch {
+          // ignore if speech recognition not allowed
+        }
+      }
+
       mediaRecorder.start(200);
       setIsRecording(true);
       setRecordingTime(0);
@@ -136,7 +162,15 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      setFeedbackMessage({ type: 'success', text: 'Audio recording captured! Click "Process Observation" to transcribe with Whisper.' });
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch {
+          // ignore
+        }
+        speechRecognitionRef.current = null;
+      }
+      setFeedbackMessage({ type: 'success', text: 'Audio recording captured! Click "Process Observation" to transcribe and link with schedule.' });
     }
   };
 
@@ -259,22 +293,25 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
     try {
       // Step 1: Ingestion & Object Storage (Supabase)
+      let storagePath: string | null = null;
       if (selectedFile) {
-        await uploadEvidenceFile(projectId, selectedFile, 'reports');
+        const cat = selectedFile.type.startsWith('audio/') ? 'audio' :
+                    selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.csv') ? 'spreadsheets' : 'reports';
+        storagePath = await uploadEvidenceFile(projectId, selectedFile, cat);
       }
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 200));
       setActiveStep(2);
 
       // Step 2: Extraction & Normalization
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 250));
       setActiveStep(3);
 
       // Step 3: Embeddings & Hybrid Match
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 250));
       setActiveStep(4);
 
       // Step 4: Rust Policy & Verification
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 200));
       setActiveStep(5);
 
       // Derive Observation Attributes
@@ -294,11 +331,19 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
       const resolvedProgress = presetMeta?.progress ?? reportedProgress ?? 100;
 
+      const rawText = text || (
+        sourceType === 'VOICE' || audioBlob
+          ? 'Voice Observation Note: Field progress actualization reported via microphone.'
+          : selectedFile
+          ? `[${sourceType}] Ingested file: ${selectedFile.name}`
+          : 'Field observation note'
+      );
+
       const newObs: WorkObservation = {
         id: generateObsId(),
         project_id: projectId,
-        raw_text: text || (selectedFile ? `[${sourceType}] Ingested file: ${selectedFile.name}` : 'Field observation note'),
-        normalized_text: text.includes('P-101') ? text.replace('P-101', 'Line P-101') : text,
+        raw_text: rawText,
+        normalized_text: rawText.includes('P-101') ? rawText.replace('P-101', 'Line P-101') : rawText,
         discipline: resolvedDiscipline,
         recorded_at: new Date().toISOString(),
         observed_at: new Date().toISOString(),
@@ -309,13 +354,19 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         location: resolvedLocation,
         zone: zone || undefined,
         equipment_tag: resolvedEquipment,
+        metadata: {
+          source_type: sourceType,
+          storage_path: storagePath || undefined,
+          file_name: selectedFile?.name || undefined,
+          has_audio: !!audioBlob || (selectedFile?.type ? selectedFile.type.startsWith('audio/') : false),
+        },
       };
 
-      // Call Rust backend API to persist observation to DB
+      // Call API / Supabase to persist observation to DB
       await api.createObservation(projectId, newObs);
 
       // Trigger callback to update App state (review queue / activities / audit)
-      onAddObservations([newObs], text);
+      onAddObservations([newObs], rawText);
 
       setFeedbackMessage({
         type: 'success',
