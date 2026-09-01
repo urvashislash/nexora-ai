@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -11,6 +11,10 @@ import {
   Tag 
 } from 'lucide-react';
 import type { ReviewQueueItem, Activity, ReviewQueueFilters, ToastMessage } from '../types';
+import { animateStaggerEntrance } from '../lib/animations';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Card, CardTitle } from '../components/ui/card';
 
 // ── Toast Notification Component ───────────────────────────────────────────
 const Toast: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void }> = ({ toast, onDismiss }) => {
@@ -75,51 +79,70 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
         </div>
         {children}
         <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-          <button 
+          <Button 
             onClick={onCancel}
-            className="px-3 py-1.5 rounded text-xs font-medium text-slate-600 hover:bg-slate-100 border border-slate-200 transition"
+            variant="outline"
+            size="sm"
           >
             Cancel
-          </button>
-          <button 
+          </Button>
+          <Button 
             onClick={onConfirm}
-            className={`px-4 py-1.5 rounded text-xs font-bold text-white shadow-xs transition ${confirmColor}`}
+            size="sm"
+            className={`${confirmColor} text-white font-mono font-bold text-xs shadow-xs`}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
   );
 };
 
-// ── Main ReviewQueue Component ──────────────────────────────────────────────
+// ── Props Interface ────────────────────────────────────────────────────────
 interface ReviewQueueProps {
   items: ReviewQueueItem[];
   activities: Activity[];
-  onApprove: (proposalId: string, selectedActivityId?: string, comment?: string) => void;
-  onReject: (proposalId: string, reason?: string) => void;
-  onOverride: (proposalId: string, newActivityId: string, comment?: string) => void;
+  onApprove: (proposalId: string, comment?: string) => Promise<void>;
+  onReject: (proposalId: string, reason?: string) => Promise<void>;
+  onOverride: (proposalId: string, newActivityId: string, comment?: string) => Promise<void>;
 }
 
-export const ReviewQueue: React.FC<ReviewQueueProps> = ({ 
-  items, 
-  activities, 
-  onApprove, 
-  onReject, 
-  onOverride 
+export const ReviewQueue: React.FC<ReviewQueueProps> = ({
+  items,
+  activities,
+  onApprove,
+  onReject,
+  onOverride,
 }) => {
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(items.length > 0 ? items[0].proposal.id : null);
-  const [filters, setFilters] = useState<ReviewQueueFilters>({ discipline: 'ALL', matchTier: 'ALL', sortBy: 'confidence_desc', searchQuery: '' });
+  // State
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(items[0]?.proposal.id || null);
+  const [filters, setFilters] = useState<ReviewQueueFilters>({
+    discipline: 'ALL',
+    minConfidence: 0,
+    searchQuery: '',
+    sortBy: 'confidence_desc',
+  });
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set());
   const [commentText, setCommentText] = useState('');
-  const [rejectReason, setRejectReason] = useState('');
   const [showOverridePanel, setShowOverridePanel] = useState(false);
   const [selectedOverrideActivityId, setSelectedOverrideActivityId] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set());
-  const [batchMode, setBatchMode] = useState(false);
   
-  // Confirmation modal state
+  // Toast notifications
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const addToast = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+    const id = `toast-${Date.now()}`;
+    setToasts(prev => [...prev, { id, type, title, message, timestamp: new Date().toISOString() }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
+  const dismissToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Confirm Modal state
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -127,139 +150,143 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
     confirmLabel: string;
     confirmColor: string;
     onConfirm: () => void;
-  }>({ isOpen: false, title: '', description: '', confirmLabel: '', confirmColor: '', onConfirm: () => {} });
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmLabel: '',
+    confirmColor: '',
+    onConfirm: () => {},
+  });
+  const [rejectReason, setRejectReason] = useState('');
 
-  const addToast = useCallback((type: 'success' | 'error' | 'info', title: string, message: string) => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setToasts(prev => [...prev, { id, type, title, message }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
-  }, []);
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
-
-  // Filter & Sort
+  // Filtered and Sorted Items
   const filteredItems = useMemo(() => {
-    let result = [...items];
-
-    if (filters.discipline && filters.discipline !== 'ALL') {
-      result = result.filter(i => i.observation?.discipline === filters.discipline);
-    }
-    if (filters.matchTier && filters.matchTier !== 'ALL') {
-      result = result.filter(i => i.proposal.match_tier === filters.matchTier);
-    }
-    if (filters.searchQuery?.trim()) {
-      const q = filters.searchQuery.toLowerCase();
-      result = result.filter(i => 
-        i.observation?.raw_text.toLowerCase().includes(q) ||
-        i.activity?.name.toLowerCase().includes(q) ||
-        i.activity?.code.toLowerCase().includes(q) ||
-        i.proposal.explanation?.toLowerCase().includes(q)
-      );
-    }
-
-    result.sort((a, b) => {
-      switch (filters.sortBy) {
-        case 'confidence_asc':
-          return a.proposal.confidence_score - b.proposal.confidence_score;
-        case 'confidence_desc':
-          return b.proposal.confidence_score - a.proposal.confidence_score;
-        case 'date_asc':
-          return new Date(a.proposal.created_at).getTime() - new Date(b.proposal.created_at).getTime();
-        case 'date_desc':
-        default:
-          return new Date(b.proposal.created_at).getTime() - new Date(a.proposal.created_at).getTime();
+    return items.filter(item => {
+      if (filters.discipline !== 'ALL' && item.observation?.discipline !== filters.discipline) {
+        return false;
       }
+      if (filters.minConfidence !== undefined && item.proposal.confidence_score * 100 < filters.minConfidence) {
+        return false;
+      }
+      if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        const rawMatch = item.observation?.raw_text?.toLowerCase().includes(query);
+        const codeMatch = item.activity?.code.toLowerCase().includes(query);
+        const nameMatch = item.activity?.name.toLowerCase().includes(query);
+        if (!rawMatch && !codeMatch && !nameMatch) return false;
+      }
+      return true;
+    }).sort((a, b) => {
+      if (filters.sortBy === 'confidence_desc') {
+        return b.proposal.confidence_score - a.proposal.confidence_score;
+      }
+      if (filters.sortBy === 'confidence_asc') {
+        return a.proposal.confidence_score - b.proposal.confidence_score;
+      }
+      return new Date(b.proposal.created_at).getTime() - new Date(a.proposal.created_at).getTime();
     });
-
-    return result;
   }, [items, filters]);
+
+  // Anime.js entrance animation on items
+  useEffect(() => {
+    if (filteredItems.length > 0) {
+      animateStaggerEntrance('.queue-item-card', { stagger: 40 });
+    }
+  }, [filteredItems.length]);
 
   const selectedItem = useMemo(() => {
     return items.find(i => i.proposal.id === selectedItemId) || filteredItems[0] || null;
   }, [items, selectedItemId, filteredItems]);
 
-  // Actions
-  const handleApprove = (item: ReviewQueueItem) => {
-    onApprove(item.proposal.id, item.activity?.id, commentText);
-    addToast('success', 'Proposal Approved', `Matched ${item.activity?.code} committed to event ledger.`);
-    setCommentText('');
-    advanceSelection(item.proposal.id);
-  };
-
-  const handleRejectPrompt = (item: ReviewQueueItem) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Reject Match Proposal',
-      description: 'Please specify the engineering or scheduling rationale for rejecting this proposal. The observation will remain in the unmatched queue.',
-      confirmLabel: 'Confirm Rejection',
-      confirmColor: 'bg-rose-600 hover:bg-rose-700',
-      onConfirm: () => {
-        if (!rejectReason.trim()) {
-          addToast('error', 'Reason Required', 'A rejection reason is mandatory.');
-          return;
-        }
-        onReject(item.proposal.id, rejectReason);
-        addToast('error', 'Proposal Rejected', `Proposal ${item.proposal.id} was rejected.`);
-        setRejectReason('');
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        advanceSelection(item.proposal.id);
-      }
-    });
-  };
-
-  const handleOverridePrompt = (item: ReviewQueueItem) => {
-    if (!selectedOverrideActivityId) {
-      addToast('error', 'Selection Required', 'Please choose an alternate target activity.');
-      return;
-    }
-    const targetAct = activities.find(a => a.id === selectedOverrideActivityId);
-    setConfirmModal({
-      isOpen: true,
-      title: 'Override Proposed Activity',
-      description: `Re-map observation to ${targetAct?.code} (${targetAct?.name})? This will generate a human-override audit record.`,
-      confirmLabel: 'Apply Override',
-      confirmColor: 'bg-amber-600 hover:bg-amber-700',
-      onConfirm: () => {
-        onOverride(item.proposal.id, selectedOverrideActivityId, commentText);
-        addToast('info', 'Proposal Overridden', `Observation re-linked to ${targetAct?.code}.`);
-        setShowOverridePanel(false);
-        setSelectedOverrideActivityId(null);
-        setCommentText('');
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        advanceSelection(item.proposal.id);
-      }
-    });
-  };
-
-  const handleBatchApprove = () => {
-    if (selectedForBatch.size === 0) return;
-    setConfirmModal({
-      isOpen: true,
-      title: `Batch Approve ${selectedForBatch.size} Proposals`,
-      description: `Are you sure you want to approve all ${selectedForBatch.size} selected proposals? All associated events will be verified and written to the event ledger.`,
-      confirmLabel: `Approve ${selectedForBatch.size} Proposals`,
-      confirmColor: 'bg-emerald-600 hover:bg-emerald-700',
-      onConfirm: () => {
-        selectedForBatch.forEach(id => {
-          onApprove(id);
-        });
-        addToast('success', 'Batch Approval Complete', `${selectedForBatch.size} proposals committed.`);
-        setSelectedForBatch(new Set());
-        setBatchMode(false);
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-      }
-    });
-  };
-
-  const advanceSelection = (currentId: string) => {
+  const advanceSelection = useCallback((currentId: string) => {
     const remaining = filteredItems.filter(i => i.proposal.id !== currentId);
     if (remaining.length > 0) {
       setSelectedItemId(remaining[0].proposal.id);
     } else {
       setSelectedItemId(null);
     }
+  }, [filteredItems]);
+
+  // Actions
+  const handleApprove = useCallback(async (item: ReviewQueueItem) => {
+    try {
+      await onApprove(item.proposal.id, commentText);
+      addToast(
+        'success',
+        'Proposal Approved',
+        `Reconciled with ${item.activity?.code || 'activity'}. Status updated to IN_PROGRESS/COMPLETED.`
+      );
+      setCommentText('');
+      advanceSelection(item.proposal.id);
+    } catch {
+      addToast('error', 'Approval Failed', 'Unable to commit state update to Trust Plane ledger.');
+    }
+  }, [onApprove, commentText, advanceSelection]);
+
+  const handleRejectPrompt = (item: ReviewQueueItem) => {
+    setRejectReason('');
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reject Match Proposal',
+      description: 'Are you sure you want to reject this AI candidate match? An audit record will be logged with your reason.',
+      confirmLabel: 'Confirm Rejection',
+      confirmColor: 'bg-rose-600 hover:bg-rose-700',
+      onConfirm: async () => {
+        try {
+          await onReject(item.proposal.id, rejectReason || 'Rejected by Lead Planner');
+          addToast('info', 'Proposal Rejected', `Proposal ${item.proposal.id.slice(0, 8)} marked as REJECTED in ledger.`);
+          advanceSelection(item.proposal.id);
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        } catch {
+          addToast('error', 'Rejection Failed', 'Network or validation error occurred.');
+        }
+      }
+    });
+  };
+
+  const handleOverridePrompt = async (item: ReviewQueueItem) => {
+    if (!selectedOverrideActivityId) {
+      addToast('error', 'Select Activity', 'Please select a valid alternate schedule activity from the list.');
+      return;
+    }
+    try {
+      await onOverride(item.proposal.id, selectedOverrideActivityId, commentText || 'Lead Planner manual target override');
+      const overriddenAct = activities.find(a => a.id === selectedOverrideActivityId);
+      addToast(
+        'success',
+        'Match Overridden',
+        `Linked observation to ${overriddenAct?.code || 'new activity'} and committed actual progress.`
+      );
+      setShowOverridePanel(false);
+      setSelectedOverrideActivityId(null);
+      setCommentText('');
+      advanceSelection(item.proposal.id);
+    } catch {
+      addToast('error', 'Override Failed', 'Could not apply manual schedule link.');
+    }
+  };
+
+  const handleBatchApprove = () => {
+    const count = selectedForBatch.size;
+    if (count === 0) return;
+
+    setConfirmModal({
+      isOpen: true,
+      title: `Batch Approve ${count} Proposals`,
+      description: `You are about to commit ${count} AI match proposals into the active schedule baseline simultaneously.`,
+      confirmLabel: `Approve All (${count})`,
+      confirmColor: 'bg-emerald-600 hover:bg-emerald-700',
+      onConfirm: async () => {
+        for (const id of selectedForBatch) {
+          await onApprove(id, 'Batch Approved by Lead Planner');
+        }
+        addToast('success', 'Batch Approved', `Successfully committed ${count} proposals into immutable event ledger.`);
+        setSelectedForBatch(new Set());
+        setBatchMode(false);
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   return (
@@ -274,9 +301,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="signal-tick bg-amber-500" />
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-amber-700">
-              Human-in-the-Loop Gateway
-            </span>
+            <Badge variant="warning">HUMAN-IN-THE-LOOP GATEWAY</Badge>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 leading-none">
             Planner Review Queue
@@ -289,45 +314,48 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
         <div className="flex items-center gap-2">
           {batchMode ? (
             <div className="flex items-center gap-2 bg-slate-100 p-1 rounded border border-slate-200">
-              <button
+              <Button
                 onClick={handleBatchApprove}
                 disabled={selectedForBatch.size === 0}
-                className="px-3 py-1.5 rounded bg-emerald-600 text-white text-xs font-bold font-mono hover:bg-emerald-700 disabled:opacity-50 transition"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 Approve Selected ({selectedForBatch.size})
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => { setBatchMode(false); setSelectedForBatch(new Set()); }}
-                className="px-2.5 py-1.5 rounded text-xs font-mono text-slate-600 hover:text-slate-900"
+                variant="ghost"
+                size="sm"
               >
                 Exit Batch
-              </button>
+              </Button>
             </div>
           ) : (
-            <button
+            <Button
               onClick={() => setBatchMode(true)}
-              className="px-3 py-2 rounded bg-white border border-slate-300 text-xs font-mono font-medium text-slate-700 hover:bg-slate-50 transition"
+              variant="outline"
+              size="sm"
             >
               Enable Batch Mode
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {/* Main Review Console Grid */}
       {items.length === 0 ? (
-        <div className="glass-panel p-12 text-center">
+        <Card className="p-12 text-center">
           <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
           <h3 className="text-base font-bold text-slate-900">Review Queue Clear</h3>
           <p className="text-xs text-slate-500 font-mono mt-1">All field observations have been reconciled and committed to the schedule.</p>
-        </div>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* Left: Queue List */}
           <div className="lg:col-span-4 space-y-3">
             {/* Search & Filter Bar */}
-            <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-2">
+            <Card className="p-3 space-y-2">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 <input
@@ -335,7 +363,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                   placeholder="Filter queue by text or tag..."
                   value={filters.searchQuery}
                   onChange={(e) => setFilters(f => ({ ...f, searchQuery: e.target.value }))}
-                  className="w-full pl-8 pr-3 py-1.5 rounded border border-slate-200 text-xs font-mono placeholder-slate-400 focus:outline-none focus:border-[#C38B4B]"
+                  className="w-full pl-8 pr-3 py-1.5 rounded border border-slate-200 text-xs font-mono placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
                 />
               </div>
 
@@ -344,16 +372,16 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                 <select
                   value={filters.sortBy}
                   onChange={(e) => setFilters(f => ({ ...f, sortBy: e.target.value as any }))}
-                  className="bg-transparent font-mono text-slate-700 font-semibold focus:outline-none"
+                  className="bg-transparent font-mono text-slate-700 font-semibold focus:outline-hidden"
                 >
                   <option value="confidence_desc">Highest Conf</option>
                   <option value="confidence_asc">Lowest Conf</option>
                   <option value="date_desc">Newest First</option>
                 </select>
               </div>
-            </div>
+            </Card>
 
-            {/* Proposals List */}
+            {/* Proposals List with Anime.js Card Entrance */}
             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
               {filteredItems.map(({ proposal, observation, activity }) => {
                 const isSelected = selectedItem?.proposal.id === proposal.id;
@@ -364,7 +392,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                   <div
                     key={proposal.id}
                     onClick={() => setSelectedItemId(proposal.id)}
-                    className={`p-3.5 rounded-lg border transition cursor-pointer relative ${
+                    className={`queue-item-card p-3.5 rounded-lg border transition cursor-pointer relative ${
                       isSelected 
                         ? 'bg-white border-[#C38B4B] shadow-xs ring-1 ring-[#C38B4B]' 
                         : 'bg-white border-slate-200 hover:border-slate-300'
@@ -388,13 +416,9 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                         )}
                         <span className="font-mono font-bold text-xs text-slate-900">{activity?.code || 'UNMATCHED'}</span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
-                        confPct >= 85 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        confPct >= 70 ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                        'bg-rose-50 text-rose-700 border-rose-200'
-                      }`}>
+                      <Badge variant={confPct >= 85 ? 'success' : confPct >= 70 ? 'warning' : 'destructive'}>
                         {confPct}% Conf.
-                      </span>
+                      </Badge>
                     </div>
 
                     <p className="text-xs text-slate-600 font-sans line-clamp-2 mb-2">
@@ -416,7 +440,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
             <div className="lg:col-span-8 space-y-6">
               
               {/* Proposal Card */}
-              <div className="glass-card p-6 space-y-6">
+              <Card className="p-6 space-y-6">
                 
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-200">
@@ -425,14 +449,14 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                       <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Proposal ID:</span>
                       <span className="font-mono text-xs font-bold text-slate-900">{selectedItem.proposal.id}</span>
                     </div>
-                    <h2 className="text-lg font-bold text-slate-900 mt-1">
+                    <CardTitle className="text-lg font-bold text-slate-900 mt-1">
                       Proposed Match: {selectedItem.activity?.name}
-                    </h2>
+                    </CardTitle>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 text-xs font-mono font-bold">
+                    <Badge variant="warning" className="text-xs">
                       {Math.round(selectedItem.proposal.confidence_score * 100)}% Confidence
-                    </span>
+                    </Badge>
                   </div>
                 </div>
 
@@ -448,53 +472,57 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                     </p>
                     <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500 pt-1">
                       <Tag className="h-3 w-3" />
-                      <span>Discipline: {selectedItem.observation?.discipline}</span>
-                      <span>•</span>
-                      <span>Reported: {selectedItem.observation?.reported_progress ?? 100}%</span>
+                      <span>{selectedItem.observation?.discipline || 'GENERAL'} &bull; {selectedItem.observation?.location || 'Zone 2'}</span>
                     </div>
                   </div>
 
-                  {/* Target Activity */}
-                  <div className="p-4 rounded-lg bg-blue-50/40 border border-blue-100 space-y-2">
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-700 block">
-                      Target Schedule Activity
+                  {/* Proposed Activity Target */}
+                  <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 block">
+                      Schedule Baseline Activity
                     </span>
-                    <div className="bg-white p-3 rounded border border-blue-200 space-y-1 text-xs font-mono">
-                      <div className="font-bold text-slate-900">{selectedItem.activity?.code}</div>
-                      <div className="text-slate-600 font-sans text-xs">{selectedItem.activity?.name}</div>
-                      <div className="text-[11px] text-slate-500 pt-1">
-                        Planned: {selectedItem.activity?.planned_start_date} → {selectedItem.activity?.planned_finish_date}
+                    <div className="bg-white p-3 rounded border border-slate-200 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="font-mono font-bold text-xs text-slate-900">{selectedItem.activity?.code}</span>
+                        <span className="text-[10px] font-mono text-slate-500">{selectedItem.activity?.discipline}</span>
                       </div>
-                    </div>
-                    <div className="text-[11px] font-mono text-blue-800 pt-1">
-                      <span>Explanation: {selectedItem.proposal.explanation || 'Semantic embedding overlap with equipment tags.'}</span>
+                      <p className="text-xs font-medium text-slate-800">{selectedItem.activity?.name}</p>
+                      <div className="flex justify-between text-[10px] font-mono text-slate-500 pt-1">
+                        <span>Planned: {selectedItem.activity?.planned_start_date}</span>
+                        <span>Quantity: {selectedItem.activity?.planned_quantity} {selectedItem.activity?.unit_of_measure}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Score Breakdown Bars */}
-                <div className="p-4 rounded-lg border border-slate-200 bg-white space-y-3">
+                {/* AI Reasoning & Similarity Scores */}
+                <div className="p-4 rounded-lg bg-slate-50/70 border border-slate-200 space-y-3">
                   <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 block">
-                    Confidence Score Decomposition
+                    AI Semantic & Lexical Match Reasoning
                   </span>
-                  <div className="grid grid-cols-3 gap-4 text-xs font-mono">
+                  <p className="text-xs font-mono text-slate-700 bg-white p-3 rounded border border-slate-200">
+                    {selectedItem.proposal.explanation || 'Semantic vector similarity on WBS keywords with positive discipline overlap.'}
+                  </p>
+                  
+                  {/* Score Breakdown Bars */}
+                  <div className="grid grid-cols-3 gap-3 font-mono text-[11px]">
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span className="text-slate-500">Lexical:</span>
-                        <span className="font-bold">{Math.round((selectedItem.proposal.lexical_score || 0.75) * 100)}%</span>
+                        <span className="text-slate-500">Vector Embeddings:</span>
+                        <span className="font-bold">{Math.round((selectedItem.proposal.semantic_score || 0.78) * 100)}%</span>
                       </div>
                       <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-slate-700 h-full rounded-full" style={{ width: `${(selectedItem.proposal.lexical_score || 0.75) * 100}%` }} />
+                        <div className="bg-purple-600 h-full rounded-full" style={{ width: `${(selectedItem.proposal.semantic_score || 0.78) * 100}%` }} />
                       </div>
                     </div>
 
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span className="text-slate-500">Semantic:</span>
-                        <span className="font-bold">{Math.round((selectedItem.proposal.semantic_score || 0.82) * 100)}%</span>
+                        <span className="text-slate-500">Lexical Overlap:</span>
+                        <span className="font-bold">{Math.round((selectedItem.proposal.lexical_score || 0.72) * 100)}%</span>
                       </div>
                       <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-blue-600 h-full rounded-full" style={{ width: `${(selectedItem.proposal.semantic_score || 0.82) * 100}%` }} />
+                        <div className="bg-blue-600 h-full rounded-full" style={{ width: `${(selectedItem.proposal.lexical_score || 0.72) * 100}%` }} />
                       </div>
                     </div>
 
@@ -546,7 +574,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                     placeholder="e.g. Verified with QA/QC test pack signoff on site."
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
-                    className="w-full p-2.5 rounded border border-slate-300 text-xs font-mono text-slate-900 focus:outline-none focus:border-[#C38B4B]"
+                    className="w-full p-2.5 rounded border border-slate-300 text-xs font-mono text-slate-900 focus:outline-hidden focus:border-[#C38B4B]"
                   />
 
                   {showOverridePanel && (
@@ -569,50 +597,55 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                           </option>
                         ))}
                       </select>
-                      <button
+                      <Button
                         onClick={() => handleOverridePrompt(selectedItem)}
-                        className="w-full py-2 rounded bg-amber-600 text-white font-mono font-bold text-xs hover:bg-amber-700 transition"
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white font-mono font-bold text-xs"
                       >
                         Commit Override to Ledger
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
 
                 {/* Decision Actions Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200">
-                  <button
+                  <Button
                     onClick={() => handleRejectPrompt(selectedItem)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded bg-rose-50 text-rose-700 border border-rose-200 text-xs font-mono font-bold hover:bg-rose-100 transition"
+                    variant="destructive"
+                    size="default"
+                    className="flex items-center gap-1.5"
                   >
                     <XCircle className="h-3.5 w-3.5" />
                     <span>Reject Proposal</span>
-                  </button>
+                  </Button>
 
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button
                       onClick={() => setShowOverridePanel(!showOverridePanel)}
-                      className="px-4 py-2 rounded bg-white text-slate-700 border border-slate-300 text-xs font-mono font-medium hover:bg-slate-50 transition"
+                      variant="outline"
+                      size="default"
                     >
                       Override Match
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={() => handleApprove(selectedItem)}
-                      className="flex items-center gap-1.5 px-5 py-2 rounded bg-slate-900 text-white text-xs font-mono font-bold hover:bg-slate-800 transition shadow-xs"
+                      variant="default"
+                      size="default"
+                      className="flex items-center gap-1.5"
                     >
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                       <span>Approve & Commit</span>
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
-              </div>
+              </Card>
 
             </div>
           ) : (
-            <div className="lg:col-span-8 glass-card p-12 text-center">
+            <Card className="lg:col-span-8 p-12 text-center">
               <p className="text-xs font-mono text-slate-500">Select an item from the queue on the left to review details.</p>
-            </div>
+            </Card>
           )}
 
         </div>
@@ -634,7 +667,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             rows={3}
-            className="w-full p-2.5 rounded border border-slate-300 text-xs font-mono focus:border-rose-500 focus:outline-none"
+            className="w-full p-2.5 rounded border border-slate-300 text-xs font-mono focus:border-rose-500 focus:outline-hidden"
           />
         )}
       </ConfirmModal>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   ArrowUpDown,
@@ -12,6 +12,10 @@ import {
 } from 'lucide-react';
 import type { ActivityWithState } from '../types';
 import { ActivityDrawer } from '../components/ActivityDrawer';
+import { animateStaggerEntrance } from '../lib/animations';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Card } from '../components/ui/card';
 
 interface ScheduleExplorerProps {
   activities: ActivityWithState[];
@@ -37,7 +41,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
   }, [activities]);
 
   const filtered = useMemo(() => {
-    let result = activities.filter(item => {
+    const result = activities.filter(item => {
       const matchesDisc = selectedDiscipline === 'ALL' || item.activity.discipline === selectedDiscipline;
       const status = item.state?.execution_status || 'NOT_STARTED';
       const matchesStatus = selectedStatus === 'ALL' || status === selectedStatus;
@@ -74,6 +78,13 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
     return result;
   }, [activities, selectedDiscipline, selectedStatus, searchQuery, sortField, sortAsc]);
 
+  // Anime.js entrance animation on table / gantt rows
+  useEffect(() => {
+    if (filtered.length > 0) {
+      animateStaggerEntrance('.schedule-row-item', { stagger: 25 });
+    }
+  }, [filtered.length, viewMode]);
+
   const toggleSort = (field: 'code' | 'progress' | 'planned_start_date' | 'variance') => {
     if (sortField === field) {
       setSortAsc(!sortAsc);
@@ -83,170 +94,162 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
     }
   };
 
-  // Timeline Date calculations (August 1 to September 30, 2026 = 61 days)
-  const timelineStart = new Date('2026-08-01T00:00:00Z').getTime();
-  const timelineEnd = new Date('2026-09-30T00:00:00Z').getTime();
-  const totalDays = (timelineEnd - timelineStart) / (1000 * 60 * 60 * 24);
-
+  // Helper to map dates to Gantt timeline percentage (August 1 to September 30 = 60 days)
   const getTimelineLeftPercent = (dateStr: string) => {
-    const d = new Date(dateStr).getTime();
-    const diff = Math.max(0, d - timelineStart) / (1000 * 60 * 60 * 24);
-    return (diff / totalDays) * 100;
+    const baseDate = new Date('2026-08-01').getTime();
+    const targetDate = new Date(dateStr).getTime();
+    const totalSpan = 60 * 24 * 60 * 60 * 1000; // 60 days
+    const diff = Math.max(0, targetDate - baseDate);
+    return Math.min(100, Math.max(0, (diff / totalSpan) * 100));
   };
 
   const getTimelineWidthPercent = (startStr: string, finishStr: string) => {
-    const s = new Date(startStr).getTime();
-    const f = new Date(finishStr).getTime();
-    const durationDays = Math.max(1, (f - s) / (1000 * 60 * 60 * 24));
-    return (durationDays / totalDays) * 100;
+    const start = new Date(startStr).getTime();
+    const finish = new Date(finishStr).getTime();
+    const totalSpan = 60 * 24 * 60 * 60 * 1000;
+    const diff = Math.max(24 * 60 * 60 * 1000, finish - start);
+    return Math.min(100, Math.max(3, (diff / totalSpan) * 100));
   };
 
   return (
-    <div className="space-y-6 pb-10">
-      {/* Header & View Mode Switcher */}
+    <div className="space-y-8 pb-10">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="signal-tick bg-blue-500" />
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-500">
-              Work Breakdown Structure (WBS)
-            </span>
+            <Badge variant="secondary">WBS HIERARCHY & TIMELINE</Badge>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 leading-none">
-            Project Explorer & Gantt
+            Schedule & Activity Explorer
           </h1>
           <p className="mt-2 text-sm text-slate-600 max-w-[65ch]">
-            Inspect L5 engineering work packages with verified actual progress, baseline dates, critical path constraints, and direct evidence linkage.
+            Interactive Critical Path Method (CPM) network visualizer and actualization ledger. Review physical progress against Oracle Primavera P6 baseline dates.
           </p>
         </div>
 
-        {/* View Mode Toggle Button */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-mono">
-          <button
+        {/* View Switcher Tabs */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+          <Button
             onClick={() => setViewMode('gantt')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer ${
-              viewMode === 'gantt' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
+            variant={viewMode === 'gantt' ? 'default' : 'ghost'}
+            size="sm"
+            className="flex items-center gap-1.5"
           >
-            <Calendar className="h-3.5 w-3.5 text-[#C38B4B]" />
-            <span>Interactive Gantt</span>
-          </button>
-
-          <button
+            <Calendar className="h-3.5 w-3.5" />
+            <span>Gantt Chart</span>
+          </Button>
+          <Button
             onClick={() => setViewMode('table')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer ${
-              viewMode === 'table' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
+            variant={viewMode === 'table' ? 'default' : 'ghost'}
+            size="sm"
+            className="flex items-center gap-1.5"
           >
             <List className="h-3.5 w-3.5" />
             <span>Table Ledger</span>
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="glass-card p-4">
-          <div className="flex justify-between items-center text-[10px] font-mono uppercase text-slate-500">
-            <span>Completed</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-slate-900">{summary.completed} / {summary.total}</div>
-          <div className="text-[10px] font-mono text-emerald-600 mt-1">100% physically done</div>
-        </div>
-
-        <div className="glass-card p-4">
-          <div className="flex justify-between items-center text-[10px] font-mono uppercase text-slate-500">
-            <span>In Progress</span>
-            <Clock className="h-4 w-4 text-blue-500" />
-          </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-slate-900">{summary.inProgress}</div>
-          <div className="text-[10px] font-mono text-blue-600 mt-1">Active site execution</div>
-        </div>
-
-        <div className="glass-card p-4">
-          <div className="flex justify-between items-center text-[10px] font-mono uppercase text-slate-500">
-            <span>Critical Path</span>
-            <Flame className="h-4 w-4 text-amber-500" />
-          </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-slate-900">{summary.criticalPath}</div>
-          <div className="text-[10px] font-mono text-amber-600 mt-1">Zero float tolerance</div>
-        </div>
-
-        <div className="glass-card p-4">
-          <div className="flex justify-between items-center text-[10px] font-mono uppercase text-slate-500">
-            <span>Schedule Variance</span>
-            <AlertTriangle className="h-4 w-4 text-slate-400" />
-          </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-slate-900">{summary.delayed}</div>
-          <div className="text-[10px] font-mono text-slate-500 mt-1">Activities with delay</div>
-        </div>
+      {/* Summary KPI Pills */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <Card className="p-3">
+          <span className="text-[10px] font-mono text-slate-500 uppercase block font-semibold">Total Scope</span>
+          <span className="text-xl font-bold font-mono text-slate-900">{summary.total} Activities</span>
+        </Card>
+        <Card className="p-3">
+          <span className="text-[10px] font-mono text-emerald-600 uppercase block font-semibold flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            Completed
+          </span>
+          <span className="text-xl font-bold font-mono text-emerald-700">{summary.completed} Items</span>
+        </Card>
+        <Card className="p-3">
+          <span className="text-[10px] font-mono text-blue-600 uppercase block font-semibold flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            In Progress
+          </span>
+          <span className="text-xl font-bold font-mono text-blue-700">{summary.inProgress} Items</span>
+        </Card>
+        <Card className="p-3">
+          <span className="text-[10px] font-mono text-amber-600 uppercase block font-semibold flex items-center gap-1">
+            <Flame className="h-3 w-3" />
+            Critical Path
+          </span>
+          <span className="text-xl font-bold font-mono text-amber-700">{summary.criticalPath} Items</span>
+        </Card>
+        <Card className="p-3">
+          <span className="text-[10px] font-mono text-rose-600 uppercase block font-semibold flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            Variance / Delay
+          </span>
+          <span className="text-xl font-bold font-mono text-rose-700">{summary.delayed} Items</span>
+        </Card>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="glass-card p-4 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search code, title, tag (e.g. PIP-2401, P-101)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:border-[#C38B4B] font-mono"
-            />
-          </div>
+      {/* Filter and Search Bar */}
+      <Card className="p-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search activity code, name, tag, or area..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 rounded border border-slate-200 text-xs font-mono bg-white placeholder-slate-400 focus:outline-hidden focus:border-[#C38B4B]"
+          />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Discipline Filters */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-mono">
-            {['ALL', 'PIPING', 'CIVIL', 'ELECTRICAL'].map(d => (
-              <button
-                key={d}
-                onClick={() => setSelectedDiscipline(d)}
-                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                  selectedDiscipline === d ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {d}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="text-slate-500">Discipline:</span>
+            <select
+              value={selectedDiscipline}
+              onChange={(e) => setSelectedDiscipline(e.target.value)}
+              className="rounded border border-slate-200 bg-white py-1 px-2.5 text-xs font-mono text-slate-700 focus:outline-hidden focus:border-[#C38B4B]"
+            >
+              <option value="ALL">All Disciplines</option>
+              <option value="CIVIL">Civil</option>
+              <option value="PIPING">Piping</option>
+              <option value="ELECTRICAL">Electrical</option>
+              <option value="MECHANICAL">Mechanical</option>
+            </select>
           </div>
 
-          {/* Status Filters */}
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700 focus:outline-none"
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="NOT_STARTED">Not Started</option>
-          </select>
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="text-slate-500">Status:</span>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="rounded border border-slate-200 bg-white py-1 px-2.5 text-xs font-mono text-slate-700 focus:outline-hidden focus:border-[#C38B4B]"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="NOT_STARTED">Not Started</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="COMPLETED">Completed</option>
+            </select>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* GANTT TIMELINE VIEW */}
       {viewMode === 'gantt' && (
-        <div className="glass-card overflow-hidden shadow-sm">
-          {/* Timeline Header */}
-          <div className="grid grid-cols-12 bg-slate-100 border-b border-slate-200 font-mono text-[11px] font-bold text-slate-700 py-2.5 px-4">
-            <div className="col-span-4 border-r border-slate-200 pr-4">Activity Code & Work Package</div>
-            <div className="col-span-8 pl-4 flex justify-between text-slate-500">
-              <span>01-Aug</span>
+        <Card className="overflow-hidden">
+          {/* Timeline Header Header Bar */}
+          <div className="grid grid-cols-12 bg-slate-100 border-b border-slate-200 py-2.5 px-4 text-[10px] font-mono font-bold uppercase text-slate-600">
+            <div className="col-span-4 border-r border-slate-200 pr-2">WBS Activity Scope</div>
+            <div className="col-span-8 pl-4 grid grid-cols-4 text-center">
+              <span>01-Aug (Start)</span>
               <span>15-Aug</span>
-              <span className="text-emerald-700 font-bold">Today (01-Sep)</span>
-              <span>15-Sep</span>
-              <span>30-Sep</span>
+              <span>01-Sep</span>
+              <span>30-Sep (Target)</span>
             </div>
           </div>
 
-          {/* Gantt Rows */}
-          <div className="divide-y divide-slate-100">
+          {/* Activity Rows */}
+          <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
             {filtered.length === 0 ? (
-              <div className="p-8 text-center text-xs font-mono text-slate-400">
+              <div className="p-8 text-center text-xs font-mono text-slate-500">
                 No activities match the current filters.
               </div>
             ) : (
@@ -260,7 +263,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                   <div
                     key={activity.id}
                     onClick={() => setSelectedActivity(item)}
-                    className="grid grid-cols-12 py-3 px-4 hover:bg-slate-50/80 transition cursor-pointer items-center group"
+                    className="schedule-row-item grid grid-cols-12 py-3 px-4 hover:bg-slate-50/80 transition cursor-pointer items-center group"
                   >
                     {/* Left Column: Code & Name */}
                     <div className="col-span-4 border-r border-slate-100 pr-4 truncate">
@@ -269,9 +272,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Critical Path" />
                         )}
                         <span className="font-mono text-xs font-bold text-slate-900">{activity.code}</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                          {activity.discipline}
-                        </span>
+                        <Badge variant="secondary">{activity.discipline}</Badge>
                       </div>
                       <div className="text-xs text-slate-600 truncate mt-0.5" title={activity.name}>
                         {activity.name}
@@ -320,12 +321,12 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
               })
             )}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* TABLE LEDGER VIEW */}
       {viewMode === 'table' && (
-        <div className="glass-card overflow-hidden shadow-sm">
+        <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono whitespace-nowrap">
               <thead className="bg-slate-100 border-b border-slate-200 text-[10px] uppercase text-slate-600">
@@ -351,107 +352,78 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                       <ArrowUpDown className="h-3 w-3" />
                     </div>
                   </th>
-                  <th className="py-3 px-4 text-right">Details</th>
+                  <th className="py-3 px-4 text-center">Critical</th>
+                  <th className="py-3 px-4 text-center">Inspect</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
-                      No activities match the specified filter criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((item) => {
-                    const { activity, state } = item;
-                    const status = state?.execution_status || 'NOT_STARTED';
-                    const progress = state?.current_progress_pct || 0;
-                    
-                    const statusBadge = 
-                      status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                      status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                      status === 'DELAYED' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                      'bg-slate-100 text-slate-600 border-slate-200';
+                {filtered.map((item) => {
+                  const { activity, state } = item;
+                  const progress = state?.current_progress_pct || 0;
+                  const status = state?.execution_status || 'NOT_STARTED';
 
-                    return (
-                      <tr 
-                        key={activity.id} 
-                        onClick={() => setSelectedActivity(item)}
-                        className="hover:bg-slate-50 cursor-pointer transition"
-                      >
-                        {/* Code */}
-                        <td className="py-3 px-4 font-bold text-slate-900">
-                          <div className="flex items-center space-x-2">
-                            {activity.critical_path && (
-                              <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" title="Critical Path Activity" />
-                            )}
-                            <span>{activity.code}</span>
+                  return (
+                    <tr
+                      key={activity.id}
+                      onClick={() => setSelectedActivity(item)}
+                      className="schedule-row-item hover:bg-slate-50 transition cursor-pointer"
+                    >
+                      <td className="py-3 px-4 font-bold text-slate-900">{activity.code}</td>
+                      <td className="py-3 px-4 max-w-xs truncate">{activity.name}</td>
+                      <td className="py-3 px-4">
+                        <Badge variant="secondary">{activity.discipline}</Badge>
+                      </td>
+                      <td className="py-3 px-4 text-slate-500">
+                        {activity.planned_start_date} → {activity.planned_finish_date}
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge variant={status === 'COMPLETED' ? 'success' : status === 'IN_PROGRESS' ? 'warning' : 'outline'}>
+                          {status}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${progress === 100 ? 'bg-emerald-500' : 'bg-cyan-500'}`}
+                              style={{ width: `${progress}%` }}
+                            />
                           </div>
-                        </td>
-
-                        {/* Name */}
-                        <td className="py-3 px-4 font-sans max-w-sm">
-                          <div className="font-semibold text-slate-900 truncate">{activity.name}</div>
-                          <div className="text-[11px] font-mono text-slate-400 truncate">{activity.location || 'Pipe Rack B'} • {activity.equipment_tag || 'Standard Package'}</div>
-                        </td>
-
-                        {/* Discipline */}
-                        <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold">
-                            {activity.discipline}
-                          </span>
-                        </td>
-
-                        {/* Dates */}
-                        <td className="py-3 px-4 text-slate-600 text-[11px]">
-                          <div>{activity.planned_start_date}</div>
-                          <div className="text-slate-400">→ {activity.planned_finish_date}</div>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold border ${statusBadge}`}>
-                            {status}
-                          </span>
-                        </td>
-
-                        {/* Progress Bar */}
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="font-bold text-slate-900">{progress}%</span>
-                            <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full ${progress === 100 ? 'bg-emerald-500' : 'bg-blue-600'}`}
-                                style={{ width: `${progress}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Detail Button */}
-                        <td className="py-3 px-4 text-right">
-                          <button className="text-[#C38B4B] hover:text-[#a06d35] flex items-center gap-1 ml-auto font-medium">
-                            <Eye className="h-3.5 w-3.5" />
-                            <span>360°</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                          <span>{progress}%</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {activity.critical_path ? (
+                          <Badge variant="warning">YES</Badge>
+                        ) : (
+                          <span className="text-slate-400">NO</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <Button
+                          onClick={(e) => { e.stopPropagation(); setSelectedActivity(item); }}
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-slate-400 hover:text-slate-700"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Activity 360 Drawer */}
+      {/* Activity Details Drawer */}
       <ActivityDrawer
         item={selectedActivity}
-        isOpen={Boolean(selectedActivity)}
+        isOpen={!!selectedActivity}
         onClose={() => setSelectedActivity(null)}
       />
-
     </div>
   );
 };

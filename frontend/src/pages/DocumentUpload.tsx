@@ -24,6 +24,7 @@ import { uploadEvidenceFile } from '../lib/supabase';
 import { api } from '../lib/api';
 import { EvidenceDrawer } from '../components/EvidenceDrawer';
 import { generateUUIDv7 } from '../lib/idGenerator';
+import { animateStaggerEntrance } from '../lib/animations';
 
 interface DocumentUploadProps {
   observations: WorkObservation[];
@@ -103,6 +104,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
   }, [audioUrl]);
+
+  // Anime.js entrance animation on mount
+  useEffect(() => {
+    animateStaggerEntrance('.demo-preset-card', { stagger: 35 });
+  }, []);
 
   // Start in-browser microphone recording & real-time waveform visualizer
   const startRecording = async () => {
@@ -498,7 +504,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 setReportedProgress(preset.progress);
                 handleProcess(preset.text, preset);
               }}
-              className="p-3.5 rounded-lg border border-slate-200 bg-white hover:border-[#C38B4B] hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group"
+              className="demo-preset-card p-3.5 rounded-lg border border-slate-200 bg-white hover:border-[#C38B4B] hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1.5">

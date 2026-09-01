@@ -196,6 +196,7 @@ export type ReviewDecision = 'APPROVE' | 'REJECT' | 'OVERRIDE';
 export interface ReviewQueueFilters {
   discipline?: Discipline | 'ALL';
   matchTier?: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNMATCHED' | 'ALL';
+  minConfidence?: number;
   sortBy?: 'confidence_asc' | 'confidence_desc' | 'date_asc' | 'date_desc';
   searchQuery?: string;
 }
