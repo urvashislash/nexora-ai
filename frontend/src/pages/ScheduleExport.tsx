@@ -155,13 +155,13 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="signal-tick bg-[#007AFF]" />
+            <span className="signal-tick bg-blue-700" aria-hidden="true" />
             <Badge variant="secondary">Enterprise Integration Engine</Badge>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
             Schedule & Ledger Exports
           </h1>
-          <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
+          <p className="mt-1 text-xs text-slate-600 max-w-[65ch] font-sans">
             Export verified actuals to P6 or CSV.
           </p>
         </div>
@@ -174,8 +174,9 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
               variant="outline"
               size="default"
               className="flex items-center gap-2"
+              aria-label="Synchronize data with cloud database"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-[#007AFF]' : ''}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-blue-800' : ''}`} aria-hidden="true" />
               <span>{isRefreshing ? 'Syncing...' : 'Sync data'}</span>
             </Button>
           )}
@@ -185,9 +186,10 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
             disabled={isProbing}
             variant="ghost"
             size="default"
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 text-slate-700"
+            aria-label="Probe backend service health"
           >
-            <Server className={`h-3.5 w-3.5 ${isProbing ? 'animate-spin' : ''}`} />
+            <Server className={`h-3.5 w-3.5 ${isProbing ? 'animate-spin' : ''}`} aria-hidden="true" />
             <span>Check health</span>
           </Button>
         </div>
@@ -196,11 +198,11 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
       {/* Success Notification Alert */}
       {downloadSuccess && (
         <Alert variant="success">
-          <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+          <CheckCircle2 className="h-4 w-4 text-emerald-800" aria-hidden="true" />
           <AlertTitle className="text-emerald-950 font-bold text-xs">
             Export Generated
           </AlertTitle>
-          <AlertDescription className="text-xs text-emerald-900 mt-0.5 font-sans">
+          <AlertDescription className="text-xs text-emerald-950 mt-0.5 font-sans">
             {downloadSuccess}
           </AlertDescription>
         </Alert>
@@ -214,7 +216,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-700 shadow-2xs">
-                <FileCode className="h-6 w-6 text-[#C38B4B]" />
+                <FileCode className="h-6 w-6 text-amber-900" aria-hidden="true" />
               </div>
               <Badge variant="warning">ORACLE P6 XML V24</Badge>
             </div>
@@ -222,24 +224,25 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
               <CardTitle className="text-base font-bold text-slate-900 font-sans">
                 Primavera P6 XML Export
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500 font-sans mt-1 leading-relaxed">
+              <CardDescription className="text-xs text-slate-600 font-sans mt-1 leading-relaxed">
                 P6-compatible XML with updated dates, duration, and progress.
               </CardDescription>
             </div>
           </div>
 
           <div className="space-y-3 pt-3 border-t border-slate-100">
-            <div className="flex justify-between text-xs font-sans text-slate-500">
+            <div className="flex justify-between text-xs font-sans text-slate-600 font-medium">
               <span>Target Package:</span>
-              <span className="font-mono text-slate-800 font-semibold">{currentProjCode}</span>
+              <span className="font-mono text-slate-900 font-semibold">{currentProjCode}</span>
             </div>
             <Button
               onClick={handleDownloadP6XML}
               variant="default"
               size="default"
               className="w-full flex items-center justify-center gap-2"
+              aria-label={`Download Primavera P6 XML for ${currentProjCode}`}
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-4 w-4" aria-hidden="true" />
               <span>Download Primavera XML</span>
             </Button>
           </div>
@@ -250,7 +253,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-700 shadow-2xs">
-                <FileSpreadsheet className="h-6 w-6 text-[#34C759]" />
+                <FileSpreadsheet className="h-6 w-6 text-emerald-800" aria-hidden="true" />
               </div>
               <Badge variant="success">EXCEL COMPATIBLE</Badge>
             </div>
@@ -258,24 +261,25 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
               <CardTitle className="text-base font-bold text-slate-900 font-sans">
                 Schedule Actuals (CSV / XLSX)
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500 font-sans mt-1 leading-relaxed">
+              <CardDescription className="text-xs text-slate-600 font-sans mt-1 leading-relaxed">
                 CSV of activity dates, progress, and variance.
               </CardDescription>
             </div>
           </div>
 
           <div className="space-y-3 pt-3 border-t border-slate-100">
-            <div className="flex justify-between text-xs font-sans text-slate-500">
+            <div className="flex justify-between text-xs font-sans text-slate-600 font-medium">
               <span>Total Activity Rows:</span>
-              <span className="font-mono text-slate-800 font-semibold">{activities.length} Activities</span>
+              <span className="font-mono text-slate-900 font-semibold">{activities.length} Activities</span>
             </div>
             <Button
               onClick={handleDownloadCSV}
               variant="outline"
               size="default"
               className="w-full flex items-center justify-center gap-2"
+              aria-label={`Download Actuals CSV with ${activities.length} activities`}
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-4 w-4" aria-hidden="true" />
               <span>Download Actuals CSV</span>
             </Button>
           </div>
@@ -286,7 +290,7 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-700 shadow-2xs">
-                <FileAudio className="h-6 w-6 text-purple-600" />
+                <FileAudio className="h-6 w-6 text-purple-700" aria-hidden="true" />
               </div>
               <Badge variant="secondary">MULTI-MODAL LOGS</Badge>
             </div>
@@ -294,24 +298,25 @@ export const ScheduleExport: React.FC<ScheduleExportProps> = ({
               <CardTitle className="text-base font-bold text-slate-900 font-sans">
                 Raw Field Evidence Stream
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500 font-sans mt-1 leading-relaxed">
+              <CardDescription className="text-xs text-slate-600 font-sans mt-1 leading-relaxed">
                 Observations, transcripts, tags, and timestamps.
               </CardDescription>
             </div>
           </div>
 
           <div className="space-y-3 pt-3 border-t border-slate-100">
-            <div className="flex justify-between text-xs font-sans text-slate-500">
+            <div className="flex justify-between text-xs font-sans text-slate-600 font-medium">
               <span>Ingested Evidence Count:</span>
-              <span className="font-mono text-slate-800 font-semibold">{observations.length} Facts</span>
+              <span className="font-mono text-slate-900 font-semibold">{observations.length} Facts</span>
             </div>
             <Button
               onClick={handleDownloadObservationsCSV}
               variant="outline"
               size="default"
               className="w-full flex items-center justify-center gap-2"
+              aria-label={`Download Evidence Stream CSV with ${observations.length} observations`}
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-4 w-4" aria-hidden="true" />
               <span>Download Evidence CSV</span>
             </Button>
           </div>

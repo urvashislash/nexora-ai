@@ -58,7 +58,7 @@ export const SystemHealth: React.FC = () => {
       uptime: '99.98%',
       port: ':3000 / Axum',
       icon: Lock,
-      color: 'text-[#34C759]',
+      color: 'text-emerald-800',
     },
     {
       name: 'Python AI Processing Service',
@@ -68,7 +68,7 @@ export const SystemHealth: React.FC = () => {
       uptime: '99.95%',
       port: ':8000 / FastAPI',
       icon: Cpu,
-      color: 'text-[#007AFF]',
+      color: 'text-blue-800',
     },
     {
       name: 'PostgreSQL Ledger & Storage',
@@ -78,7 +78,7 @@ export const SystemHealth: React.FC = () => {
       uptime: '100.0%',
       port: ':5432 / PostgreSQL 15',
       icon: Database,
-      color: 'text-[#34C759]',
+      color: 'text-emerald-800',
     },
     {
       name: 'Evidence Object Storage',
@@ -88,7 +88,7 @@ export const SystemHealth: React.FC = () => {
       uptime: '100.0%',
       port: 'Cloudflare CDN',
       icon: HardDrive,
-      color: 'text-[#C38B4B]',
+      color: 'text-amber-900',
     }
   ];
 
@@ -98,13 +98,13 @@ export const SystemHealth: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="signal-tick bg-[#34C759]" />
+            <span className="signal-tick bg-emerald-800" aria-hidden="true" />
             <Badge variant="success">ALL SYSTEMS OPERATIONAL</Badge>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
             System & Engine Health
           </h1>
-          <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
+          <p className="mt-1 text-xs text-slate-600 max-w-[65ch] font-sans">
             Live status for the trust engine, AI service, and database.
           </p>
         </div>
@@ -115,8 +115,9 @@ export const SystemHealth: React.FC = () => {
           variant="outline"
           size="default"
           className="flex items-center gap-2"
+          aria-label="Ping all services"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${isProbing ? 'animate-spin text-[#007AFF]' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${isProbing ? 'animate-spin text-blue-800' : ''}`} aria-hidden="true" />
           <span>{isProbing ? 'Probing Services...' : 'Ping All Services'}</span>
         </Button>
       </div>
@@ -132,11 +133,11 @@ export const SystemHealth: React.FC = () => {
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3">
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 shadow-2xs">
-                    <Icon className={`h-5 w-5 ${svc.color}`} />
+                    <Icon className={`h-5 w-5 ${svc.color}`} aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900 font-sans">{svc.name}</h3>
-                    <p className="text-xs text-slate-500 font-sans mt-0.5">{svc.role}</p>
+                    <p className="text-xs text-slate-600 font-sans mt-0.5">{svc.role}</p>
                   </div>
                 </div>
 
@@ -147,16 +148,16 @@ export const SystemHealth: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs font-sans">
                 <div className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/70">
-                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Latency</span>
-                  <span className="font-mono text-slate-800 font-medium text-[11px]">{svc.latency}</span>
+                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-600 block">Latency</span>
+                  <span className="font-mono text-slate-900 font-medium text-[11px]">{svc.latency}</span>
                 </div>
                 <div className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/70">
-                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Uptime</span>
-                  <span className="font-mono text-emerald-700 font-medium text-[11px]">{svc.uptime}</span>
+                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-600 block">Uptime</span>
+                  <span className="font-mono text-emerald-800 font-medium text-[11px]">{svc.uptime}</span>
                 </div>
                 <div className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/70">
-                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Runtime Port</span>
-                  <span className="font-mono text-slate-700 text-[10px] truncate block">{svc.port}</span>
+                  <span className="text-[10px] font-sans font-semibold uppercase text-slate-600 block">Runtime Port</span>
+                  <span className="font-mono text-slate-800 text-[10px] truncate block">{svc.port}</span>
                 </div>
               </div>
             </Card>
@@ -170,7 +171,7 @@ export const SystemHealth: React.FC = () => {
           <CardTitle className="text-sm font-semibold text-slate-900">
             Safety checks
           </CardTitle>
-          <CardDescription className="text-xs text-slate-500">
+          <CardDescription className="text-xs text-slate-600">
             Checked before database commits.
           </CardDescription>
         </div>
@@ -178,38 +179,38 @@ export const SystemHealth: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans">
           <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 space-y-1.5">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+              <CheckCircle2 className="h-4 w-4 text-emerald-800" aria-hidden="true" />
               <span className="font-semibold text-slate-900">Precedence Monotonicity</span>
             </div>
-            <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
+            <p className="text-slate-700 leading-relaxed font-sans text-[11px]">
               Requires verified predecessor completion.
             </p>
           </div>
 
           <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 space-y-1.5">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+              <CheckCircle2 className="h-4 w-4 text-emerald-800" aria-hidden="true" />
               <span className="font-semibold text-slate-900">Temporal Non-Contradiction</span>
             </div>
-            <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
+            <p className="text-slate-700 leading-relaxed font-sans text-[11px]">
               Rejects invalid or future dates.
             </p>
           </div>
 
           <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 space-y-1.5">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+              <CheckCircle2 className="h-4 w-4 text-emerald-800" aria-hidden="true" />
               <span className="font-semibold text-slate-900">Cryptographic Sourcing</span>
             </div>
-            <p className="text-slate-600 leading-relaxed font-sans text-[11px]">
+            <p className="text-slate-700 leading-relaxed font-sans text-[11px]">
               Every decision is SHA-256 chained.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2 text-[11px] font-sans text-slate-500 border-t border-slate-100">
-          <span>Last telemetry sweep executed at: <strong className="font-mono text-slate-800">{lastCheckTime}</strong></span>
-          <span className="text-emerald-700 font-semibold font-mono">0 Invariant Violations Reported</span>
+        <div className="flex items-center justify-between pt-2 text-[11px] font-sans text-slate-600 border-t border-slate-100">
+          <span>Last telemetry sweep executed at: <strong className="font-mono text-slate-900">{lastCheckTime}</strong></span>
+          <span className="text-emerald-800 font-semibold font-mono">0 Invariant Violations Reported</span>
         </div>
       </Card>
     </div>

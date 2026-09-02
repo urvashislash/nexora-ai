@@ -248,42 +248,46 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         {/* Step Indicator */}
         <div className="grid grid-cols-2 border-b border-slate-100 bg-white text-xs font-sans">
           <button
+            type="button"
+            aria-pressed={step === 1}
             onClick={() => setStep(1)}
-            className={`flex items-center justify-center gap-2 py-3 border-b-2 transition cursor-pointer ${
+            className={`flex items-center justify-center gap-2 py-3 border-b-2 transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
               step === 1
                 ? 'border-[#C38B4B] text-slate-900 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-700'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Building2 className="h-3.5 w-3.5" />
+            <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
             <span>1. Package Metadata</span>
           </button>
           <button
+            type="button"
+            aria-pressed={step === 2}
             onClick={() => {
               if (code && name) setStep(2);
               else setErrorMsg('Please fill in Code and Name first.');
             }}
-            className={`flex items-center justify-center gap-2 py-3 border-b-2 transition cursor-pointer ${
+            className={`flex items-center justify-center gap-2 py-3 border-b-2 transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
               step === 2
                 ? 'border-[#C38B4B] text-slate-900 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-700'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Layers className="h-3.5 w-3.5" />
+            <Layers className="h-3.5 w-3.5" aria-hidden="true" />
             <span>2. Baseline Schedule ({parsedActivities.length} Tasks)</span>
           </button>
         </div>
 
         {/* Error Notification */}
         {errorMsg && (
-          <div className="m-4 mb-0 flex items-center gap-2 rounded-xl border border-rose-200/80 bg-rose-50 p-3 text-xs text-rose-900 font-sans">
-            <AlertCircle className="h-4 w-4 shrink-0 text-[#FF3B30]" />
+          <div className="m-4 mb-0 flex items-center gap-2 rounded-xl border border-rose-200/80 bg-rose-50 p-3 text-xs text-rose-950 font-sans">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-800" aria-hidden="true" />
             <span>{errorMsg}</span>
           </div>
         )}
 
         {/* Form Body */}
-        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto font-sans">
           {step === 1 && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -300,7 +304,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     required
                     className="font-mono font-bold uppercase"
                   />
-                  <span className="text-[10px] text-slate-500 font-sans mt-0.5 block">Unique WBS prefix</span>
+                  <span className="text-[10px] text-slate-600 font-sans mt-0.5 block font-medium">Unique WBS prefix</span>
                 </div>
 
                 <div>
@@ -365,7 +369,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
               {/* Quick Preset Buttons */}
               <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">
+                <span className="text-[10px] font-sans font-semibold uppercase text-slate-600 block">
                   Quick Industrial Presets:
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -374,6 +378,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     onClick={() => handleApplyPreset('refinery')}
                     variant="outline"
                     size="sm"
+                    aria-label="Apply preset: Paradip Hydrocracker"
                   >
                     Paradip Hydrocracker
                   </Button>
@@ -382,6 +387,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     onClick={() => handleApplyPreset('metro')}
                     variant="outline"
                     size="sm"
+                    aria-label="Apply preset: Mumbai Metro L3"
                   >
                     Mumbai Metro L3
                   </Button>
@@ -390,6 +396,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     onClick={() => handleApplyPreset('highway')}
                     variant="outline"
                     size="sm"
+                    aria-label="Apply preset: Delhi-Mumbai Expressway"
                   >
                     Delhi-Mumbai Expressway
                   </Button>
@@ -399,7 +406,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
+            <div className="space-y-4 font-sans">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-sans font-semibold text-slate-700">
                   Select Baseline Schedule Ingestion Method
@@ -407,18 +414,20 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 <div className="flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/60 text-xs font-sans">
                   <button
                     type="button"
+                    aria-pressed={importSource === 'template'}
                     onClick={() => { setImportSource('template'); setParsedActivities(TEMPLATE_ACTIVITIES); }}
-                    className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                      importSource === 'template' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500'
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                      importSource === 'template' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     Standard Template
                   </button>
                   <button
                     type="button"
+                    aria-pressed={importSource === 'p6xml'}
                     onClick={() => setImportSource('p6xml')}
-                    className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                      importSource === 'p6xml' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500'
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                      importSource === 'p6xml' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     P6 XML Import
@@ -428,15 +437,16 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
               {importSource === 'p6xml' && (
                 <div className="p-4 rounded-xl border-2 border-dashed border-slate-200/90 text-center space-y-2 bg-slate-50/50">
-                  <FileCode className="h-6 w-6 text-[#C38B4B] mx-auto" />
+                  <FileCode className="h-6 w-6 text-amber-800 mx-auto" aria-hidden="true" />
                   <p className="text-xs font-semibold text-slate-800 font-sans">
                     Upload Primavera P6 XML Schedule (.xml)
                   </p>
                   <input
                     type="file"
                     accept=".xml"
+                    aria-label="Primavera P6 XML Schedule File"
                     onChange={handleFileUpload}
-                    className="text-xs font-sans text-slate-500"
+                    className="text-xs font-sans text-slate-600"
                   />
                 </div>
               )}
@@ -456,9 +466,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     {parsedActivities.slice(0, 5).map((act, i) => (
                       <TableRow key={i}>
                         <TableCell className="font-mono font-bold text-slate-900">{act.code}</TableCell>
-                        <TableCell className="truncate max-w-xs">{act.name}</TableCell>
+                        <TableCell className="truncate max-w-xs font-medium text-slate-900">{act.name}</TableCell>
                         <TableCell><Badge variant="secondary">{act.discipline}</Badge></TableCell>
-                        <TableCell className="text-right font-mono">{act.planned_duration_days}d</TableCell>
+                        <TableCell className="text-right font-mono text-slate-900 font-medium">{act.planned_duration_days}d</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -504,7 +514,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 className="flex items-center gap-1.5"
               >
                 <span>Continue to Schedule</span>
-                <ArrowRight className="h-3.5 w-3.5" />
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
             ) : (
               <Button

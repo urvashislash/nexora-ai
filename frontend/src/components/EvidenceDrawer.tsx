@@ -33,16 +33,16 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
         {/* Header */}
         <SheetHeader className="p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="signal-tick bg-[#007AFF]" />
-            <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-500">
+            <span className="signal-tick bg-blue-700" aria-hidden="true" />
+            <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-600">
               Evidence Processing & AI Provenance Sheet
             </span>
           </div>
           <SheetTitle className="text-lg font-bold font-mono text-slate-900">
             {observation.id}
           </SheetTitle>
-          <SheetDescription className="flex items-center gap-2 text-xs font-sans text-slate-500">
-            <Clock className="h-3.5 w-3.5" />
+          <SheetDescription className="flex items-center gap-2 text-xs font-sans text-slate-600">
+            <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
             <span>Recorded: {new Date(observation.recorded_at).toLocaleString()}</span>
           </SheetDescription>
         </SheetHeader>
@@ -54,8 +54,8 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
           {hasAudio && (
             <div className="space-y-2 p-4 rounded-xl bg-purple-50/70 border border-purple-200/80">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-purple-700">
-                  <FileAudio className="h-4 w-4 text-purple-600" />
+                <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-purple-900">
+                  <FileAudio className="h-4 w-4 text-purple-700" aria-hidden="true" />
                   Audio Evidence Recording
                 </div>
                 {audioUrl && (
@@ -63,15 +63,16 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
                     href={audioUrl} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="text-[11px] font-sans text-purple-700 hover:underline flex items-center gap-1"
+                    aria-label="View cloud audio file in new window"
+                    className="text-[11px] font-sans text-purple-900 hover:underline flex items-center gap-1 font-semibold"
                   >
                     <span>Cloud File</span>
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
                   </a>
                 )}
               </div>
               {audioUrl && (
-                <audio controls src={audioUrl} className="w-full mt-2 h-8" />
+                <audio controls src={audioUrl} aria-label="Playback of evidence audio recording" className="w-full mt-2 h-8" />
               )}
             </div>
           )}
@@ -79,13 +80,13 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
           {/* Stage 1: Source */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
-                <FileText className="h-3.5 w-3.5 text-slate-400" />
+              <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-700">
+                <FileText className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
                 Stage 1: Raw Ingested Source
               </div>
               <Badge variant="secondary">DIRECT EXTRACTION</Badge>
             </div>
-            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 text-xs font-sans text-slate-800 leading-relaxed italic">
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 text-xs font-sans text-slate-900 leading-relaxed italic">
               "{observation.raw_text}"
             </div>
           </div>
@@ -93,28 +94,28 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
           {/* Stage 2: Normalization */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
-                <Cpu className="h-3.5 w-3.5 text-purple-500" />
+              <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-700">
+                <Cpu className="h-3.5 w-3.5 text-purple-700" aria-hidden="true" />
                 Stage 2: Entity Normalization
               </div>
               <Badge variant="cyan">faster-whisper VAD</Badge>
             </div>
             <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 text-xs font-sans space-y-2 text-slate-700">
               <div className="flex justify-between">
-                <span className="text-slate-500">Normalized Text:</span>
+                <span className="text-slate-600 font-medium">Normalized Text:</span>
                 <span className="font-medium text-slate-900">{observation.normalized_text || observation.raw_text}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Discipline Classification:</span>
+                <span className="text-slate-600 font-medium">Discipline Classification:</span>
                 <Badge variant="secondary">{observation.discipline || 'GENERAL'}</Badge>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Event Type:</span>
-                <span className="font-mono text-slate-800 font-semibold">{observation.event_type || 'PROGRESS'}</span>
+                <span className="text-slate-600 font-medium">Event Type:</span>
+                <span className="font-mono text-slate-900 font-semibold">{observation.event_type || 'PROGRESS'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Extracted Progress:</span>
-                <span className="font-mono text-emerald-700 font-bold">{observation.reported_progress ?? 100}%</span>
+                <span className="text-slate-600 font-medium">Extracted Progress:</span>
+                <span className="font-mono text-emerald-800 font-bold">{observation.reported_progress ?? 100}%</span>
               </div>
             </div>
           </div>
@@ -122,23 +123,23 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ observation, isO
           {/* Stage 3: Spatial Tags */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
-                <CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" />
+              <div className="flex items-center gap-1.5 text-xs font-sans font-semibold uppercase tracking-wider text-slate-700">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-800" aria-hidden="true" />
                 Stage 3: Spatial & Equipment Mapping
               </div>
             </div>
             <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 text-xs font-sans space-y-2">
               <div className="flex justify-between">
-                <span className="text-slate-500">Equipment / Line Tag:</span>
+                <span className="text-slate-600 font-medium">Equipment / Line Tag:</span>
                 <span className="font-mono font-semibold text-slate-900">{observation.equipment_tag || '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Location Area:</span>
-                <span className="text-slate-800">{observation.location || '—'}</span>
+                <span className="text-slate-600 font-medium">Location Area:</span>
+                <span className="text-slate-900 font-medium">{observation.location || '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Zone:</span>
-                <span className="text-slate-800">{observation.zone || '—'}</span>
+                <span className="text-slate-600 font-medium">Zone:</span>
+                <span className="text-slate-900 font-medium">{observation.zone || '—'}</span>
               </div>
             </div>
           </div>

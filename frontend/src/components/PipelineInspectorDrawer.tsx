@@ -30,7 +30,7 @@ export const PipelineInspectorDrawer: React.FC<PipelineInspectorDrawerProps> = (
       title: 'Stage 1: Ingestion & Object Storage',
       category: 'SUPABASE STORAGE & PAYLOAD INTAKE',
       icon: Database,
-      color: 'text-[#007AFF]',
+      color: 'text-blue-700',
       description: 'Heterogeneous input intake supporting site PDF daily progress reports, Excel discipline spreadsheets, and supervisor audio voice notes.',
       specs: [
         { label: 'Storage Engine', value: 'Supabase S3 Object Storage (Bucket: evidence-documents)' },
@@ -51,7 +51,7 @@ const { data, error } = await supabase.storage
       title: 'Stage 2: Entity Extraction & Normalization',
       category: 'FASTAPI + FASTER-WHISPER + REGEX CLEANER',
       icon: Cpu,
-      color: 'text-purple-600',
+      color: 'text-purple-700',
       description: 'Audio transcription with Voice Activity Detection (VAD) and regex-driven site entity extraction for WBS codes, area tags, and physical progress percentages.',
       specs: [
         { label: 'Voice Model', value: 'faster-whisper (Systran small.en / base.en with Silero VAD)' },
@@ -70,7 +70,7 @@ const { data, error } = await supabase.storage
       title: 'Stage 3: 384-d Embedding & Hybrid Matcher',
       category: 'HUGGINGFACE all-MiniLM-L6-v2 + COSINE + JACCARD',
       icon: Sparkles,
-      color: 'text-[#C38B4B]',
+      color: 'text-amber-800',
       description: 'Calculates 384-dimensional dense semantic vector cosine similarity combined with token-level lexical overlap and project contextual metadata boost.',
       specs: [
         { label: 'Embedding Model', value: 'sentence-transformers/all-MiniLM-L6-v2' },
@@ -89,7 +89,7 @@ final_score = (0.50 * dense_sim) + (0.35 * lexical_sim) + context_boost`,
       title: 'Stage 4: Rust Trust Plane Policy Verification',
       category: 'DETERMINISTIC AXUM / TOKIO TRUST LAYER',
       icon: Lock,
-      color: 'text-[#34C759]',
+      color: 'text-emerald-800',
       description: 'Rigorous deterministic policy engine validating date bounds, finish-to-start predecessor rules, and non-backward progress invariants.',
       specs: [
         { label: 'Runtime', value: 'Rust 1.78+ (Zero allocation serialization)' },
@@ -113,7 +113,7 @@ pub fn validate_actual_event(event: &ActualEvent, state: &ActivityState) -> Resu
       title: 'Stage 5: PostgreSQL Commit & Cryptographic Audit',
       category: 'IMMUTABLE SHA-256 EVENT SOURCING',
       icon: ShieldCheck,
-      color: 'text-emerald-700',
+      color: 'text-emerald-800',
       description: 'Persists verified actual event to PostgreSQL 15 database and appends block hash to the SHA-256 cryptographic tamper-evident ledger.',
       specs: [
         { label: 'Database', value: 'PostgreSQL 15 (Supabase Managed with RLS)' },
@@ -143,16 +143,16 @@ COMMIT;`,
         <SheetHeader className="p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-start gap-3">
             <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-              <Icon className={`h-6 w-6 ${currentDetail.color}`} />
+              <Icon className={`h-6 w-6 ${currentDetail.color}`} aria-hidden="true" />
             </div>
             <div>
-              <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-400 block">
+              <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-600 block">
                 {currentDetail.category}
               </span>
               <SheetTitle className="text-base font-bold text-slate-900 leading-snug">
                 {currentDetail.title}
               </SheetTitle>
-              <SheetDescription className="text-xs text-slate-500">
+              <SheetDescription className="text-xs text-slate-600">
                 NEXORA Trust Plane &bull; Stage {currentDetail.step} of 5
               </SheetDescription>
             </div>
@@ -163,23 +163,23 @@ COMMIT;`,
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Summary */}
           <div>
-            <h3 className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500 mb-2">
+            <h3 className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-700 mb-2">
               Architecture Overview
             </h3>
-            <p className="text-xs text-slate-700 leading-relaxed bg-slate-50/70 p-4 rounded-xl border border-slate-200/70 font-sans">
+            <p className="text-xs text-slate-800 leading-relaxed bg-slate-50/70 p-4 rounded-xl border border-slate-200/70 font-sans">
               {currentDetail.description}
             </p>
           </div>
 
           {/* Specifications Table */}
           <div className="space-y-2">
-            <h3 className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500">
+            <h3 className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-700">
               Technical Specifications & Invariants
             </h3>
             <div className="rounded-xl border border-slate-200/80 overflow-hidden divide-y divide-slate-100 text-xs font-sans">
               {currentDetail.specs.map((spec, i) => (
                 <div key={i} className="p-3.5 bg-white flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                  <span className="text-slate-500 font-medium">{spec.label}</span>
+                  <span className="text-slate-600 font-medium">{spec.label}</span>
                   <span className="text-slate-900 font-mono text-[11px] font-semibold">{spec.value}</span>
                 </div>
               ))}
@@ -189,8 +189,8 @@ COMMIT;`,
           {/* Code Implementation Preview */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <Code className="h-3.5 w-3.5 text-[#C38B4B]" />
+              <h3 className="text-xs font-sans font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Code className="h-3.5 w-3.5 text-amber-800" aria-hidden="true" />
                 <span>Production Source Snippet</span>
               </h3>
               <Badge variant="outline">VERIFIED</Badge>
@@ -203,7 +203,7 @@ COMMIT;`,
 
         {/* Footer */}
         <SheetFooter className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between sm:justify-between">
-          <span className="text-[11px] font-sans text-slate-500">
+          <span className="text-[11px] font-sans text-slate-600 font-medium">
             Stage {currentDetail.step} of 5 &bull; NEXORA Trust Plane Pipeline
           </span>
           <Button onClick={onClose} variant="default" size="sm">

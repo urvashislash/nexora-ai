@@ -503,26 +503,34 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
 
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/60 text-xs font-sans">
             <button
+              type="button"
               onClick={() => setGraphMode('dependencies')}
-              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${graphMode === 'dependencies' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              aria-pressed={graphMode === 'dependencies'}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${graphMode === 'dependencies' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Dependencies
             </button>
             <button
+              type="button"
               onClick={() => setGraphMode('critical_path')}
-              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${graphMode === 'critical_path' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              aria-pressed={graphMode === 'critical_path'}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${graphMode === 'critical_path' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Critical Path
             </button>
             <button
+              type="button"
               onClick={() => setGraphMode('evidence')}
-              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${graphMode === 'evidence' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              aria-pressed={graphMode === 'evidence'}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${graphMode === 'evidence' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Evidence
             </button>
             <button
+              type="button"
               onClick={() => setGraphMode('all')}
-              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${graphMode === 'all' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              aria-pressed={graphMode === 'all'}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${graphMode === 'all' ? 'bg-white font-semibold text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               All Nodes
             </button>
@@ -541,8 +549,9 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
             size="icon"
             className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg"
             title="Zoom In"
+            aria-label="Zoom in graph"
           >
-            <ZoomIn className="h-4 w-4" />
+            <ZoomIn className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.4, t.scale - 0.15) }))}
@@ -550,8 +559,9 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
             size="icon"
             className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg"
             title="Zoom Out"
+            aria-label="Zoom out graph"
           >
-            <ZoomOut className="h-4 w-4" />
+            <ZoomOut className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             onClick={() => setTransform({ x: 0, y: 0, scale: 0.9 })}
@@ -559,8 +569,9 @@ export const ProjectGraph: React.FC<ProjectGraphProps> = ({
             size="icon"
             className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg"
             title="Reset Viewport"
+            aria-label="Reset graph viewport"
           >
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
 

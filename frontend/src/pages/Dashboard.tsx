@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { 
   Clock, 
   ChevronRight, 
-  AlertTriangle,
+  AlertTriangle, 
   Flame
 } from 'lucide-react';
 import type { DashboardKPIs, ActivityWithState } from '../types';
@@ -56,9 +56,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Badge variant="success">ON SCHEDULE</Badge>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight font-sans">
-              Project is on schedule <span className="text-[#34C759] font-medium text-lg md:text-xl font-sans">(+2 days ahead of baseline)</span>
+              Project is on schedule <span className="text-emerald-700 font-medium text-lg md:text-xl font-sans">(+2 days ahead of baseline)</span>
             </h1>
-            <p className="text-xs text-slate-500 mt-1 font-sans">
+            <p className="text-xs text-slate-600 mt-1 font-sans">
               Paradip–Hyderabad Refinery Expansion &bull; Synced 16:40
             </p>
           </div>
@@ -79,10 +79,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {/* Progress Bar & Decision Metrics */}
         <div className="space-y-3.5 pt-2 border-t border-slate-100">
           <div className="flex justify-between items-baseline text-xs font-sans">
-            <span className="text-slate-600">
-              Actual / planned: <strong ref={overallProgRef} className="text-slate-900 font-bold text-sm font-mono">{kpis.overall_progress_pct}%</strong><span className="text-slate-500"> / 25%</span>
+            <span className="text-slate-700">
+              Actual / planned: <strong ref={overallProgRef} className="text-slate-900 font-bold text-sm font-mono">{kpis.overall_progress_pct}%</strong><span className="text-slate-600"> / 25%</span>
             </span>
-            <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80 font-mono text-[11px]">
+            <span className="text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80 font-mono text-[11px]">
               +2.0 pts Variance
             </span>
           </div>
@@ -98,17 +98,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab('schedule')}
-              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+              aria-label={`View ${criticalActivities.length} critical path tasks (0 currently at risk)`}
+              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
-                  <Flame className="h-4 w-4 text-[#FF9500]" />
+                  <Flame className="h-4 w-4 text-[#D97706]" />
                 </div>
                 <div>
                   <span className="text-xs font-semibold text-slate-900 font-sans block">
                     {criticalActivities.length} Critical Path Tasks
                   </span>
-                  <span className="text-[11px] text-slate-500 font-sans">0 currently at risk</span>
+                  <span className="text-[11px] text-slate-600 font-sans">0 currently at risk</span>
                 </div>
               </div>
               <span aria-hidden="true" className="text-xs font-mono font-bold text-slate-900">&rarr;</span>
@@ -117,36 +118,38 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab('review')}
-              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+              aria-label={`View ${kpis.review_queue_count} pending reviews requiring planner decision`}
+              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
-                  <Clock className="h-4 w-4 text-[#C38B4B]" />
+                  <Clock className="h-4 w-4 text-amber-800" />
                 </div>
                 <div>
                   <span className="text-xs font-semibold text-slate-900 font-sans block">
                     {kpis.review_queue_count} Reviews Pending
                   </span>
-                  <span className="text-[11px] text-slate-500 font-sans">Requires planner decision</span>
+                  <span className="text-[11px] text-slate-600 font-sans">Requires planner decision</span>
                 </div>
               </div>
-              <span aria-hidden="true" className="text-xs font-mono font-bold text-[#C38B4B]">&rarr;</span>
+              <span aria-hidden="true" className="text-xs font-mono font-bold text-amber-800">&rarr;</span>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigateTab('schedule')}
-              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+              aria-label={`View ${delayedActivities.length} delayed tasks within tolerance limits`}
+              className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:border-slate-300 hover:bg-slate-100/70 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-700 shadow-2xs">
-                  <AlertTriangle className="h-4 w-4 text-slate-500" />
+                  <AlertTriangle className="h-4 w-4 text-slate-600" />
                 </div>
                 <div>
                   <span className="text-xs font-semibold text-slate-900 font-sans block">
                     {delayedActivities.length} Delayed Tasks
                   </span>
-                  <span className="text-[11px] text-slate-500 font-sans">Within tolerance limits</span>
+                  <span className="text-[11px] text-slate-600 font-sans">Within tolerance limits</span>
                 </div>
               </div>
               <span aria-hidden="true" className="text-xs font-mono font-bold text-slate-900">&rarr;</span>
@@ -162,26 +165,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <CardTitle className="text-base font-bold text-slate-900">
               S-Curve Physical Progress Variance
             </CardTitle>
-            <CardDescription className="text-xs text-slate-500">
+            <CardDescription className="text-xs text-slate-600">
               Planned vs. actual progress
             </CardDescription>
           </div>
 
           <div className="flex items-center gap-4 text-xs font-sans">
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 bg-slate-300 border-b border-dashed border-slate-400" />
-              <span className="text-slate-500 font-normal">Baseline Planned</span>
+              <span className="w-3 h-0.5 bg-slate-400 border-b border-dashed border-slate-500" />
+              <span className="text-slate-600 font-normal">Baseline Planned</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-1 bg-[#34C759] rounded-full" />
-              <span className="text-emerald-700 font-semibold font-mono">Actual Progress ({kpis.overall_progress_pct}%)</span>
+              <span className="text-emerald-800 font-semibold font-mono">Actual Progress ({kpis.overall_progress_pct}%)</span>
             </div>
           </div>
         </div>
 
         {/* S-Curve Chart Canvas */}
         <div className="relative w-full h-56 bg-slate-50/50 rounded-xl p-2 overflow-hidden border border-slate-100">
-          <svg viewBox="0 0 500 160" className="w-full h-full">
+          <svg viewBox="0 0 500 160" className="w-full h-full" aria-label="S-Curve chart showing planned baseline versus actual reconciled progress">
             {/* Grid lines */}
             <line x1="40" y1="20" x2="480" y2="20" stroke="#E2E8F0" strokeDasharray="3 3" />
             <line x1="40" y1="60" x2="480" y2="60" stroke="#E2E8F0" strokeDasharray="3 3" />
@@ -189,10 +192,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <line x1="40" y1="140" x2="480" y2="140" stroke="#CBD5E1" strokeWidth="1.5" />
 
             {/* Y Axis Labels */}
-            <text x="32" y="24" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">100%</text>
-            <text x="32" y="64" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">66%</text>
-            <text x="32" y="104" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">33%</text>
-            <text x="32" y="144" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">0%</text>
+            <text x="32" y="24" fontSize="9" fill="#64748B" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">100%</text>
+            <text x="32" y="64" fontSize="9" fill="#64748B" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">66%</text>
+            <text x="32" y="104" fontSize="9" fill="#64748B" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">33%</text>
+            <text x="32" y="144" fontSize="9" fill="#64748B" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">0%</text>
 
             {/* Vertical "Today" Line */}
             <line x1="360" y1="15" x2="360" y2="140" stroke="#34C759" strokeDasharray="2 2" strokeWidth="1" />
@@ -201,7 +204,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <path
               d="M 40 140 C 150 140, 200 105, 300 55 C 380 25, 430 20, 480 20"
               fill="none"
-              stroke="#94A3B8"
+              stroke="#64748B"
               strokeWidth="2"
               strokeDasharray="4 4"
             />
@@ -221,22 +224,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
             {/* Today Callout */}
             <g transform="translate(360, 46)">
-              <text x="0" y="-10" fontSize="9" fill="#047857" textAnchor="middle" fontWeight="bold" fontFamily="SF Mono, IBM Plex Mono, monospace">
+              <text x="0" y="-10" fontSize="9" fill="#065F46" textAnchor="middle" fontWeight="bold" fontFamily="SF Mono, IBM Plex Mono, monospace">
                 Today ({kpis.overall_progress_pct}%)
               </text>
             </g>
 
             {/* Milestone Markers */}
             <g transform="translate(180, 115)">
-              <circle cx="0" cy="0" r="3" fill="#007AFF" />
-              <text x="0" y="-6" fontSize="8" fill="#007AFF" textAnchor="middle" fontFamily="SF Pro Text, Inter, sans-serif">Foundation Handover</text>
+              <circle cx="0" cy="0" r="3" fill="#1D4ED8" />
+              <text x="0" y="-6" fontSize="8" fill="#1D4ED8" textAnchor="middle" fontFamily="SF Pro Text, Inter, sans-serif">Foundation Handover</text>
             </g>
 
             {/* X Axis Date Labels */}
-            <text x="40" y="154" fontSize="9" fill="#94A3B8" textAnchor="start" fontFamily="SF Mono, IBM Plex Mono, monospace">01-Aug</text>
-            <text x="180" y="154" fontSize="9" fill="#94A3B8" textAnchor="middle" fontFamily="SF Mono, IBM Plex Mono, monospace">15-Aug</text>
-            <text x="360" y="154" fontSize="9" fill="#047857" textAnchor="middle" fontWeight="bold" fontFamily="SF Mono, IBM Plex Mono, monospace">01-Sep</text>
-            <text x="480" y="154" fontSize="9" fill="#94A3B8" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">30-Sep</text>
+            <text x="40" y="154" fontSize="9" fill="#64748B" textAnchor="start" fontFamily="SF Mono, IBM Plex Mono, monospace">01-Aug</text>
+            <text x="180" y="154" fontSize="9" fill="#64748B" textAnchor="middle" fontFamily="SF Mono, IBM Plex Mono, monospace">15-Aug</text>
+            <text x="360" y="154" fontSize="9" fill="#065F46" textAnchor="middle" fontWeight="bold" fontFamily="SF Mono, IBM Plex Mono, monospace">01-Sep</text>
+            <text x="480" y="154" fontSize="9" fill="#64748B" textAnchor="end" fontFamily="SF Mono, IBM Plex Mono, monospace">30-Sep</text>
           </svg>
         </div>
       </Card>
@@ -249,7 +252,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <CardTitle className="text-sm font-semibold text-slate-900">Needs planner attention</CardTitle>
-              <CardDescription className="text-xs text-slate-500">Matches awaiting approval</CardDescription>
+              <CardDescription className="text-xs text-slate-600">Matches awaiting approval</CardDescription>
             </div>
             <Button 
               onClick={() => onNavigateTab('review')}
@@ -269,7 +272,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   if (onSelectActivity) onSelectActivity(act);
                   else onNavigateTab('review');
                 }}
-                className="group flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                aria-label={`Review match proposal for ${act.activity.code} ${act.activity.name}`}
+                className="group flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 text-left transition-all duration-150 hover:bg-slate-100/70 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
               >
                 <div className="truncate">
                   <div className="flex items-center gap-2">
@@ -278,11 +282,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {i === 0 ? '76% Match' : '82% Match'}
                     </Badge>
                   </div>
-                  <p className="text-xs text-slate-600 truncate mt-0.5 font-sans">{act.activity.name}</p>
+                  <p className="text-xs text-slate-700 truncate mt-0.5 font-sans">{act.activity.name}</p>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-sans font-semibold text-[#C38B4B] group-hover:underline">
+                  <span className="text-xs font-sans font-semibold text-amber-900 group-hover:underline">
                     Review &rarr;
                   </span>
                 </div>
@@ -296,7 +300,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <CardTitle className="text-sm font-semibold text-slate-900">Recent field activity</CardTitle>
-              <CardDescription className="text-xs text-slate-500">Latest extracted facts</CardDescription>
+              <CardDescription className="text-xs text-slate-600">Latest extracted facts</CardDescription>
             </div>
             <Badge variant="outline">{kpis.total_observations} TOTAL</Badge>
           </div>
@@ -305,17 +309,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="p-3.5 bg-emerald-50/50 border border-emerald-200/70 rounded-xl space-y-1">
               <div className="flex items-center justify-between text-[11px] font-sans">
                 <span className="font-semibold text-emerald-900">Auto-Linked: PIP-2400</span>
-                <span className="text-emerald-700 font-mono">100% Match</span>
+                <span className="text-emerald-800 font-mono">100% Match</span>
               </div>
-              <p className="text-slate-700 font-sans text-xs">Spool erection on Pipe Rack B Tier 2 completed with torque check.</p>
+              <p className="text-slate-800 font-sans text-xs">Spool erection on Pipe Rack B Tier 2 completed with torque check.</p>
             </div>
 
             <div className="p-3.5 bg-slate-50 border border-slate-200/70 rounded-xl space-y-1">
               <div className="flex items-center justify-between text-[11px] font-sans">
                 <span className="font-semibold text-slate-900">Voice Note Captured</span>
-                <span className="text-slate-500 font-mono">Audio VAD</span>
+                <span className="text-slate-600 font-mono">Audio VAD</span>
               </div>
-              <p className="text-slate-700 font-sans text-xs">Hydrostatic testing completed along Pipe Rack B headers.</p>
+              <p className="text-slate-800 font-sans text-xs">Hydrostatic testing completed along Pipe Rack B headers.</p>
             </div>
           </div>
         </Card>

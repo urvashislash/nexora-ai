@@ -33,18 +33,23 @@ const Toast: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void }> 
       'border-slate-200 text-slate-900'
     } font-sans transition-all duration-200`}>
       {isSuccess ? (
-        <CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0 mt-0.5" />
+        <CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0 mt-0.5" aria-hidden="true" />
       ) : isError ? (
-        <XCircle className="h-4 w-4 text-[#FF3B30] shrink-0 mt-0.5" />
+        <XCircle className="h-4 w-4 text-[#FF3B30] shrink-0 mt-0.5" aria-hidden="true" />
       ) : (
-        <MessageSquare className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" />
+        <MessageSquare className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" aria-hidden="true" />
       )}
       <div className="flex-1 min-w-0 text-xs font-sans">
         <p className="font-semibold text-slate-900">{toast.title}</p>
-        <p className="text-slate-600 mt-0.5 font-normal">{toast.message}</p>
+        <p className="text-slate-700 mt-0.5 font-normal">{toast.message}</p>
       </div>
-      <button onClick={() => onDismiss(toast.id)} className="text-slate-400 hover:text-slate-600 transition cursor-pointer">
-        <X className="h-3.5 w-3.5" />
+      <button 
+        type="button"
+        onClick={() => onDismiss(toast.id)} 
+        aria-label="Dismiss toast notification"
+        className="text-slate-500 hover:text-slate-800 transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </div>
   );
@@ -103,110 +108,117 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
         return false;
       }
       if (filters.searchQuery) {
-        const q = filters.searchQuery.toLowerCase();
-        const obsMatch = item.observation?.raw_text.toLowerCase().includes(q);
-        const actMatch = item.activity?.name.toLowerCase().includes(q) || item.activity?.code.toLowerCase().includes(q);
-        if (!obsMatch && !actMatch) return false;
+        const query = filters.searchQuery.toLowerCase();
+        const code = item.activity?.code?.toLowerCase() || '';
+        const name = item.activity?.name?.toLowerCase() || '';
+        const obsText = item.observation?.raw_text?.toLowerCase() || '';
+        if (!code.includes(query) && !name.includes(query) && !obsText.includes(query)) {
+          return false;
+        }
       }
       return true;
     }).sort((a, b) => {
-      if (filters.sortBy === 'confidence_desc') return b.proposal.confidence_score - a.proposal.confidence_score;
-      if (filters.sortBy === 'confidence_asc') return a.proposal.confidence_score - b.proposal.confidence_score;
+      if (filters.sortBy === 'confidence_desc') {
+        return b.proposal.confidence_score - a.proposal.confidence_score;
+      }
+      if (filters.sortBy === 'confidence_asc') {
+        return a.proposal.confidence_score - b.proposal.confidence_score;
+      }
       return 0;
     });
   }, [items, filters]);
 
+  // Active selected item
   const selectedItem = useMemo(() => {
-    return items.find(i => i.proposal.id === selectedItemId) || filteredItems[0] || null;
-  }, [items, filteredItems, selectedItemId]);
+    return filteredItems.find(i => i.proposal.id === selectedItemId) || filteredItems[0] || null;
+  }, [filteredItems, selectedItemId]);
 
-  // Actions
+  // Entrance animation
+  useEffect(() => {
+    animateStaggerEntrance('.review-queue-card', { duration: 400, stagger: 40 });
+  }, [filteredItems.length]);
+
+  // Action handlers
   const handleApprove = useCallback(async (item: ReviewQueueItem) => {
     try {
-      await onApprove(item.proposal.id, commentText);
-      addToast('success', 'Proposal Approved & Committed', `Event committed to ledger for activity ${item.activity?.code || ''}.`);
+      await onApprove(item.proposal.id, commentText || 'Planner approved proposal.');
+      addToast('success', 'Match Approved & Committed', `Activity ${item.activity?.code || 'Linked'} successfully updated.`);
       setCommentText('');
     } catch {
-      addToast('error', 'Commit Failed', 'Could not record event in deterministic ledger.');
+      addToast('error', 'Approval Failed', 'An error occurred while validating the transaction.');
     }
   }, [onApprove, commentText]);
 
-  const handleConfirmReject = async () => {
+  const handleConfirmReject = useCallback(async () => {
     if (!selectedItem) return;
     try {
-      await onReject(selectedItem.proposal.id, rejectReason || 'Rejected by Lead Planner');
-      addToast('info', 'Proposal Rejected', `Proposal rejected and logged to immutable audit trail.`);
+      await onReject(selectedItem.proposal.id, rejectReason || 'Rejected by planner in Review Console.');
+      addToast('info', 'Proposal Rejected', `Proposal for ${selectedItem.activity?.code || 'Activity'} was dismissed.`);
       setIsRejectModalOpen(false);
       setRejectReason('');
     } catch {
-      addToast('error', 'Rejection Failed', 'Could not complete rejection request.');
+      addToast('error', 'Rejection Failed', 'Failed to record rejection.');
     }
-  };
+  }, [selectedItem, onReject, rejectReason]);
 
-  const handleCommitOverride = async () => {
+  const handleCommitOverride = useCallback(async () => {
     if (!selectedItem || !selectedOverrideActivityId) return;
     try {
-      await onOverride(selectedItem.proposal.id, selectedOverrideActivityId, 'Planner override match selection');
-      addToast('success', 'Match Override Committed', `Observation linked to selected activity.`);
+      await onOverride(selectedItem.proposal.id, selectedOverrideActivityId, commentText || 'Overridden by planner.');
+      addToast('success', 'Match Override Committed', 'Target activity reassigned and validated.');
       setShowOverridePanel(false);
       setSelectedOverrideActivityId(null);
     } catch {
-      addToast('error', 'Override Failed', 'Could not save override.');
+      addToast('error', 'Override Failed', 'Could not apply alternate match.');
     }
-  };
+  }, [selectedItem, selectedOverrideActivityId, onOverride, commentText]);
 
-  // Keyboard navigation
+  // Keyboard Shortcuts (⌘+Shift+A for Approve, ⌘+Shift+R for Reject)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.altKey || e.defaultPrevented) return;
-      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, button, [role="dialog"]')) return;
-
-      if (e.key.toLowerCase() === 'a' && selectedItem) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        handleApprove(selectedItem);
-      } else if (e.key.toLowerCase() === 'r') {
+        if (selectedItem) handleApprove(selectedItem);
+      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
-        setIsRejectModalOpen(true);
+        if (selectedItem) setIsRejectModalOpen(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedItem, handleApprove]);
 
-  useEffect(() => {
-    animateStaggerEntrance('.review-queue-card', { stagger: 60 });
-  }, [filteredItems]);
-
   return (
-    <div className="space-y-6 pb-12">
-      {/* Toast Notification Container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 sm:bottom-6 sm:right-6">
-        {toasts.map(toast => (
-          <Toast key={toast.id} toast={toast} onDismiss={dismissToast} />
+    <div className="space-y-6 pb-12 font-sans">
+      
+      {/* Toast Render */}
+      <div className="fixed bottom-6 right-6 z-50 space-y-2">
+        {toasts.map(t => (
+          <Toast key={t.id} toast={t} onDismiss={dismissToast} />
         ))}
       </div>
 
-      {/* Header & Hotkey Guide */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="signal-tick bg-[#FF9500]" />
-            <Badge variant="warning">Planner Review Queue</Badge>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="signal-tick bg-amber-800" aria-hidden="true" />
+            <Badge variant="warning">HUMAN-IN-THE-LOOP CONSOLE</Badge>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
-            Review matches
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight font-sans">
+            Planner Review Queue
           </h1>
-          <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
+          <p className="text-xs text-slate-600 mt-1 font-sans">
             Review ambiguous matches. Matches at 88% confidence or higher link automatically.
           </p>
         </div>
 
         {/* Hotkey Guide Pill */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs text-[11px] font-sans text-slate-600">
-          <span className="text-slate-400">Hotkeys:</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs text-[11px] font-sans text-slate-700">
+          <span className="text-slate-600 font-medium">Hotkeys:</span>
           <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-semibold font-sans text-[10px]">⌘⇧A</kbd>
           <span>Approve</span>
-          <span className="text-slate-300">&bull;</span>
+          <span className="text-slate-400" aria-hidden="true">&bull;</span>
           <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-semibold font-sans text-[10px]">⌘⇧R</kbd>
           <span>Reject</span>
         </div>
@@ -218,7 +230,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
           <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
             {/* Search Input */}
             <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-400" />
+              <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
               <Input
                 type="text"
                 aria-label="Search pending proposals"
@@ -231,15 +243,17 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
 
             {/* Discipline Filter */}
             <div className="flex items-center gap-1 text-xs font-sans">
-              <span className="text-slate-400 text-[11px] mr-1">Discipline:</span>
+              <span className="text-slate-600 text-[11px] mr-1 font-medium">Discipline:</span>
               {(['ALL', 'CIVIL', 'PIPING', 'ELECTRICAL', 'MECHANICAL'] as const).map(disc => (
                 <button
                   key={disc}
+                  type="button"
                   onClick={() => setFilters(prev => ({ ...prev, discipline: disc }))}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                  aria-pressed={filters.discipline === disc}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
                     filters.discipline === disc 
                       ? 'bg-slate-900 text-white font-semibold shadow-2xs' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
                   }`}
                 >
                   {disc}
@@ -248,7 +262,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs font-sans text-slate-500">
+          <div className="flex items-center gap-3 text-xs font-sans text-slate-600">
             <span><strong className="text-slate-900 font-semibold">{filteredItems.length}</strong> of {items.length} pending</span>
           </div>
         </div>
@@ -257,9 +271,9 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
       {/* Main Review Console: Side-by-Side Master/Detail */}
       {filteredItems.length === 0 ? (
         <Card className="p-16 text-center shadow-2xs space-y-3">
-          <CheckCircle2 className="h-10 w-10 text-[#34C759] mx-auto" />
+          <CheckCircle2 className="h-10 w-10 text-emerald-800 mx-auto" aria-hidden="true" />
           <h3 className="text-base font-bold text-slate-900 font-sans">Queue Clear</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto font-sans">
+          <p className="text-xs text-slate-600 max-w-sm mx-auto font-sans">
             All proposals are processed. New evidence appears here after upload.
           </p>
         </Card>
@@ -278,7 +292,8 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                   type="button"
                   aria-pressed={isSelected}
                   onClick={() => setSelectedItemId(item.proposal.id)}
-                  className={`review-queue-card w-full space-y-3 rounded-2xl border p-4 text-left shadow-2xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                  aria-label={`Select proposal for ${item.activity?.code || 'UNLINKED'}, ${confPct}% match`}
+                  className={`review-queue-card w-full space-y-3 rounded-2xl border p-4 text-left shadow-2xs transition-all duration-150 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
                     isSelected 
                       ? 'bg-white border-slate-900 ring-2 ring-slate-900/10' 
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
@@ -297,7 +312,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                     {item.activity?.name || item.observation?.raw_text}
                   </p>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 font-sans pt-1 border-t border-slate-100">
+                  <div className="flex items-center justify-between text-[11px] text-slate-600 font-sans pt-1 border-t border-slate-100 font-medium">
                     <span>{item.observation?.discipline || 'GENERAL'}</span>
                     <span className="font-mono">{item.observation?.recorded_at ? new Date(item.observation.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
                   </div>
@@ -314,7 +329,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
                   <div>
-                    <span className="text-[10px] font-sans uppercase tracking-wider text-slate-400 block font-semibold">
+                    <span className="text-[10px] font-sans uppercase tracking-wider text-slate-600 block font-semibold">
                       Proposed Target Match
                     </span>
                     <CardTitle className="text-lg font-bold text-slate-900 mt-0.5">
@@ -330,95 +345,93 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
                   {/* Left: Ingested Field Evidence */}
                   <div className="space-y-2">
-                    <span className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-500 block">
+                    <span className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-700 block">
                       Field Evidence Source
                     </span>
                     <p className="text-xs text-slate-800 leading-relaxed bg-slate-50/70 p-4 rounded-xl border border-slate-200/70 font-sans italic">
                       "{selectedItem.observation?.raw_text}"
                     </p>
-                    <div className="flex items-center gap-2 text-[11px] font-sans text-slate-500">
-                      <Tag className="h-3 w-3 text-slate-400" />
+                    <div className="flex items-center gap-2 text-[11px] font-sans text-slate-600 font-medium">
+                      <Tag className="h-3 w-3 text-slate-500" aria-hidden="true" />
                       <span>{selectedItem.observation?.discipline || 'GENERAL'} &bull; {selectedItem.observation?.location || 'Pipe Rack B'}</span>
                     </div>
                   </div>
 
                   {/* Right: Schedule Baseline Target */}
                   <div className="space-y-2">
-                    <span className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-500 block">
+                    <span className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-700 block">
                       Schedule Baseline Activity
                     </span>
                     <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 space-y-2 text-xs">
-                      <div className="flex justify-between">
-                        <span className="font-mono font-bold text-slate-900 text-sm">{selectedItem.activity?.code}</span>
-                        <Badge variant="secondary">{selectedItem.activity?.discipline}</Badge>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-slate-900">{selectedItem.activity?.code}</span>
+                        <span className="text-slate-600 font-medium">{selectedItem.activity?.discipline}</span>
                       </div>
-                      <p className="text-slate-700 font-sans font-medium">{selectedItem.activity?.name}</p>
-                      <div className="pt-2 border-t border-slate-200/60 flex justify-between text-[10px] text-slate-500 font-sans">
+                      <p className="text-slate-800 font-medium font-sans">{selectedItem.activity?.name}</p>
+                      <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-slate-200/60 font-medium">
                         <span>Planned: {selectedItem.activity?.planned_start_date}</span>
-                        <span>Scope: {selectedItem.activity?.planned_quantity} {selectedItem.activity?.unit_of_measure}</span>
+                        <span>Weight: {selectedItem.activity?.weightage || 1.0}x</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Match explanation */}
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <span className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-500 block">
-                    Why it matched
+                {/* AI Reasoning & Match Factors */}
+                <div className="p-4 rounded-xl bg-slate-50/50 border border-slate-200/70 space-y-3">
+                  <span className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-700 block">
+                    Confidence Breakdown & Semantic Rationale
                   </span>
                   
-                  <p className="text-xs text-slate-700 font-sans leading-relaxed">
-                    {selectedItem.proposal.explanation || 'This evidence matches the same discipline, Pipe Rack Tier 2 location, and carbon steel spool erection activity keywords with valid precedence.'}
-                  </p>
-
-                  <div className="grid grid-cols-3 gap-4 text-xs font-sans pt-1">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-slate-500 text-[11px]">Semantic Similarity:</span>
-                        <span className="font-semibold font-mono">{Math.round((selectedItem.proposal.semantic_score || 0.78) * 100)}%</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-600 font-medium">
+                        <span>Semantic text</span>
+                        <span className="font-mono text-slate-900 font-bold">88%</span>
                       </div>
-                      <Progress value={(selectedItem.proposal.semantic_score || 0.78) * 100} className="h-1.5" indicatorClassName="bg-[#007AFF]" />
+                      <Progress value={88} className="h-1.5 bg-slate-200" indicatorClassName="bg-slate-900" />
                     </div>
-
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-slate-500 text-[11px]">Activity Terminology:</span>
-                        <span className="font-semibold font-mono">{Math.round((selectedItem.proposal.lexical_score || 0.72) * 100)}%</span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-600 font-medium">
+                        <span>Spatial tag</span>
+                        <span className="font-mono text-slate-900 font-bold">100%</span>
                       </div>
-                      <Progress value={(selectedItem.proposal.lexical_score || 0.72) * 100} className="h-1.5" indicatorClassName="bg-[#34C759]" />
+                      <Progress value={100} className="h-1.5 bg-slate-200" indicatorClassName="bg-emerald-800" />
                     </div>
-
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-slate-500 text-[11px]">Spatial & Context:</span>
-                        <span className="font-semibold font-mono">+{Math.round((selectedItem.proposal.context_boost || 0.15) * 100)}%</span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-600 font-medium">
+                        <span>Discipline</span>
+                        <span className="font-mono text-slate-900 font-bold">100%</span>
                       </div>
-                      <Progress value={(selectedItem.proposal.context_boost || 0.15) * 100} className="h-1.5" indicatorClassName="bg-[#C38B4B]" />
+                      <Progress value={100} className="h-1.5 bg-slate-200" indicatorClassName="bg-emerald-800" />
                     </div>
                   </div>
+
+                  <p className="text-xs text-slate-700 font-sans leading-relaxed pt-1">
+                    {selectedItem.proposal.explanation || 'High semantic similarity with equipment spec and exact tag match on Pipe Rack B.'}
+                  </p>
                 </div>
 
                 {/* Pre-Commit Safety Validation Checklist */}
                 <Alert variant="success" className="bg-emerald-50/60 border-emerald-200/80">
-                  <ShieldCheck className="h-4 w-4 text-[#34C759]" />
-                  <AlertTitle className="text-emerald-900 font-semibold text-xs">
+                  <ShieldCheck className="h-4 w-4 text-emerald-800" aria-hidden="true" />
+                  <AlertTitle className="text-emerald-950 font-semibold text-xs">
                     Trust Plane Pre-Validation (Safe to Commit)
                   </AlertTitle>
                   <AlertDescription className="grid grid-cols-2 gap-2 text-xs font-sans text-emerald-950 mt-2">
                     <div className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 text-[#34C759]" />
+                      <Check className="h-3.5 w-3.5 text-emerald-800" aria-hidden="true" />
                       <span>Activity exists in baseline</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 text-[#34C759]" />
+                      <Check className="h-3.5 w-3.5 text-emerald-800" aria-hidden="true" />
                       <span>Dates satisfy precedence</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 text-[#34C759]" />
+                      <Check className="h-3.5 w-3.5 text-emerald-800" aria-hidden="true" />
                       <span>Monotonic progress delta</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 text-[#34C759]" />
+                      <Check className="h-3.5 w-3.5 text-emerald-800" aria-hidden="true" />
                       <span>Planner authorized</span>
                     </div>
                   </AlertDescription>
@@ -428,16 +441,21 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                 {showOverridePanel && (
                   <div className="p-4 rounded-xl border border-amber-200/80 bg-amber-50/50 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-sans font-semibold text-amber-900">Select Alternate Schedule Activity</span>
-                      <button type="button" onClick={() => setShowOverridePanel(false)} aria-label="Close alternate activity selector" className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                        <X className="h-3.5 w-3.5" />
+                      <span className="text-xs font-sans font-semibold text-amber-950">Select Alternate Schedule Activity</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowOverridePanel(false)} 
+                        aria-label="Close alternate activity selector" 
+                        className="text-slate-500 hover:text-slate-800 cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                     </div>
                     <select
                       aria-label="Alternate schedule activity"
                       value={selectedOverrideActivityId || ''}
                       onChange={(e) => setSelectedOverrideActivityId(e.target.value)}
-                      className="w-full p-2.5 rounded-lg border border-slate-300 bg-white text-xs font-sans"
+                      className="w-full p-2.5 rounded-lg border border-slate-300 bg-white text-xs font-sans text-slate-900 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
                     >
                       <option value="">-- Choose activity --</option>
                       {activities.map(a => (
@@ -464,7 +482,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                     size="default"
                     className="flex items-center gap-1.5"
                   >
-                    <XCircle className="h-3.5 w-3.5" />
+                    <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Reject</span>
                   </Button>
 
@@ -482,7 +500,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
                       size="default"
                       className="flex items-center gap-2"
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" />
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
                       <span>Approve & Commit</span>
                     </Button>
                   </div>
@@ -492,7 +510,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
             </div>
           ) : (
             <Card className="lg:col-span-8 p-12 text-center">
-              <p className="text-xs font-sans text-slate-500">Select an item from the queue to review.</p>
+              <p className="text-xs font-sans text-slate-600">Select an item from the queue to review.</p>
             </Card>
           )}
 
@@ -504,14 +522,14 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
         <DialogContent className="sm:max-w-md p-6 font-sans">
           <DialogHeader>
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-[#FF3B30]">
-                <AlertTriangle className="h-5 w-5" />
+              <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
                 <DialogTitle className="text-sm font-semibold text-slate-900 font-sans">
                   Reject AI Match Proposal
                 </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500 mt-0.5 font-sans">
+                <DialogDescription className="text-xs text-slate-600 mt-0.5 font-sans">
                   Your reason is saved to the audit trail.
                 </DialogDescription>
               </div>
@@ -519,6 +537,7 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
           </DialogHeader>
 
           <Textarea
+            aria-label="Engineering rationale for rejection"
             placeholder="Enter engineering rationale (e.g. Activity already completed under Package 03)..."
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}

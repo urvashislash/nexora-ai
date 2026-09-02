@@ -41,29 +41,31 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
+          type="button"
           aria-label={`Switch project: ${activeProject.code}`}
-          className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200/90 bg-white px-2 py-1.5 text-xs font-sans text-slate-800 shadow-2xs transition-all duration-150 hover:bg-slate-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 sm:px-3"
+          className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200/90 bg-white px-2 py-1.5 text-xs font-sans text-slate-800 shadow-2xs transition-all duration-150 hover:bg-slate-50/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 sm:px-3"
         >
-          <Building2 className="h-3.5 w-3.5 text-[#C38B4B]" />
+          <Building2 className="h-3.5 w-3.5 text-amber-800" aria-hidden="true" />
           <div className="flex min-w-0 items-center gap-1.5 text-left">
             <span className="shrink-0 font-semibold text-slate-900">{activeProject.code}</span>
-            <span className="hidden text-slate-300 font-normal sm:inline">·</span>
+            <span className="hidden text-slate-400 font-normal sm:inline">·</span>
             <span className="hidden max-w-[200px] truncate text-slate-600 font-normal sm:inline">
               {activeProject.name}
             </span>
           </div>
-          <ChevronDown className="h-3 w-3 text-slate-400 group-hover:text-slate-700 transition duration-150" />
+          <ChevronDown className="h-3 w-3 text-slate-500 group-hover:text-slate-800 transition duration-150" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="w-80 p-2.5 rounded-2xl">
+      <DropdownMenuContent align="start" className="w-80 p-2.5 rounded-2xl font-sans">
         <DropdownMenuLabel>Projects</DropdownMenuLabel>
         
         {/* Search inside Dropdown */}
         <div className="relative mb-2 px-1">
-          <Search className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <Search className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
           <input
             type="text"
+            aria-label="Filter projects list"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter projects..."
@@ -89,16 +91,16 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
                       {p.code}
                     </span>
                     {isSelected && (
-                      <span className="rounded-md bg-emerald-50 text-[#34C759] border border-emerald-200/80 px-1.5 py-0.2 text-[9px] font-sans font-semibold">
+                      <span className="rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200/80 px-1.5 py-0.2 text-[9px] font-sans font-semibold">
                         ACTIVE
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-500 truncate font-sans mt-0.5">
+                  <p className="text-[11px] text-slate-600 truncate font-sans mt-0.5 font-normal">
                     {p.name}
                   </p>
                 </div>
-                {isSelected && <Check className="h-4 w-4 text-[#34C759] shrink-0 ml-2" />}
+                {isSelected && <Check className="h-4 w-4 text-emerald-800 shrink-0 ml-2" aria-hidden="true" />}
               </DropdownMenuItem>
             );
           })}
@@ -108,10 +110,10 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
 
         <DropdownMenuItem
           onSelect={onOpenCreateProject}
-          className="flex items-center justify-center gap-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 py-2 text-xs font-sans font-semibold text-slate-800 transition cursor-pointer"
+          className="flex items-center gap-2 rounded-xl p-2.5 text-xs font-medium text-amber-900 hover:text-amber-950 hover:bg-amber-50 cursor-pointer"
         >
-          <FolderPlus className="h-3.5 w-3.5 text-[#C38B4B]" />
-          <span>New project</span>
+          <FolderPlus className="h-4 w-4 text-amber-800" aria-hidden="true" />
+          <span>Provision New Project...</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

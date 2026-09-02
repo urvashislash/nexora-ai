@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
-  ArrowUpDown,
-  Eye,
-  Calendar,
-  List,
+  ArrowUpDown, 
+  Eye, 
+  Calendar, 
+  List, 
   Flame
 } from 'lucide-react';
 import type { ActivityWithState } from '../types';
@@ -117,13 +117,13 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="signal-tick bg-[#007AFF]" />
+            <span className="signal-tick bg-blue-700" aria-hidden="true" />
             <Badge variant="secondary">Baseline Schedule & Actuals</Badge>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
             Schedule Explorer
           </h1>
-          <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
+          <p className="mt-1 text-xs text-slate-600 max-w-[65ch] font-sans">
             Track activity progress, variance, and dependencies.
           </p>
         </div>
@@ -131,25 +131,29 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
         {/* View Mode Switcher */}
         <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200/60 text-xs font-sans">
           <button
+            type="button"
             onClick={() => setViewMode('gantt')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+            aria-pressed={viewMode === 'gantt'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
               viewMode === 'gantt' 
                 ? 'bg-white shadow-2xs text-slate-900 font-semibold' 
-                : 'text-slate-600 hover:text-slate-900'
+                : 'text-slate-700 hover:text-slate-900'
             }`}
           >
-            <Calendar className="h-3.5 w-3.5" />
+            <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Gantt Chart</span>
           </button>
           <button
+            type="button"
             onClick={() => setViewMode('table')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+            aria-pressed={viewMode === 'table'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
               viewMode === 'table' 
                 ? 'bg-white shadow-2xs text-slate-900 font-semibold' 
-                : 'text-slate-600 hover:text-slate-900'
+                : 'text-slate-700 hover:text-slate-900'
             }`}
           >
-            <List className="h-3.5 w-3.5" />
+            <List className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Table Ledger</span>
           </button>
         </div>
@@ -158,24 +162,24 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
       {/* Summary KPI Pills */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Card className="p-3.5 shadow-2xs space-y-1">
-          <span className="text-[10px] font-sans font-semibold uppercase text-slate-400">Total Activities</span>
+          <span className="text-[10px] font-sans font-semibold uppercase text-slate-600">Total Activities</span>
           <p className="text-lg font-bold font-mono text-slate-900">{summary.total}</p>
         </Card>
         <Card className="p-3.5 shadow-2xs space-y-1">
-          <span className="text-[10px] font-sans font-semibold uppercase text-emerald-700">Completed</span>
-          <p className="text-lg font-bold font-mono text-emerald-700">{summary.completed}</p>
+          <span className="text-[10px] font-sans font-semibold uppercase text-emerald-800">Completed</span>
+          <p className="text-lg font-bold font-mono text-emerald-800">{summary.completed}</p>
         </Card>
         <Card className="p-3.5 shadow-2xs space-y-1">
-          <span className="text-[10px] font-sans font-semibold uppercase text-sky-700">In Progress</span>
-          <p className="text-lg font-bold font-mono text-sky-700">{summary.inProgress}</p>
+          <span className="text-[10px] font-sans font-semibold uppercase text-sky-800">In Progress</span>
+          <p className="text-lg font-bold font-mono text-sky-800">{summary.inProgress}</p>
         </Card>
         <Card className="p-3.5 shadow-2xs space-y-1">
-          <span className="text-[10px] font-sans font-semibold uppercase text-amber-700">Critical Path</span>
-          <p className="text-lg font-bold font-mono text-amber-700">{summary.criticalPath}</p>
+          <span className="text-[10px] font-sans font-semibold uppercase text-amber-900">Critical Path</span>
+          <p className="text-lg font-bold font-mono text-amber-900">{summary.criticalPath}</p>
         </Card>
         <Card className="p-3.5 shadow-2xs space-y-1">
-          <span className="text-[10px] font-sans font-semibold uppercase text-slate-500">Delayed</span>
-          <p className="text-lg font-bold font-mono text-slate-700">{summary.delayed}</p>
+          <span className="text-[10px] font-sans font-semibold uppercase text-slate-700">Delayed</span>
+          <p className="text-lg font-bold font-mono text-slate-900">{summary.delayed}</p>
         </Card>
       </div>
 
@@ -185,7 +189,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
           <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
             {/* Search Input */}
             <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-400" />
+              <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
               <Input
                 type="text"
                 aria-label="Search schedule activities"
@@ -198,15 +202,17 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
 
             {/* Discipline Filter */}
             <div className="flex items-center gap-1 text-xs font-sans">
-              <span className="text-slate-400 text-[11px] mr-1">Discipline:</span>
+              <span className="text-slate-600 text-[11px] mr-1 font-medium">Discipline:</span>
               {(['ALL', 'CIVIL', 'PIPING', 'ELECTRICAL', 'MECHANICAL'] as const).map(disc => (
                 <button
                   key={disc}
+                  type="button"
                   onClick={() => setSelectedDiscipline(disc)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                  aria-pressed={selectedDiscipline === disc}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
                     selectedDiscipline === disc 
                       ? 'bg-slate-900 text-white font-semibold shadow-2xs' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
                   }`}
                 >
                   {disc}
@@ -216,15 +222,17 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
 
             {/* Status Filter */}
             <div className="flex items-center gap-1 text-xs font-sans">
-              <span className="text-slate-400 text-[11px] mr-1">Status:</span>
+              <span className="text-slate-600 text-[11px] mr-1 font-medium">Status:</span>
               {(['ALL', 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'] as const).map(st => (
                 <button
                   key={st}
+                  type="button"
                   onClick={() => setSelectedStatus(st)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                  aria-pressed={selectedStatus === st}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
                     selectedStatus === st 
                       ? 'bg-slate-900 text-white font-semibold shadow-2xs' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
                   }`}
                 >
                   {st === 'ALL' ? 'ALL' : st === 'NOT_STARTED' ? 'Not Started' : st === 'IN_PROGRESS' ? 'In Progress' : 'Completed'}
@@ -233,7 +241,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
             </div>
           </div>
 
-          <span className="text-xs font-sans text-slate-500">
+          <span className="text-xs font-sans text-slate-600">
             Showing <strong className="text-slate-900 font-semibold">{filtered.length}</strong> activities
           </span>
         </div>
@@ -244,11 +252,11 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
         <Card className="shadow-2xs overflow-hidden">
           {/* Gantt Header Timeline Bar */}
           <div className="bg-slate-50/70 border-b border-slate-200/80 p-3 flex items-center justify-between text-[11px] font-sans">
-            <span className="w-72 font-semibold text-slate-600 uppercase tracking-wider pl-2">Activity & WBS Code</span>
-            <div className="flex-1 flex justify-between px-4 text-slate-400 font-mono text-[10px]">
+            <span className="w-72 font-semibold text-slate-700 uppercase tracking-wider pl-2">Activity & WBS Code</span>
+            <div className="flex-1 flex justify-between px-4 text-slate-600 font-mono text-[10px] font-medium">
               <span>01-Aug</span>
               <span>15-Aug</span>
-              <span className="text-[#34C759] font-bold">01-Sep (Today)</span>
+              <span className="text-emerald-800 font-bold">01-Sep (Today)</span>
               <span>15-Sep</span>
               <span>30-Sep</span>
             </div>
@@ -269,7 +277,8 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                   type="button"
                   aria-pressed={isSelected}
                   onClick={() => setSelectedActivity(item)}
-                  className={`schedule-row-item flex w-full items-center p-3 text-left transition-colors duration-150 hover:bg-slate-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-500 ${
+                  aria-label={`Open 360 detail for ${activity.code} ${activity.name}, progress ${progress}%`}
+                  className={`schedule-row-item flex w-full items-center p-3 text-left transition-colors duration-150 hover:bg-slate-50/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-500 ${
                     isSelected ? 'bg-slate-100/90' : ''
                   }`}
                 >
@@ -279,16 +288,16 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                       <span className="font-mono text-xs font-bold text-slate-900">{activity.code}</span>
                       <Badge variant="secondary">{activity.discipline}</Badge>
                       {activity.critical_path && (
-                        <span title="Critical Path">
-                          <Flame className="h-3.5 w-3.5 text-[#FF9500] shrink-0" />
+                        <span title="Critical Path" aria-label="Critical Path Milestone">
+                          <Flame className="h-3.5 w-3.5 text-amber-800 shrink-0" aria-hidden="true" />
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-700 truncate mt-0.5 font-sans font-medium">{activity.name}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
+                    <p className="text-xs text-slate-800 truncate mt-0.5 font-sans font-medium">{activity.name}</p>
+                    <div className="flex items-center gap-2 text-[10px] text-slate-600 font-mono mt-0.5 font-medium">
                       <span>{activity.planned_start_date} &rarr; {activity.planned_finish_date}</span>
-                      <span>&bull;</span>
-                      <span className="font-sans font-semibold text-slate-700">{progress}%</span>
+                      <span aria-hidden="true">&bull;</span>
+                      <span className="font-sans font-semibold text-slate-900">{progress}%</span>
                     </div>
                   </div>
 
@@ -329,30 +338,30 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
             <TableHeader>
               <TableRow>
                 <TableHead>
-                  <button type="button" onClick={() => toggleSort('code')} className="flex items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500">
+                  <button type="button" onClick={() => toggleSort('code')} aria-label="Sort by WBS code" className="flex items-center gap-1 rounded text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500">
                     <span>WBS code</span>
-                    <ArrowUpDown className="h-3 w-3" />
+                    <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
                   </button>
                 </TableHead>
                 <TableHead>Activity Name</TableHead>
                 <TableHead>Discipline</TableHead>
                 <TableHead>
-                  <button type="button" onClick={() => toggleSort('planned_start_date')} className="flex items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500">
+                  <button type="button" onClick={() => toggleSort('planned_start_date')} aria-label="Sort by planned dates" className="flex items-center gap-1 rounded text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500">
                     <span>Planned dates</span>
-                    <ArrowUpDown className="h-3 w-3" />
+                    <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
                   </button>
                 </TableHead>
                 <TableHead>
-                  <button type="button" onClick={() => toggleSort('progress')} className="flex items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500">
+                  <button type="button" onClick={() => toggleSort('progress')} aria-label="Sort by progress percentage" className="flex items-center gap-1 rounded text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500">
                     <span>Progress</span>
-                    <ArrowUpDown className="h-3 w-3" />
+                    <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
                   </button>
                 </TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">
-                  <button type="button" onClick={() => toggleSort('variance')} className="ml-auto flex items-center justify-end gap-1 rounded text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500">
+                  <button type="button" onClick={() => toggleSort('variance')} aria-label="Sort by variance" className="ml-auto flex items-center justify-end gap-1 rounded text-right focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500">
                     <span>Variance</span>
-                    <ArrowUpDown className="h-3 w-3" />
+                    <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
                   </button>
                 </TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -382,7 +391,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                     <TableCell>
                       <Badge variant="secondary">{activity.discipline}</Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-[11px] text-slate-600">
+                    <TableCell className="font-mono text-[11px] text-slate-700">
                       {activity.planned_start_date} &rarr; {activity.planned_finish_date}
                     </TableCell>
                     <TableCell>
@@ -397,7 +406,7 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                       <NexoraStatusBadge status={status} />
                     </TableCell>
                     <TableCell className="text-right font-mono text-[11px]">
-                      <span className={variance > 0 ? 'text-[#FF3B30] font-bold' : 'text-[#34C759] font-bold'}>
+                      <span className={variance > 0 ? 'text-rose-800 font-bold' : 'text-emerald-800 font-bold'}>
                         {variance > 0 ? `+${variance}d` : `${variance}d`}
                       </span>
                     </TableCell>
@@ -409,11 +418,11 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                         }}
                         variant="ghost"
                         size="icon-sm"
-                        className="text-slate-400 hover:text-slate-900"
+                        className="text-slate-600 hover:text-slate-900"
                         aria-label={`Open details for ${activity.code}`}
                         title="Open activity details"
                       >
-                        <Eye className="h-3.5 w-3.5" />
+                        <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                       </Button>
                     </TableCell>
                   </TableRow>

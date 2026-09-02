@@ -59,8 +59,8 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
         {/* Header */}
         <DialogHeader className="p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 border border-amber-200/70 text-[#C38B4B]">
-              <KeyRound className="h-4 w-4" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 border border-amber-200/70 text-amber-900">
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -69,7 +69,7 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
                 </DialogTitle>
                 <Badge variant="success">SIGNATURE VALID</Badge>
               </div>
-              <DialogDescription className="text-[11px] text-slate-500 font-sans">
+              <DialogDescription className="text-[11px] text-slate-600 font-sans">
                 RFC 7519 JSON Web Token verification across Rust Trust Plane & Supabase
               </DialogDescription>
             </div>
@@ -81,24 +81,24 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
           {/* Decoded Claims Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-400">
-                <Fingerprint className="h-3 w-3 text-[#C38B4B]" />
+              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-600">
+                <Fingerprint className="h-3 w-3 text-amber-800" aria-hidden="true" />
                 <span>Subject Identifier (sub)</span>
               </div>
               <p className="text-xs font-mono font-medium text-slate-900 truncate">{claims.sub}</p>
             </div>
 
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-400">
-                <Hash className="h-3 w-3 text-sky-500" />
+              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-600">
+                <Hash className="h-3 w-3 text-sky-700" aria-hidden="true" />
                 <span>Planner / User Email</span>
               </div>
               <p className="text-xs font-sans font-semibold text-slate-900 truncate">{claims.email}</p>
             </div>
 
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-400">
-                <ShieldCheck className="h-3 w-3 text-[#34C759]" />
+              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-600">
+                <ShieldCheck className="h-3 w-3 text-emerald-800" aria-hidden="true" />
                 <span>Assigned RBAC Role</span>
               </div>
               <div className="flex items-center gap-2">
@@ -110,11 +110,11 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
             </div>
 
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-400">
-                <Clock className="h-3 w-3 text-purple-500" />
+              <div className="flex items-center gap-1.5 text-[10px] font-sans font-semibold uppercase text-slate-600">
+                <Clock className="h-3 w-3 text-purple-700" aria-hidden="true" />
                 <span>Issued At / Expiry</span>
               </div>
-              <p className="text-[11px] font-mono text-slate-600 truncate">
+              <p className="text-[11px] font-mono text-slate-700 truncate font-medium">
                 Expires: {expDate}
               </p>
             </div>
@@ -122,12 +122,12 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
 
           {/* Decoded Claims JSON */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-sans text-slate-600">
+            <div className="flex items-center justify-between text-xs font-sans text-slate-700">
               <div className="flex items-center gap-1.5">
-                <FileCode2 className="h-3.5 w-3.5 text-[#C38B4B]" />
+                <FileCode2 className="h-3.5 w-3.5 text-amber-800" aria-hidden="true" />
                 <span className="font-semibold">Decoded Token Payload</span>
               </div>
-              <span className="text-[10px] font-mono text-slate-400">ALGORITHM: HS256</span>
+              <span className="text-[10px] font-mono text-slate-600 font-medium">ALGORITHM: HS256</span>
             </div>
             <pre className="p-3.5 rounded-xl bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto leading-relaxed">
               {JSON.stringify(claims, null, 2)}
@@ -136,17 +136,19 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
 
           {/* Raw Encoded JWT */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-sans text-slate-600">
+            <div className="flex items-center justify-between text-xs font-sans text-slate-700">
               <span className="font-semibold">Raw Encoded Token String</span>
               <button
+                type="button"
                 onClick={handleCopy}
-                className="flex items-center gap-1 text-[11px] text-[#C38B4B] hover:underline font-semibold cursor-pointer"
+                aria-label="Copy raw JWT token string"
+                className="flex items-center gap-1 text-[11px] text-amber-900 hover:underline font-semibold cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
               >
-                {copied ? <Check className="h-3 w-3 text-[#34C759]" /> : <Copy className="h-3 w-3" />}
+                {copied ? <Check className="h-3 w-3 text-emerald-800" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
                 <span>{copied ? 'Copied to Clipboard' : 'Copy Token'}</span>
               </button>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 font-mono text-[10px] text-slate-600 break-all select-all">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 font-mono text-[10px] text-slate-700 break-all select-all font-medium">
               {rawToken}
             </div>
           </div>
@@ -154,9 +156,9 @@ export const JwtInspectorModal: React.FC<JwtInspectorModalProps> = ({
 
         {/* Footer */}
         <DialogFooter className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between sm:justify-between">
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-sans">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#34C759]" />
-            <span>Passed to backend in <code className="font-mono text-slate-800 font-semibold">Authorization: Bearer</code> header</span>
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-sans">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-700" aria-hidden="true" />
+            <span>Passed to backend in <code className="font-mono text-slate-900 font-semibold">Authorization: Bearer</code> header</span>
           </div>
           <Button onClick={onClose} variant="default" size="sm">
             Close

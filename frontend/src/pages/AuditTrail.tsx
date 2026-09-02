@@ -88,13 +88,13 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="signal-tick bg-[#34C759]" />
+            <span className="signal-tick bg-emerald-800" aria-hidden="true" />
             <Badge variant="secondary">Cryptographic Proof Chain</Badge>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
             Audit & Traceability Ledger
           </h1>
-          <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
+          <p className="mt-1 text-xs text-slate-600 max-w-[65ch] font-sans">
             Approved events are SHA-256 signed and chained.
           </p>
         </div>
@@ -108,12 +108,12 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
         >
           {isVerifying ? (
             <>
-              <RefreshCw className="h-3.5 w-3.5 animate-spin text-[#007AFF]" />
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-blue-800" aria-hidden="true" />
               <span>Verifying Block {verificationProgress}/{events.length}...</span>
             </>
           ) : (
             <>
-              <ShieldCheck className="h-4 w-4 text-[#34C759]" />
+              <ShieldCheck className="h-4 w-4 text-emerald-800" aria-hidden="true" />
               <span>Verify ledger</span>
             </>
           )}
@@ -123,11 +123,11 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
       {/* Verification Result Banner */}
       {verifyResult && (
         <Alert variant={verifyResult.valid ? 'success' : 'destructive'}>
-          <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+          <CheckCircle2 className="h-4 w-4 text-emerald-800" aria-hidden="true" />
           <AlertTitle className="text-emerald-950 font-bold text-xs">
             Ledger verified
           </AlertTitle>
-          <AlertDescription className="text-xs text-emerald-900 mt-1 font-sans">
+          <AlertDescription className="text-xs text-emerald-950 mt-1 font-sans">
             {verifyResult.verified_count} events match the chain.
           </AlertDescription>
         </Alert>
@@ -136,14 +136,14 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
       {/* Verification In-Progress Bar */}
       {isVerifying && (
         <Card className="p-4 shadow-2xs space-y-2">
-          <div className="flex justify-between text-xs font-sans text-slate-600">
+          <div className="flex justify-between text-xs font-sans text-slate-700 font-medium">
             <span>Verifying chain...</span>
             <span className="font-mono font-bold">{Math.round((verificationProgress / Math.max(1, events.length)) * 100)}%</span>
           </div>
           <Progress 
-            value={(verificationProgress / Math.max(1, events.length)) * 100}
+            value={(verificationProgress / Math.max(1, events.length)) * 100} 
             className="h-1.5"
-            indicatorClassName="bg-[#007AFF]"
+            indicatorClassName="bg-blue-800"
           />
         </Card>
       )}
@@ -152,9 +152,10 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
       <Card className="p-4 shadow-2xs">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="relative flex-1 min-w-[240px] max-w-md">
-            <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
             <Input
               type="text"
+              aria-label="Filter audit events"
               placeholder="Filter by action, entity ID, actor role, SHA-256 hash..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -162,7 +163,7 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
             />
           </div>
 
-          <div className="flex items-center gap-3 text-xs font-sans text-slate-500">
+          <div className="flex items-center gap-3 text-xs font-sans text-slate-600">
             <Badge variant="outline">{filtered.length} of {events.length} blocks</Badge>
           </div>
         </div>
@@ -183,25 +184,25 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-700 shadow-2xs">
-                    <Lock className="h-4 w-4 text-[#C38B4B]" />
+                    <Lock className="h-4 w-4 text-amber-900" aria-hidden="true" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-bold text-slate-900">{evt.action}</span>
                       <Badge variant="secondary">{evt.actor_role || 'PLANNER'}</Badge>
-                      <span className="text-slate-400 font-mono text-[10px]">#{events.length - index}</span>
+                      <span className="text-slate-600 font-mono text-[10px] font-medium">#{events.length - index}</span>
                     </div>
-                    <p className="text-xs text-slate-500 font-sans mt-0.5">
-                      Target Entity: <strong className="text-slate-700 font-mono">{evt.entity_id}</strong> ({evt.entity_type})
+                    <p className="text-xs text-slate-700 font-sans mt-0.5 font-medium">
+                      Target Entity: <strong className="text-slate-900 font-mono">{evt.entity_id}</strong> ({evt.entity_type})
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs font-sans text-slate-500">
-                  <span className="font-mono text-[11px] text-slate-400">
+                <div className="flex items-center gap-4 text-xs font-sans text-slate-600">
+                  <span className="font-mono text-[11px] text-slate-600">
                     {new Date(evt.created_at || (evt as any).timestamp || 0).toLocaleString()}
                   </span>
-                  {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                  {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-600" aria-hidden="true" /> : <ChevronDown className="h-4 w-4 text-slate-600" aria-hidden="true" />}
                 </div>
               </div>
 
@@ -209,22 +210,24 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-sans pt-1">
                 <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70 flex items-center justify-between gap-2">
                   <div className="truncate">
-                    <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Payload SHA-256 Hash</span>
-                    <span className="font-mono text-[11px] text-slate-700 truncate block">{evt.payload_hash}</span>
+                    <span className="text-[10px] font-sans font-semibold uppercase text-slate-600 block">Payload SHA-256 Hash</span>
+                    <span className="font-mono text-[11px] text-slate-800 truncate block">{evt.payload_hash}</span>
                   </div>
                   <button
+                    type="button"
                     onClick={(e) => handleCopy(evt.payload_hash, e)}
-                    className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer"
+                    aria-label={`Copy SHA-256 hash ${evt.payload_hash}`}
+                    className="p-1.5 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
                     title="Copy Hash"
                   >
-                    {copiedHash === evt.payload_hash ? <Check className="h-3.5 w-3.5 text-[#34C759]" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedHash === evt.payload_hash ? <Check className="h-3.5 w-3.5 text-emerald-800" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
                   </button>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/70 flex items-center justify-between gap-2">
                   <div className="truncate">
-                    <span className="text-[10px] font-sans font-semibold uppercase text-slate-400 block">Previous hash</span>
-                    <span className="font-mono text-[11px] text-slate-500 truncate block">{evt.previous_hash || '0000000000000000000000000000000000000000000000000000000000000000 (Genesis)'}</span>
+                    <span className="text-[10px] font-sans font-semibold uppercase text-slate-600 block">Previous hash</span>
+                    <span className="font-mono text-[11px] text-slate-600 truncate block">{evt.previous_hash || '0000000000000000000000000000000000000000000000000000000000000000 (Genesis)'}</span>
                   </div>
                 </div>
               </div>
@@ -232,18 +235,18 @@ export const AuditTrail: React.FC<AuditTrailProps> = ({ events }) => {
               {/* Collapsible JSON State Delta Diff */}
               {isExpanded && (
                 <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-500 block">
+                  <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-700 block">
                     State change
                   </span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <span className="text-[11px] font-sans text-slate-500 mb-1 block">Before</span>
+                      <span className="text-[11px] font-sans text-slate-600 mb-1 block font-medium">Before</span>
                       <pre className="p-3 rounded-xl bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto leading-relaxed">
                         {JSON.stringify(evt.before_state || {}, null, 2)}
                       </pre>
                     </div>
                     <div>
-                      <span className="text-[11px] font-sans text-slate-500 mb-1 block">After</span>
+                      <span className="text-[11px] font-sans text-slate-600 mb-1 block font-medium">After</span>
                       <pre className="p-3 rounded-xl bg-slate-900 text-emerald-400 font-mono text-[11px] overflow-x-auto leading-relaxed">
                         {JSON.stringify(evt.after_state || {}, null, 2)}
                       </pre>

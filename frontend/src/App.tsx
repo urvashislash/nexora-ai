@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState, useCallback } from 'react';
 import { Menu, Moon, Sun } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
-const Dashboard = lazy(() => import('./pages/Dashboard').then(({ Dashboard }) => ({ default: Dashboard })));
+import { Dashboard } from './pages/Dashboard';
 const ProjectGraph = lazy(() => import('./pages/ProjectGraph').then(({ ProjectGraph }) => ({ default: ProjectGraph })));
 const DocumentUpload = lazy(() => import('./pages/DocumentUpload').then(({ DocumentUpload }) => ({ default: DocumentUpload })));
 const ReviewQueue = lazy(() => import('./pages/ReviewQueue').then(({ ReviewQueue }) => ({ default: ReviewQueue })));
@@ -833,38 +833,41 @@ export function App() {
           <div className="flex shrink-0 items-center space-x-2 sm:space-x-3 text-xs font-sans">
             {/* Quick Command Palette Button */}
             <button
+              type="button"
               onClick={() => setIsCommandPaletteOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100/90 hover:bg-slate-200/90 rounded-lg text-slate-700 transition-all duration-150 cursor-pointer active:scale-[0.98]"
+              aria-label="Open command palette (Command+K)"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100/90 hover:bg-slate-200/90 rounded-lg text-slate-700 transition-all duration-150 cursor-pointer active:scale-[0.98] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
               title="Open Command Palette (Cmd+K / Ctrl+K)"
             >
               <kbd className="px-1.5 py-0.5 rounded bg-white text-[10px] font-semibold text-slate-700 shadow-2xs border border-slate-200/60 font-sans">⌘K</kbd>
-              <span className="text-[11px] font-medium text-slate-600">Quick Commands</span>
+              <span className="text-[11px] font-medium text-slate-700">Quick Commands</span>
             </button>
 
             <button
               type="button"
               onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
-              className="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-700 transition hover:bg-slate-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+              className="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-700 transition hover:bg-slate-200/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
-              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {theme === 'dark' ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
             </button>
 
             {/* Active User Role Indicator / JWT Modal Trigger */}
             <button
               type="button"
               onClick={() => setIsJwtModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 transition-all duration-150 hover:bg-slate-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+              aria-label={`Inspect JWT claims for ${user?.role ? user.role.replace(/_/g, ' ') : currentRole.replace(/_/g, ' ')}`}
+              className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 transition-all duration-150 hover:bg-slate-200/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
               title="Inspect cryptographic JWT token"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-[#C38B4B]" />
-              <span className="text-[11px] font-medium tracking-tight">{user?.role ? user.role.replace(/_/g, ' ') : currentRole.replace(/_/g, ' ')}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#C38B4B]" aria-hidden="true" />
+              <span className="text-[11px] font-medium tracking-tight text-slate-800">{user?.role ? user.role.replace(/_/g, ' ') : currentRole.replace(/_/g, ' ')}</span>
             </button>
 
-            <div className="hidden sm:flex items-center space-x-1.5 text-xs text-slate-500 font-sans">
-              <span className={`h-1.5 w-1.5 rounded-full ${supabaseConnected ? 'bg-[#34C759]' : 'bg-[#FF9500]'}`} />
-              <span className="text-slate-600 hidden lg:inline font-normal text-[11px]">
+            <div className="hidden sm:flex items-center space-x-1.5 text-xs font-sans">
+              <span className={`h-1.5 w-1.5 rounded-full ${supabaseConnected ? 'bg-[#34C759]' : 'bg-[#D97706]'}`} aria-hidden="true" />
+              <span className="text-slate-700 hidden lg:inline font-medium text-[11px]">
                 {supabaseConnected ? 'Cloud Sync Active' : 'Local Standby'}
               </span>
             </div>

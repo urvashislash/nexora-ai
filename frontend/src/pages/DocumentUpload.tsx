@@ -471,13 +471,13 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="signal-tick bg-[#007AFF]" />
+            <span className="signal-tick bg-blue-700" aria-hidden="true" />
             <Badge variant="secondary">Multi-Modal Ingestion Engine</Badge>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none font-sans">
             Evidence
           </h1>
-          <p className="mt-1 text-xs text-slate-500 max-w-[65ch] font-sans">
+          <p className="mt-1 text-xs text-slate-600 max-w-[65ch] font-sans">
             Upload reports, spreadsheets, photos, or voice notes for matching.
           </p>
         </div>
@@ -487,17 +487,20 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#C38B4B]" />
+            <Sparkles className="h-4 w-4 text-amber-800" aria-hidden="true" />
             <h2 className="text-sm font-semibold text-slate-900 font-sans">
               Demo scenarios
             </h2>
           </div>
           <button
+            type="button"
             onClick={() => setShowDemoScenarios(prev => !prev)}
-            className="text-xs font-sans text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
+            aria-expanded={showDemoScenarios}
+            aria-label={showDemoScenarios ? 'Hide demo scenarios' : 'Show demo scenarios'}
+            className="text-xs font-sans text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
           >
             <span>{showDemoScenarios ? 'Hide Scenarios' : 'Show Scenarios'}</span>
-            {showDemoScenarios ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {showDemoScenarios ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
           </button>
         </div>
 
@@ -507,6 +510,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
               <button
                 key={preset.id}
                 type="button"
+                aria-label={`Load demo scenario: ${preset.title}`}
                 onClick={() => {
                   setInputText(preset.text);
                   setDiscipline(preset.discipline);
@@ -515,20 +519,20 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   setReportedProgress(preset.progress);
                   handleProcess(preset.text, preset);
                 }}
-                className="demo-preset-card group flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4 text-left transition-all duration-150 hover:border-[#C38B4B] hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                className="demo-preset-card group flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4 text-left transition-all duration-150 hover:border-[#C38B4B] hover:shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="font-semibold text-xs text-slate-900 group-hover:text-[#C38B4B] transition font-sans">{preset.title}</span>
+                    <span className="font-semibold text-xs text-slate-900 group-hover:text-amber-800 transition font-sans">{preset.title}</span>
                     <span className={`text-[10px] font-sans font-medium px-2 py-0.5 rounded-md border ${preset.badgeColor}`}>
                       {preset.badge}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 line-clamp-2 italic font-sans">"{preset.text}"</p>
+                  <p className="text-xs text-slate-700 line-clamp-2 italic font-sans">"{preset.text}"</p>
                 </div>
-                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-sans">
+                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600 font-sans font-medium">
                   <span className="truncate max-w-[200px]">{preset.desc}</span>
-                  <ArrowRight className="h-3.5 w-3.5 text-[#C38B4B] shrink-0 ml-1 group-hover:translate-x-0.5 transition" />
+                  <ArrowRight className="h-3.5 w-3.5 text-amber-800 shrink-0 ml-1 group-hover:translate-x-0.5 transition" aria-hidden="true" />
                 </div>
               </button>
             ))}
@@ -550,38 +554,44 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
             {/* Mode Switcher */}
             <div className="flex space-x-1 rounded-xl bg-slate-100 p-1 border border-slate-200/60 text-xs font-sans">
               <button 
+                type="button"
                 onClick={() => {
                   setSourceType('DAILY_REPORT');
                   clearRecording();
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
-                  sourceType === 'DAILY_REPORT' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-800'
+                aria-pressed={sourceType === 'DAILY_REPORT'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                  sourceType === 'DAILY_REPORT' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <FileText className="h-3.5 w-3.5" />
+                <FileText className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Daily PDF</span>
               </button>
 
               <button 
+                type="button"
                 onClick={() => {
                   setSourceType('DISCIPLINE_SPREADSHEET');
                   clearRecording();
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
-                  sourceType === 'DISCIPLINE_SPREADSHEET' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-800'
+                aria-pressed={sourceType === 'DISCIPLINE_SPREADSHEET'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                  sourceType === 'DISCIPLINE_SPREADSHEET' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
+                <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Excel / CSV</span>
               </button>
 
               <button 
+                type="button"
                 onClick={() => setSourceType('VOICE')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
-                  sourceType === 'VOICE' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-800'
+                aria-pressed={sourceType === 'VOICE'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                  sourceType === 'VOICE' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <Mic className="h-3.5 w-3.5 text-[#FF3B30]" />
+                <Mic className="h-3.5 w-3.5 text-rose-700" aria-hidden="true" />
                 <span>Voice Note</span>
               </button>
             </div>
@@ -598,7 +608,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   </span>
                 </div>
                 {isRecording && (
-                  <span className="text-xs font-mono font-bold text-rose-600 bg-white px-2 py-0.5 rounded-md border border-rose-200 animate-pulse">
+                  <span className="text-xs font-mono font-bold text-rose-800 bg-white px-2 py-0.5 rounded-md border border-rose-200 animate-pulse">
                     REC {formatTime(recordingTime)}
                   </span>
                 )}
@@ -623,8 +633,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     variant="destructive"
                     size="sm"
                     className="flex items-center gap-2"
+                    aria-label={audioBlob ? 'Record New Voice Memo' : 'Start Voice Recording'}
                   >
-                    <Mic className="h-4 w-4" />
+                    <Mic className="h-4 w-4" aria-hidden="true" />
                     <span>{audioBlob ? 'Record New Voice Memo' : 'Start Voice Recording'}</span>
                   </Button>
                 ) : (
@@ -633,26 +644,29 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     variant="default"
                     size="sm"
                     className="flex items-center gap-2 bg-slate-900 hover:bg-black text-white"
+                    aria-label={`Stop voice recording (${formatTime(recordingTime)})`}
                   >
-                    <Square className="h-4 w-4 text-rose-400" />
+                    <Square className="h-4 w-4 text-rose-400" aria-hidden="true" />
                     <span>Stop Recording ({formatTime(recordingTime)})</span>
                   </Button>
                 )}
 
                 {audioUrl && (
                   <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                    <audio src={audioUrl} controls className="h-8 flex-1 max-w-[280px]" />
+                    <audio src={audioUrl} controls aria-label="Recorded voice memo playback" className="h-8 flex-1 max-w-[280px]" />
                     <button
+                      type="button"
                       onClick={clearRecording}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                      aria-label="Clear recorded voice memo"
+                      className="p-1.5 text-slate-500 hover:text-rose-700 transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
                       title="Clear audio"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 font-sans">
+              <p className="text-[11px] text-slate-600 font-sans">
                 Captures and transcribes supervisor voice notes.
               </p>
             </div>
@@ -940,8 +954,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     key={s.step}
                     type="button"
                     aria-pressed={selectedPipelineStep === s.step}
+                    aria-label={`Inspect pipeline stage ${s.step}: ${s.title}`}
                     onClick={() => setSelectedPipelineStep(s.step)}
-                    className={`flex w-full items-start space-x-3 rounded-xl border p-3 text-left transition-all duration-150 hover:border-[#C38B4B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                    className={`flex w-full items-start space-x-3 rounded-xl border p-3 text-left transition-all duration-150 hover:border-[#C38B4B] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
                       isCurrent ? 'bg-blue-50/70 border-blue-200 shadow-2xs' :
                       isPassed ? 'bg-emerald-50/40 border-emerald-200/80' :
                       'bg-slate-50/70 border-slate-200/70 opacity-90'
@@ -950,11 +965,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   >
                     <div className="mt-0.5">
                       {isPassed ? (
-                        <CheckCircle2 className="h-4 w-4 text-[#34C759]" />
+                        <CheckCircle2 className="h-4 w-4 text-emerald-800" aria-hidden="true" />
                       ) : isCurrent ? (
-                        <RefreshCw className="h-4 w-4 text-[#007AFF] animate-spin" />
+                        <RefreshCw className="h-4 w-4 text-blue-800 animate-spin" aria-hidden="true" />
                       ) : (
-                        <div className="h-4 w-4 rounded-full border border-slate-400 text-[10px] flex items-center justify-center text-slate-500 font-mono">
+                        <div className="h-4 w-4 rounded-full border border-slate-400 text-[10px] flex items-center justify-center text-slate-700 font-mono font-medium">
                           {s.step}
                         </div>
                       )}
@@ -962,9 +977,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-slate-900 font-sans">{s.title}</span>
-                        <span className="text-[10px] font-sans text-[#C38B4B] font-semibold">Inspect &rarr;</span>
+                        <span className="text-[10px] font-sans text-amber-900 font-semibold">Inspect &rarr;</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 font-sans">{s.desc}</div>
+                      <div className="text-[11px] text-slate-600 font-sans">{s.desc}</div>
                     </div>
                   </button>
                 );
@@ -973,10 +988,12 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           </div>
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-sans">
-            <span className="text-slate-500">Routing: Auto-link (&gt;90%) vs Review</span>
+            <span className="text-slate-600">Routing: Auto-link (&gt;90%) vs Review</span>
             <button 
+              type="button"
               onClick={() => onNavigateTab('review')}
-              className="text-[#C38B4B] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+              aria-label="Open planner review queue"
+              className="text-amber-900 font-semibold hover:underline flex items-center gap-1 cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               Open Planner Review Queue →
             </button>
@@ -1044,7 +1061,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
             <TableBody>
               {filteredObservations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-slate-400 font-sans">
+                  <TableCell colSpan={7} className="py-8 text-center text-slate-600 font-sans">
                     No observations found matching your search. Ingest a report or scenario above.
                   </TableCell>
                 </TableRow>
@@ -1054,19 +1071,19 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     <TableCell className="font-mono font-bold text-slate-900">
                       <span className="truncate block max-w-[90px]">{obs.id}</span>
                     </TableCell>
-                    <TableCell className="text-slate-500 whitespace-nowrap font-mono text-[11px]">
+                    <TableCell className="text-slate-600 whitespace-nowrap font-mono text-[11px] font-medium">
                       {new Date(obs.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </TableCell>
-                    <TableCell className="text-slate-800 font-sans max-w-xs truncate">
+                    <TableCell className="text-slate-900 font-sans max-w-xs truncate">
                       {obs.raw_text}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{obs.discipline || 'GENERAL'}</Badge>
                     </TableCell>
-                    <TableCell className="text-slate-600 truncate max-w-[120px] font-sans">
+                    <TableCell className="text-slate-700 truncate max-w-[120px] font-sans">
                       {obs.location || obs.equipment_tag || '—'}
                     </TableCell>
-                    <TableCell className="font-mono font-bold text-emerald-700">
+                    <TableCell className="font-mono font-bold text-emerald-800">
                       {obs.reported_progress ?? 100}%
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
@@ -1074,10 +1091,10 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                         onClick={() => setSelectedObsForDrawer(obs)}
                         variant="ghost"
                         size="sm"
-                        className="text-[#C38B4B] hover:text-[#B07A3E] font-medium"
+                        className="text-amber-900 hover:text-amber-950 font-semibold"
                         aria-label={`Inspect observation ${obs.id}`}
                       >
-                        <Eye className="h-3.5 w-3.5 mr-1" />
+                        <Eye className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                         <span>Inspect</span>
                       </Button>
                     </TableCell>

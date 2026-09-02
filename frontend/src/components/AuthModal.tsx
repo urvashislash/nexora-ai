@@ -103,14 +103,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleDemoLogin = (role: UserRole, demoEmail: string, name: string) => {
+  const handleDemoLogin = (role: UserRole, email: string, name: string) => {
     const demoUser: AuthUser = {
-      id: `demo-${role.toLowerCase()}-${Date.now()}`,
-      email: demoEmail,
+      id: `demo-${role.toLowerCase()}-001`,
+      email,
       full_name: name,
       role,
     };
-    onAuthSuccess(demoUser, 'demo-jwt-token-claims');
+    onAuthSuccess(demoUser);
     onClose();
   };
 
@@ -121,14 +121,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Header */}
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
-            <span className="signal-tick bg-[#C38B4B]" />
+            <span className="signal-tick bg-amber-800" aria-hidden="true" />
             <Badge variant="bronze">SECURE ACCESS</Badge>
           </div>
           <DialogTitle className="text-xl font-bold text-slate-900 font-sans tracking-tight">
             {tab === 'demo' ? 'Switch Enterprise Persona' :
              tab === 'signin' ? 'Sign In to NEXORA AI' : 'Create Enterprise Account'}
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500 font-sans">
+          <DialogDescription className="text-xs text-slate-600 font-sans">
             Role-based access control with cryptographic JWT authorization
           </DialogDescription>
         </DialogHeader>
@@ -143,8 +143,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Error Notification */}
           {errorMsg && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-900 text-xs font-sans flex items-start gap-2 mb-4">
-              <AlertCircle className="h-4 w-4 text-[#FF3B30] shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-950 text-xs font-sans flex items-start gap-2 mb-4">
+              <AlertCircle className="h-4 w-4 text-rose-800 shrink-0 mt-0.5" aria-hidden="true" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -152,60 +152,66 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* Demo Tab */}
           <TabsContent value="demo" className="space-y-2.5 mt-0">
             <button
+              type="button"
               onClick={() => handleDemoLogin('PLANNER', 'planner@nexora.ai', 'Vikram Singh (Lead Planner)')}
-              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
+              aria-label="Switch persona to Lead Project Planner (Vikram Singh)"
+              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-[#C38B4B] border border-amber-200/70">
-                  <Briefcase className="h-4 w-4" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-900 border border-amber-200/70">
+                  <Briefcase className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-slate-900 font-sans">Lead Project Planner</span>
                     <Badge variant="bronze">PLANNER</Badge>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-sans mt-0.5">Full review queue approval, override, and baseline export</p>
+                  <p className="text-[11px] text-slate-600 font-sans mt-0.5">Full review queue approval, override, and baseline export</p>
                 </div>
               </div>
-              <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-[#C38B4B] group-hover:translate-x-0.5 transition" />
+              <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-amber-900 group-hover:translate-x-0.5 transition" aria-hidden="true" />
             </button>
 
             <button
+              type="button"
               onClick={() => handleDemoLogin('ENGINEER', 'engineer@nexora.ai', 'Rajesh Sharma (Site Engineer)')}
-              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
+              aria-label="Switch persona to Site Execution Engineer (Rajesh Sharma)"
+              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 border border-sky-200/70">
-                  <HardHat className="h-4 w-4" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-800 border border-sky-200/70">
+                  <HardHat className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-slate-900 font-sans">Site Execution Engineer</span>
                     <Badge variant="cyan">ENGINEER</Badge>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-sans mt-0.5">Evidence ingestion, DPR upload, and voice memos</p>
+                  <p className="text-[11px] text-slate-600 font-sans mt-0.5">Evidence ingestion, DPR upload, and voice memos</p>
                 </div>
               </div>
-              <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition" />
+              <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-sky-800 group-hover:translate-x-0.5 transition" aria-hidden="true" />
             </button>
 
             <button
+              type="button"
               onClick={() => handleDemoLogin('AUDITOR', 'auditor@nexora.ai', 'Sunita Rao (Quality Auditor)')}
-              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs"
+              aria-label="Switch persona to Quality & Safety Auditor (Sunita Rao)"
+              className="w-full flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-100/70 p-3.5 text-left transition group cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-[#34C759] border border-emerald-200/70">
-                  <FileCheck className="h-4 w-4" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200/70">
+                  <FileCheck className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-slate-900 font-sans">Quality & Safety Auditor</span>
                     <Badge variant="success">AUDITOR</Badge>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-sans mt-0.5">Cryptographic audit trail inspection & legal holds</p>
+                  <p className="text-[11px] text-slate-600 font-sans mt-0.5">Cryptographic audit trail inspection & legal holds</p>
                 </div>
               </div>
-              <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-[#34C759] group-hover:translate-x-0.5 transition" />
+              <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-emerald-800 group-hover:translate-x-0.5 transition" aria-hidden="true" />
             </button>
           </TabsContent>
 
@@ -217,7 +223,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Email address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Mail className="absolute left-3 top-2 h-4 w-4 text-slate-500" aria-hidden="true" />
                   <Input
                     id="signin-email"
                     type="email"
@@ -235,7 +241,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Lock className="absolute left-3 top-2 h-4 w-4 text-slate-500" aria-hidden="true" />
                   <Input
                     id="signin-password"
                     type="password"
@@ -267,7 +273,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Full name
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <User className="absolute left-3 top-2 h-4 w-4 text-slate-500" aria-hidden="true" />
                   <Input
                     id="signup-name"
                     type="text"
@@ -285,7 +291,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Email address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Mail className="absolute left-3 top-2 h-4 w-4 text-slate-500" aria-hidden="true" />
                   <Input
                     id="signup-email"
                     type="email"
@@ -303,7 +309,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
+                  <Lock className="absolute left-3 top-2 h-4 w-4 text-slate-500" aria-hidden="true" />
                   <Input
                     id="signup-password"
                     type="password"

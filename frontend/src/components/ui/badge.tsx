@@ -12,21 +12,21 @@ const badgeVariants = cva(
         secondary:
           "border-slate-200/90 bg-slate-100/80 text-slate-700",
         destructive:
-          "border-rose-200/90 bg-rose-50 text-[#FF3B30]",
+          "border-rose-200/90 bg-rose-50 text-rose-800",
         success:
-          "border-emerald-200/90 bg-emerald-50 text-[#34C759]",
+          "border-emerald-200/90 bg-emerald-50 text-emerald-800",
         warning:
-          "border-amber-200/90 bg-amber-50 text-[#FF9500]",
+          "border-amber-200/90 bg-amber-50 text-amber-900",
         info:
-          "border-blue-200/90 bg-blue-50 text-[#007AFF]",
+          "border-blue-200/90 bg-blue-50 text-blue-800",
         bronze:
-          "border-amber-300/80 bg-amber-50 text-[#C38B4B]",
+          "border-amber-300/80 bg-amber-50 text-amber-900",
         cyan:
-          "border-sky-200/90 bg-sky-50 text-sky-700",
+          "border-sky-200/90 bg-sky-50 text-sky-800",
         outline:
-          "border-slate-200/90 bg-transparent text-slate-700",
+          "border-slate-300/90 bg-transparent text-slate-700",
         neutral:
-          "border-slate-200/70 bg-slate-50 text-slate-500",
+          "border-slate-200/80 bg-slate-50 text-slate-700",
       },
     },
     defaultVariants: {
