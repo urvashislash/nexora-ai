@@ -1,11 +1,13 @@
 mod api;
 mod cache;
+mod database;
 mod domain;
 mod messaging;
 
 use api::handlers::AppState;
 use api::routes::create_router;
 use cache::RedisCache;
+use database::Database;
 use messaging::consumer::ResultConsumer;
 use messaging::publisher::{OutboxRelay, RabbitPublisher};
 use std::net::SocketAddr;
@@ -46,6 +48,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // -------------------------------------------------------------------------
+    // PostgreSQL Database Connection
+    // -------------------------------------------------------------------------
+    let database_url = std::env::var("DATABASE_URL").ok();
+    let database: Option<Arc<Database>> = match &database_url {
+        Some(url) => match Database::new(url).await {
+            Ok(db) => {
+                tracing::info!("PostgreSQL database initialized");
+                Some(Arc::new(db))
+            }
+            Err(e) => {
+                tracing::warn!("PostgreSQL database unavailable (continuing without persistence): {}", e);
+                None
+            }
+        },
+        None => {
+            tracing::warn!("DATABASE_URL not set — running without PostgreSQL persistence");
+            None
+        }
+    };
+
+    // -------------------------------------------------------------------------
     // RabbitMQ Connection Pool
     // -------------------------------------------------------------------------
     let rabbit_url = std::env::var("RABBITMQ_URL").ok();
@@ -80,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let state = AppState::new(publisher.clone(), redis_cache.clone());
+    let state = AppState::new(publisher.clone(), redis_cache.clone(), database.clone());
     let app = create_router(state.clone());
 
     // -------------------------------------------------------------------------

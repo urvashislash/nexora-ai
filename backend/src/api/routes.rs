@@ -3,7 +3,9 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{CorsLayer, AllowOrigin};
+use axum::http::{header, HeaderValue, HeaderName};
+use std::env;
 use tower_http::trace::TraceLayer;
 
 use super::handlers::{
@@ -16,10 +18,47 @@ use super::handlers::{
 use super::middleware::{require_permission, security_headers_middleware, Permission};
 
 pub fn create_router(state: AppState) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // Restrictive CORS configuration
+    let allowed_origins: Vec<HeaderValue> = env::var("ALLOWED_ORIGINS")
+        .ok()
+        .and_then(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.split(',').map(|s| {
+                    let origin = s.trim().to_string();
+                    HeaderValue::from_str(&origin).unwrap_or_else(|_| HeaderValue::from_static("http://localhost:5173"))
+                }).collect::<Vec<_>>())
+            }
+        })
+        .unwrap_or_else(|| vec![
+            HeaderValue::from_static("http://localhost:5173"),
+            HeaderValue::from_static("http://localhost:3000"),
+        ]);
+    
+    let mut cors = CorsLayer::new();
+    for origin in allowed_origins {
+        cors = cors.allow_origin(AllowOrigin::exact(origin));
+    }
+    
+    cors = cors
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+            axum::http::Method::PATCH,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::ACCEPT,
+            HeaderName::from_static("x-user-id"),
+            HeaderName::from_static("x-user-role"),
+        ])
+        .allow_credentials(true)
+        .max_age(std::time::Duration::from_secs(86400));
 
     // --- Public routes (no auth required) ---
     let public_routes = Router::new().route("/api/v1/health", get(health_check));

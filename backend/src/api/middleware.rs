@@ -336,3 +336,51 @@ mod tests {
         assert_eq!(extract_client_key(&headers), "ip:203.0.113.195");
     }
 }
+
+// =============================================================================
+// Rate Limiting Middleware
+// =============================================================================
+
+#[derive(Clone)]
+pub struct RateLimitMiddleware {
+    limiter: Arc<InMemoryRateLimiter>,
+}
+
+impl RateLimitMiddleware {
+    pub fn new(max_requests: usize, window_duration: Duration) -> Self {
+        Self {
+            limiter: Arc::new(InMemoryRateLimiter::new(max_requests, window_duration)),
+        }
+    }
+
+    pub async fn handle_rate_limit(
+        self,
+        request: Request<Body>,
+        next: Next,
+    ) -> Result<Response, Response> {
+        let client_key = extract_client_key(request.headers());
+        
+        match self.limiter.check(&client_key).await {
+            Ok(_remaining) => {
+                // Add rate limit headers
+                let response = next.run(request).await;
+                Ok(response)
+            }
+            Err(retry_after) => {
+                let error_response = Json(RateLimitError {
+                    error: "Too many requests".to_string(),
+                    code: "RATE_LIMIT_EXCEEDED".to_string(),
+                    retry_after_seconds: retry_after,
+                });
+                Err((StatusCode::TOO_MANY_REQUESTS, error_response).into_response())
+            }
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct RateLimitError {
+    error: String,
+    code: String,
+    retry_after_seconds: u64,
+}

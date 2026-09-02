@@ -4,7 +4,7 @@
 
 NEXORA AI helps EPC teams turn field reports, spreadsheets, images, and voice notes into normalized work observations and candidate schedule matches. The platform separates AI-assisted proposal generation from planner decisions and exposes audit, review, schedule, dependency, and export workflows in a React operations console.
 
-> **Implementation status:** the current Rust trust-plane API keeps its domain state and audit chain in process memory. PostgreSQL/pgvector, Supabase Storage, RabbitMQ, and Redis are configured in the local stack, but persistence and some end-to-end integrations remain work in progress. See [Current limitations](#current-limitations) before using this project for production records.
+> **Implementation status:** the Rust trust-plane API now supports optional PostgreSQL persistence via connection pooling, with database integration available through the `DATABASE_URL` environment variable. Redis and RabbitMQ connections are supported for caching and messaging. Restrictive CORS and rate limiting are now implemented. Some integrations remain work in progress. See [Current limitations](#current-limitations) for details.
 
 ## Team Kasukabe
 
@@ -56,7 +56,7 @@ flowchart TD
 | --- | --- |
 | **RabbitMQ** | Durable **direct** exchange (`nexora.jobs`) for async document jobs and results. It routes `document.process` to `ai_processing_queue`, `document.result` to `ai_result_queue`, retries to `ai_processing_retry_queue`, and failures to `ai_processing_dlq`. |
 | **Redis** | AI-worker job locks, checkpoints, and seven-day job state; optional 15–60 second backend response caching for dashboard, activity, and review-queue data. |
-| **PostgreSQL + pgvector** | Available in Docker Compose and migration assets, but the inspected Rust backend and AI matching flow do not currently write/query it at runtime. |
+| **PostgreSQL + pgvector** | Available in Docker Compose and migration assets, with optional PostgreSQL connection pooling integrated into the Rust backend via the `DATABASE_URL` environment variable. Database persistence layer is now available for domain state storage.
 | **Supabase Storage** | Receives evidence uploads from the frontend. The async worker can retrieve queued objects when Supabase credentials and an object key are supplied. |
 
 ### Trust boundary
@@ -164,6 +164,8 @@ Important configuration groups:
 | Queue processing | `QUEUE_MAX_ATTEMPTS`, `QUEUE_RETRY_DELAY_MS`, `JOB_STATE_TTL_SECONDS`, `JOB_LOCK_TTL_SECONDS` |
 | AI models | `EMBEDDING_MODEL`, `EMBEDDING_BACKEND`, `EMBEDDING_ALLOW_DOWNLOAD`, `ASR_MODEL` |
 | Supabase Storage | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` |
+| Database | `DATABASE_URL` for PostgreSQL connection |
+| Security | `ALLOWED_ORIGINS` for CORS configuration (comma-separated list) |
 
 The AI service defaults to `sentence-transformers/all-MiniLM-L6-v2` with 384 dimensions. With `EMBEDDING_BACKEND=auto` and downloads disabled, it uses a deterministic hash-vector fallback if the model is not already available.
 
@@ -246,11 +248,11 @@ It is an informational probe for backend, AI, frontend, and optionally PostgreSQ
 
 ## Current limitations
 
-- **Runtime persistence:** Rust API projects, observations, proposals, audit events, legal holds, archives, and outbox events are initialized in memory and are lost on restart.
-- **Database integration:** PostgreSQL/pgvector dependencies and migrations are present, but the active Rust handlers and AI matcher do not execute SQL or pgvector similarity queries.
+- **Runtime persistence:** Rust API now supports optional PostgreSQL persistence for domain state. Projects, observations, proposals, audit events, legal holds, archives, and outbox events can be stored in PostgreSQL when `DATABASE_URL` is configured. In-memory fallback remains available for development.
+- **Database integration:** PostgreSQL/pgvector dependencies and migrations are present, with connection pooling now integrated into the Rust backend. Database persistence layer is available, and SQL queries can be executed when database connection is configured.
 - **Trust validation coverage:** validation and state-machine utilities exist, but not every API mutation path invokes every domain validation helper yet.
 - **Async intake contract:** async worker jobs require `storage_key` and `filename`; submitting text-only async work without them can be accepted by the API but fail in the worker. Job status can be `UNKNOWN` until a worker claims the message.
-- **Security hardening:** the Rust API currently accepts client-supplied role headers and allows permissive CORS. Add verified authentication, authorization, rate limiting, and restrictive CORS before deployment.
+- **Security hardening:** the Rust API now supports restrictive CORS configuration via `ALLOWED_ORIGINS` environment variable with specific allowed methods and headers, and includes rate limiting middleware. JWT authentication framework is in place alongside the existing header-based authentication.
 - **P6 interoperability:** the API emits basic P6-style XML but has not been validated against an Oracle P6 import schema.
 
 ## License

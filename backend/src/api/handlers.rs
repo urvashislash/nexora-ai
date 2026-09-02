@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::cache::{CacheTtl, RedisCache};
+use crate::database::Database;
 use crate::domain::ledger::EventLedger;
 use crate::domain::models::*;
 use crate::domain::state_machine::StateMachine;
@@ -98,6 +99,7 @@ pub struct AppState {
     // --- Infrastructure ---
     pub rabbit_publisher: Option<Arc<RabbitPublisher>>,
     pub redis_cache: Option<Arc<RedisCache>>,
+    pub database: Option<Arc<Database>>,
     pub cache_ttl: CacheTtl,
 }
 
@@ -105,17 +107,19 @@ impl AppState {
     pub fn new(
         rabbit_publisher: Option<Arc<RabbitPublisher>>,
         redis_cache: Option<Arc<RedisCache>>,
+        database: Option<Arc<Database>>,
     ) -> Self {
-        Self::build(rabbit_publisher, redis_cache)
+        Self::build(rabbit_publisher, redis_cache, database)
     }
 
     pub fn new_with_demo_data() -> Self {
-        Self::build(None, None)
+        Self::build(None, None, None)
     }
 
     fn build(
         rabbit_publisher: Option<Arc<RabbitPublisher>>,
         redis_cache: Option<Arc<RedisCache>>,
+        database: Option<Arc<Database>>,
     ) -> Self {
         let project_id = Uuid::parse_str("a0000000-0000-0000-0000-000000000001").unwrap();
         let schedule_version_id = Uuid::parse_str("b0000000-0000-0000-0000-000000000001").unwrap();
@@ -284,6 +288,7 @@ impl AppState {
             legal_holds: Arc::new(RwLock::new(std::collections::HashMap::new())),
             rabbit_publisher,
             redis_cache,
+            database,
             cache_ttl: CacheTtl::default(),
         }
     }
