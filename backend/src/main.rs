@@ -58,7 +58,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(Arc::new(db))
             }
             Err(e) => {
-                tracing::warn!("PostgreSQL database unavailable (continuing without persistence): {}", e);
+                tracing::warn!(
+                    "PostgreSQL database unavailable (continuing without persistence): {}",
+                    e
+                );
                 None
             }
         },

@@ -353,13 +353,14 @@ impl RateLimitMiddleware {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     pub async fn handle_rate_limit(
         self,
         request: Request<Body>,
         next: Next,
     ) -> Result<Response, Response> {
         let client_key = extract_client_key(request.headers());
-        
+
         match self.limiter.check(&client_key).await {
             Ok(_remaining) => {
                 // Add rate limit headers

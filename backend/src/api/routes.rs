@@ -1,11 +1,11 @@
+use axum::http::{header, HeaderName, HeaderValue};
 use axum::{
     middleware,
     routing::{get, post},
     Router,
 };
-use tower_http::cors::{CorsLayer, AllowOrigin};
-use axum::http::{header, HeaderValue, HeaderName};
 use std::env;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use super::handlers::{
@@ -25,22 +25,30 @@ pub fn create_router(state: AppState) -> Router {
             if s.is_empty() {
                 None
             } else {
-                Some(s.split(',').map(|s| {
-                    let origin = s.trim().to_string();
-                    HeaderValue::from_str(&origin).unwrap_or_else(|_| HeaderValue::from_static("http://localhost:5173"))
-                }).collect::<Vec<_>>())
+                Some(
+                    s.split(',')
+                        .map(|s| {
+                            let origin = s.trim().to_string();
+                            HeaderValue::from_str(&origin).unwrap_or_else(|_| {
+                                HeaderValue::from_static("http://localhost:5173")
+                            })
+                        })
+                        .collect::<Vec<_>>(),
+                )
             }
         })
-        .unwrap_or_else(|| vec![
-            HeaderValue::from_static("http://localhost:5173"),
-            HeaderValue::from_static("http://localhost:3000"),
-        ]);
-    
+        .unwrap_or_else(|| {
+            vec![
+                HeaderValue::from_static("http://localhost:5173"),
+                HeaderValue::from_static("http://localhost:3000"),
+            ]
+        });
+
     let mut cors = CorsLayer::new();
     for origin in allowed_origins {
         cors = cors.allow_origin(AllowOrigin::exact(origin));
     }
-    
+
     cors = cors
         .allow_methods([
             axum::http::Method::GET,
