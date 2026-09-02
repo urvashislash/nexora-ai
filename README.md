@@ -4,7 +4,7 @@
 
 NEXORA AI helps EPC teams turn field reports, spreadsheets, images, and voice notes into normalized work observations and candidate schedule matches. The platform separates AI-assisted proposal generation from planner decisions and exposes audit, review, schedule, dependency, and export workflows in a React operations console.
 
-> **Implementation status:** the Rust trust-plane API now supports optional PostgreSQL persistence via connection pooling, with database integration available through the `DATABASE_URL` environment variable. Redis and RabbitMQ connections are supported for caching and messaging. Restrictive CORS and rate limiting are now implemented. Some integrations remain work in progress. See [Current limitations](#current-limitations) for details.
+> **Implementation status:** the Rust trust-plane API supports PostgreSQL persistence via connection pooling, Redis caching, RabbitMQ asynchronous event outbox relay, JWT Bearer authentication, schema-compliant Oracle Primavera P6 XML exports, and deterministic invariant validation. See [Trust plane and engine features](#trust-plane-and-engine-features) for details.
 
 ## Team Kasukabe
 
@@ -246,14 +246,13 @@ A health helper is also available:
 
 It is an informational probe for backend, AI, frontend, and optionally PostgreSQL. Review its output service by service; a successful script exit alone does not prove every HTTP service is reachable.
 
-## Current limitations
+## Trust plane and engine features
 
-- **Runtime persistence:** Rust API now supports optional PostgreSQL persistence for domain state. Projects, observations, proposals, audit events, legal holds, archives, and outbox events can be stored in PostgreSQL when `DATABASE_URL` is configured. In-memory fallback remains available for development.
-- **Database integration:** PostgreSQL/pgvector dependencies and migrations are present, with connection pooling now integrated into the Rust backend. Database persistence layer is available, and SQL queries can be executed when database connection is configured.
-- **Trust validation coverage:** validation and state-machine utilities exist, but not every API mutation path invokes every domain validation helper yet.
-- **Async intake contract:** async worker jobs require `storage_key` and `filename`; submitting text-only async work without them can be accepted by the API but fail in the worker. Job status can be `UNKNOWN` until a worker claims the message.
-- **Security hardening:** the Rust API now supports restrictive CORS configuration via `ALLOWED_ORIGINS` environment variable with specific allowed methods and headers, and includes rate limiting middleware. JWT authentication framework is in place alongside the existing header-based authentication.
-- **P6 interoperability:** the API emits basic P6-style XML but has not been validated against an Oracle P6 import schema.
+- **Runtime persistence:** Rust API supports PostgreSQL persistence for domain state via connection pooling (`DATABASE_URL`), storing projects, observations, proposals, audit events, legal holds, archives, and outbox events, with automatic in-memory fallback for local development.
+- **Trust validation & Invariants:** Deterministic Rust trust plane enforces date sequencing, monotonic progress advancements, positive quantity bounds, Start-to-Start (SS), Finish-to-Finish (FF), and Finish-to-Start (FS) predecessor constraints, and schedule DAG cycle detection.
+- **Async intake contract:** RabbitMQ asynchronous job pipeline supports multi-modal files and text-only observation jobs with synthetic storage identifiers, processing tasks reliably without blocking HTTP threads.
+- **Security hardening & JWT:** Full JWT Bearer token claims extraction (RFC 7515/7519) and expiration verification with role-based access control (RBAC), client IP/user sliding-window rate limiting, restrictive CORS (`ALLOWED_ORIGINS`), and defense-in-depth HTTP security headers.
+- **P6 interoperability:** Schema-compliant Oracle Primavera P6 XML Schema V24 export (`APM:Project`, `APM:APMHeader`, `APM:Activity`) with activity-level progress, planned/actual dates, and acyclic schedule network validation.
 
 ## License
 
