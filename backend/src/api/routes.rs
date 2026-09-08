@@ -1,4 +1,4 @@
-use axum::http::{header, HeaderName, HeaderValue};
+use axum::http::{header, HeaderValue};
 use axum::{
     middleware,
     routing::{get, post},
@@ -67,13 +67,7 @@ pub fn create_router(state: AppState) -> Router {
             axum::http::Method::PATCH,
             axum::http::Method::OPTIONS,
         ])
-        .allow_headers([
-            header::AUTHORIZATION,
-            header::CONTENT_TYPE,
-            header::ACCEPT,
-            HeaderName::from_static("x-user-id"),
-            HeaderName::from_static("x-user-role"),
-        ])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT])
         .allow_credentials(true)
         .max_age(std::time::Duration::from_secs(86400));
 

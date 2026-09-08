@@ -5,6 +5,14 @@ edition = "2021"
 authors = ["NEXORA AI Team"]
 description = "NEXORA AI Rust Trust Plane — Business Rules, Validation, Event Ledger, and Auditing"
 
+[lib]
+name = "backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "backend"
+path = "src/main.rs"
+
 [dependencies]
 axum = { version = "0.7", features = ["macros", "multipart"] }
 tokio = { version = "1.36", features = ["full"] }

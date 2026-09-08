@@ -36,6 +36,8 @@ pub enum Permission {
 pub struct AuthContext {
     pub user_id: Uuid,
     pub role: UserRole,
+    pub email: Option<String>,
+    pub full_name: Option<String>,
 }
 
 /// Returns the permissions granted to a given role
@@ -70,47 +72,10 @@ pub fn role_permissions(role: &UserRole) -> Vec<Permission> {
     }
 }
 
-/// Decodes base64url-encoded string (RFC 7515 / RFC 7519)
-#[allow(clippy::manual_is_multiple_of)]
-fn base64_url_decode(input: &str) -> Option<Vec<u8>> {
-    let mut padded = input.replace('-', "+").replace('_', "/");
-    while padded.len() % 4 != 0 {
-        padded.push('=');
-    }
-    const TABLE: [i8; 256] = {
-        let mut t = [-1i8; 256];
-        let mut i = 0;
-        while i < 64 {
-            let c = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[i];
-            t[c as usize] = i as i8;
-            i += 1;
-        }
-        t
-    };
-    let input = padded.trim_end_matches('=');
-    let mut out = Vec::with_capacity(input.len() * 3 / 4);
-    let mut buf = 0u32;
-    let mut bits = 0;
-
-    for &b in input.as_bytes() {
-        let val = TABLE[b as usize];
-        if val < 0 {
-            return None;
-        }
-        buf = (buf << 6) | (val as u32);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((buf >> bits) as u8);
-            buf &= (1 << bits) - 1;
-        }
-    }
-    Some(out)
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JwtClaims {
     pub sub: String,
+    pub email: Option<String>,
     pub role: Option<String>,
     pub exp: usize,
     pub user_metadata: Option<UserMetadata>,
@@ -119,14 +84,35 @@ pub struct JwtClaims {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserMetadata {
     pub role: Option<String>,
+    pub email: Option<String>,
     pub full_name: Option<String>,
 }
 
-/// Helper to get JWT secret key
+/// Helper to get JWT secret key, enforcing explicit non-default secret in production environment
 pub fn get_jwt_secret() -> String {
-    std::env::var("SUPABASE_JWT_SECRET")
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+
+    let configured_secret = std::env::var("SUPABASE_JWT_SECRET")
         .or_else(|_| std::env::var("JWT_SECRET"))
-        .unwrap_or_else(|_| "dev-secret-key-nexora-trust-plane-2026".to_string())
+        .ok();
+
+    match configured_secret {
+        Some(s) if !s.trim().is_empty() => {
+            if is_prod && s.contains("dev-secret-key") {
+                panic!("FATAL: Insecure development JWT secret detected in production environment! Aborting.");
+            }
+            s
+        }
+        _ => {
+            if is_prod {
+                panic!("FATAL: SUPABASE_JWT_SECRET or JWT_SECRET must be configured in production environment! Aborting.");
+            }
+            "dev-secret-key-nexora-trust-plane-2026".to_string()
+        }
+    }
 }
 
 /// Helper to parse role enum from string
@@ -178,9 +164,11 @@ pub fn generate_signed_jwt(
         sub: user_id.to_string(),
         role: Some(role.to_string()),
         exp,
+        email: None,
         user_metadata: Some(UserMetadata {
             role: Some(role.to_string()),
             full_name: None,
+            email: None,
         }),
     };
 
@@ -235,7 +223,21 @@ pub fn extract_auth_context(headers: &HeaderMap) -> Option<AuthContext> {
         .unwrap_or("PLANNER");
 
     let role = parse_role_from_str(role_str)?;
-    Some(AuthContext { user_id, role })
+    let email = claims
+        .email
+        .clone()
+        .or_else(|| claims.user_metadata.as_ref().and_then(|m| m.email.clone()));
+    let full_name = claims
+        .user_metadata
+        .as_ref()
+        .and_then(|m| m.full_name.clone());
+
+    Some(AuthContext {
+        user_id,
+        role,
+        email,
+        full_name,
+    })
 }
 
 #[derive(Serialize)]
@@ -356,14 +358,19 @@ impl InMemoryRateLimiter {
     }
 }
 
-/// Helper function to extract a rate-limiting key (IP or user) from headers
+/// Helper function to extract a rate-limiting key (IP or user) from headers.
+/// Client-supplied x-user-id headers are ignored to prevent rate-limit spoofing.
+/// Authenticated requests are keyed strictly by their verified JWT subject.
 pub fn extract_client_key(headers: &HeaderMap) -> String {
-    if let Some(user_id) = headers.get("x-user-id").and_then(|v| v.to_str().ok()) {
-        return format!("user:{}", user_id);
+    if let Some(auth) = extract_auth_context(headers) {
+        return format!("user:{}", auth.user_id);
     }
     if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(first_ip) = forwarded.split(',').next() {
-            return format!("ip:{}", first_ip.trim());
+            let ip = first_ip.trim();
+            if !ip.is_empty() {
+                return format!("ip:{}", ip);
+            }
         }
     }
     "ip:anonymous".to_string()
@@ -537,16 +544,23 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_client_key_with_user_id() {
+    fn test_extract_client_key_ignores_spoofed_user_id_and_uses_jwt() {
         let mut headers = HeaderMap::new();
+        // Unauthenticated with spoofed x-user-id header should NOT be keyed as user
         headers.insert(
             "x-user-id",
             "123e4567-e89b-12d3-a456-426614174000".parse().unwrap(),
         );
-        assert_eq!(
-            extract_client_key(&headers),
-            "user:123e4567-e89b-12d3-a456-426614174000"
+        assert_eq!(extract_client_key(&headers), "ip:anonymous");
+
+        // Authenticated with valid signed JWT should be keyed as user
+        let user_id = Uuid::new_v4();
+        let token = generate_signed_jwt(user_id, "ADMIN", 3600).unwrap();
+        headers.insert(
+            "authorization",
+            format!("Bearer {}", token).parse().unwrap(),
         );
+        assert_eq!(extract_client_key(&headers), format!("user:{}", user_id));
     }
 
     #[test]
