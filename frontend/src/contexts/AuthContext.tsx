@@ -22,27 +22,37 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const isDemoEnabled = import.meta.env.VITE_ENABLE_DEMO_DATA === 'true';
+
   const [user, setUser] = useState<AuthUser | null>(() =>
-    safeReadStorage<AuthUser | null>(`${STORAGE_KEY}:user`, defaultUser)
+    safeReadStorage<AuthUser | null>(`${STORAGE_KEY}:user`, isDemoEnabled ? defaultUser : null)
   );
 
   const [jwtToken, setJwtToken] = useState<string | null>(() =>
-    safeReadStorage<string | null>(`${STORAGE_KEY}:jwt`, defaultJwtToken)
+    safeReadStorage<string | null>(`${STORAGE_KEY}:jwt`, isDemoEnabled ? defaultJwtToken : null)
   );
 
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => user?.role || 'PLANNER');
+  // Authoritative role derived directly from verified session; defaults to VIEWER when unauthenticated
+  const currentRole: UserRole = user?.role || 'VIEWER';
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isJwtModalOpen, setIsJwtModalOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}:user`, JSON.stringify(user));
-    localStorage.setItem(`${STORAGE_KEY}:jwt`, JSON.stringify(jwtToken));
+    if (user) {
+      localStorage.setItem(`${STORAGE_KEY}:user`, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(`${STORAGE_KEY}:user`);
+    }
+    if (jwtToken) {
+      localStorage.setItem(`${STORAGE_KEY}:jwt`, JSON.stringify(jwtToken));
+    } else {
+      localStorage.removeItem(`${STORAGE_KEY}:jwt`);
+    }
   }, [user, jwtToken]);
 
   const handleAuthSuccess = (authUser: AuthUser, token?: string) => {
     setUser(authUser);
     if (token) setJwtToken(token);
-    setCurrentRole(authUser.role);
     setIsAuthModalOpen(false);
   };
 
@@ -52,9 +62,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.warn('Sign out error:', e);
     }
+    localStorage.removeItem(`${STORAGE_KEY}:user`);
+    localStorage.removeItem(`${STORAGE_KEY}:jwt`);
     setUser(null);
     setJwtToken(null);
-    setCurrentRole('PLANNER');
+  };
+
+  const setCurrentRole = (role: UserRole) => {
+    if (user) {
+      setUser({ ...user, role });
+    }
   };
 
   return (

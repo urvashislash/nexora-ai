@@ -349,3 +349,59 @@ async fn test_production_environment_fails_fast_on_missing_jwt_secret() {
         "Must panic when JWT_SECRET is missing in production"
     );
 }
+
+#[tokio::test]
+async fn test_actor_identity_enforced_from_jwt_in_observation_creation() {
+    let _guard = TEST_ENV_LOCK.lock().await;
+    let state = AppState::empty(None, None, None);
+    let app = create_router(state.clone());
+    let project_id = Uuid::new_v4();
+
+    let legitimate_user_id = Uuid::new_v4();
+    let token = generate_signed_jwt(legitimate_user_id, "ENGINEER", 3600).unwrap();
+
+    let deceptive_reported_by = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+
+    let req = Request::builder()
+        .method("POST")
+        .uri(format!("/api/v1/projects/{}/observations", project_id))
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            json!({
+                "raw_text": "Completed concrete pour on Section 4",
+                "reported_progress": 100.0,
+                "reported_by": deceptive_reported_by
+            })
+            .to_string(),
+        ))
+        .unwrap();
+
+    let response = app.oneshot(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let res_json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    // The created observation must attribute reported_by to the JWT user, NOT the spoofed payload ID
+    assert_eq!(
+        res_json["reported_by"],
+        legitimate_user_id.to_string(),
+        "Observation reported_by must strictly derive from verified JWT, ignoring client body"
+    );
+
+    // The audit trail record must attribute actor_id to the legitimate JWT user
+    let audit_trail = state.audit_trail.read().await;
+    let obs_audit = audit_trail
+        .iter()
+        .find(|a| a.action == "CREATE_OBSERVATION")
+        .expect("Observation audit record must exist");
+
+    assert_eq!(
+        obs_audit.actor_id,
+        Some(legitimate_user_id),
+        "Audit trail actor_id must strictly derive from verified JWT, ignoring client body"
+    );
+}

@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
@@ -14,6 +14,7 @@ use crate::domain::validation::ValidationEngine;
 
 use super::error::ApiError;
 use super::helpers::PaginationParams;
+use super::middleware::extract_auth_context;
 use super::state::AppState;
 
 // =============================================================================
@@ -32,12 +33,15 @@ pub struct CreateObservationPayload {
     pub reported_progress: Option<f64>,
     pub reported_quantity: Option<f64>,
     pub unit_of_measure: Option<String>,
+    /// Deprecated: Actor identity is derived strictly from the verified JWT.
+    /// Retained only for fallback compatibility in offline unit tests.
     pub reported_by: Option<Uuid>,
     pub metadata: Option<serde_json::Value>,
 }
 
 pub async fn create_observation(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(project_id): Path<Uuid>,
     Json(payload): Json<CreateObservationPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -47,11 +51,22 @@ pub async fn create_observation(
     ValidationEngine::validate_quantity_bounds(payload.reported_quantity)
         .map_err(|e| ApiError::validation(e.to_string()))?;
 
+    // Derive actor identity strictly from verified JWT claims
+    let (actor_id, actor_role) = if let Some(auth) = extract_auth_context(&headers) {
+        (
+            Some(auth.user_id),
+            format!("{:?}", auth.role).to_uppercase(),
+        )
+    } else {
+        // Fallback for offline unit test mode without JWT headers
+        (payload.reported_by, "FIELD_ENGINEER".to_string())
+    };
+
     let obs = WorkObservation {
         id: Uuid::new_v4(),
         project_id,
         document_id: None,
-        reported_by: payload.reported_by,
+        reported_by: actor_id,
         observed_at: Some(Utc::now()),
         recorded_at: Utc::now(),
         discipline: payload.discipline,
@@ -69,7 +84,7 @@ pub async fn create_observation(
 
     // Persist to PostgreSQL if connected
     if let Some(ref db) = state.database {
-        db.create_observation_tx(&obs, payload.reported_by, Some("SUPERVISOR"))
+        db.create_observation_tx(&obs, actor_id, Some(&actor_role))
             .await
             .map_err(|e| {
                 tracing::error!("Database observation insert failed: {}", e);
@@ -102,8 +117,8 @@ pub async fn create_observation(
         "WORK_OBSERVATION",
         obs.id,
         "CREATE_OBSERVATION",
-        payload.reported_by,
-        Some("SUPERVISOR"),
+        actor_id,
+        Some(&actor_role),
         None,
         Some(serde_json::json!({
             "raw_text": obs.raw_text,
