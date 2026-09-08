@@ -55,6 +55,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<{ da
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      if (response.status === 401) {
+        try {
+          localStorage.removeItem('nexora_field_ledger_sih:jwt');
+          localStorage.removeItem('nexora_field_ledger_sih:user');
+        } catch {
+          // ignore
+        }
+      }
       const errorBody = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
       return { data: null, error: errorBody.error || `HTTP ${response.status}`, isLive: true };
     }
