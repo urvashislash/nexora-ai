@@ -29,7 +29,7 @@ impl Database {
                 error!("Failed to create PostgreSQL connection pool: {}", e);
                 e
             })?;
-
+            
         // Test the connection
         sqlx::query_scalar::<_, i32>("SELECT 1")
             .fetch_one(&pool)
@@ -46,36 +46,50 @@ impl Database {
         })
     }
 
-    /// Get a reference to the connection pool
-    pub fn pool(&self) -> &PgPool {
-        &self.pool
+    /// Checks if essential tables exist in the connected database
+    pub async fn check_schema_health(&self) -> Result<bool> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('projects', 'activities', 'work_observations', 'audit_events')",
+        )
+        .fetch_one(&*self.pool)
+        .await
+        .unwrap_or(0);
+
+        Ok(count >= 4)
     }
 
-    /// Execute a query with connection retry logic
-    pub async fn execute_with_retry<F, R>(&self, operation: F) -> Result<R>
-    where
-        F: Fn(&PgPool) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<R>> + Send>>,
-    {
-        let pool = self.pool.clone();
+    /// Counts total projects currently in PostgreSQL
+    pub async fn count_projects(&self) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM projects")
+            .fetch_one(&*self.pool)
+            .await?;
+        Ok(count)
+    }
 
-        // Simple retry logic - try up to 3 times
-        let mut attempts = 0;
-        loop {
-            let result = operation(&pool).await;
-            match result {
-                Ok(res) => return Ok(res),
-                Err(e) => {
-                    attempts += 1;
-                    if attempts >= 3 {
-                        return Err(e);
-                    }
-                    warn!(
-                        "Database operation failed, retrying (attempt {}): {}",
-                        attempts, e
-                    );
-                    tokio::time::sleep(std::time::Duration::from_millis(100 * attempts)).await;
-                }
-            }
+    /// Loads all active projects from PostgreSQL
+    pub async fn load_projects(&self) -> Result<Vec<crate::domain::models::Project>> {
+        use sqlx::Row;
+
+        let rows = sqlx::query(
+            "SELECT id, code, name, description, timezone, currency, created_at, updated_at FROM projects ORDER BY created_at DESC",
+        )
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut projects = Vec::new();
+        for r in rows {
+            projects.push(crate::domain::models::Project {
+                id: r.try_get("id")?,
+                code: r.try_get("code")?,
+                name: r.try_get("name")?,
+                description: r.try_get("description")?,
+                timezone: r.try_get("timezone")?,
+                currency: r.try_get("currency")?,
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
+            });
         }
+
+        Ok(projects)
     }
 }

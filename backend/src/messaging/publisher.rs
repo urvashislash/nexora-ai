@@ -198,6 +198,7 @@ pub struct OutboxRelay {
     publisher: Arc<RabbitPublisher>,
     outbox: Arc<RwLock<Vec<OutboxEvent>>>,
     poll_interval: std::time::Duration,
+    max_retries: i32,
 }
 
 impl OutboxRelay {
@@ -210,7 +211,14 @@ impl OutboxRelay {
             publisher,
             outbox,
             poll_interval,
+            max_retries: 5,
         }
+    }
+
+    /// Sets custom maximum retries before marking an outbox event as DEAD_LETTER
+    pub fn with_max_retries(mut self, max_retries: i32) -> Self {
+        self.max_retries = max_retries;
+        self
     }
 
     /// Runs the outbox relay loop. Call via `tokio::spawn`.
@@ -228,10 +236,23 @@ impl OutboxRelay {
 
     async fn relay_pending(&self) {
         let mut outbox = self.outbox.write().await;
+        let now = chrono::Utc::now();
+
         let pending_indices: Vec<usize> = outbox
             .iter()
             .enumerate()
-            .filter(|(_, e)| e.status == "PENDING" || e.status == "RETRY")
+            .filter(|(_, e)| {
+                if e.status == "PENDING" {
+                    true
+                } else if e.status == "RETRY" {
+                    // Exponential backoff: base 2 seconds * 2^(retry_count - 1) capped at 60s
+                    let backoff_secs = (1i64 << (e.retry_count - 1).min(6)).min(60);
+                    let elapsed = (now - e.created_at).num_seconds();
+                    elapsed >= backoff_secs
+                } else {
+                    false
+                }
+            })
             .map(|(i, _)| i)
             .collect();
 
@@ -239,7 +260,7 @@ impl OutboxRelay {
             return;
         }
 
-        tracing::info!("Outbox relay: {} events pending", pending_indices.len());
+        tracing::info!("Outbox relay: processing {} eligible pending events", pending_indices.len());
 
         for idx in pending_indices {
             let event = &outbox[idx];
@@ -248,10 +269,16 @@ impl OutboxRelay {
                     crate::domain::ledger::EventLedger::mark_outbox_processed(&mut outbox[idx]);
                 }
                 Err(e) => {
-                    tracing::error!("Outbox relay failed for event {}: {}", outbox[idx].id, e);
+                    tracing::warn!(
+                        "Outbox relay attempt {}/{} failed for event {}: {}",
+                        outbox[idx].retry_count + 1,
+                        self.max_retries,
+                        outbox[idx].id,
+                        e
+                    );
                     crate::domain::ledger::EventLedger::mark_outbox_failed(
                         &mut outbox[idx],
-                        3, // max retries
+                        self.max_retries,
                     );
                 }
             }

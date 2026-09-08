@@ -1,3 +1,4 @@
+use chrono::Utc;
 use deadpool_lapin::Pool;
 use lapin::options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions};
 use lapin::types::FieldTable;
@@ -8,6 +9,9 @@ use uuid::Uuid;
 
 use crate::api::handlers::AppState;
 use crate::cache::RedisCache;
+use crate::domain::ledger::EventLedger;
+use crate::domain::models::*;
+use crate::domain::state_machine::StateMachine;
 
 const QUEUE_RESULT: &str = "ai_result_queue";
 
@@ -147,6 +151,11 @@ impl ResultConsumer {
             .parse::<Uuid>()
             .unwrap_or_else(|_| crate::api::handlers::parse_uuid_or_derive(project_id_str));
 
+        let doc_id = message
+            .document_id
+            .as_deref()
+            .and_then(|d| d.parse::<Uuid>().ok());
+
         let summary = message.summary.as_ref();
         let obs_count = summary.and_then(|s| s.observations).unwrap_or(0);
         let auto_count = summary.and_then(|s| s.auto_link).unwrap_or(0);
@@ -160,30 +169,284 @@ impl ResultConsumer {
             review_count
         );
 
-        // Store the raw result in audit trail
-        let mut audit_trail = self.state.audit_trail.write().await;
-        let mut last_hash = self.state.last_audit_hash.write().await;
+        let mut auto_committed_count = 0;
+        let mut review_required_count = 0;
 
-        let audit = crate::domain::ledger::EventLedger::create_audit_event(
-            project_id,
-            "AI_RESULT_INGESTED",
-            Uuid::new_v4(),
-            "INGEST_AI_RESULT",
-            None,
-            Some("AI_WORKER"),
-            None,
-            Some(serde_json::json!({
-                "job_id": job_id,
-                "observations": obs_count,
-                "auto_link": auto_count,
-                "review_required": review_count,
-            })),
-            last_hash.as_deref(),
-        );
-        *last_hash = Some(audit.payload_hash.clone());
-        audit_trail.push(audit);
+        // 1. Ingest raw observations if present (parse completely before acquiring any lock)
+        let mut obs_id_map: std::collections::HashMap<String, Uuid> = std::collections::HashMap::new();
+        let mut parsed_observations: Vec<WorkObservation> = Vec::new();
 
-        // Invalidate caches for the affected project
+        if let Some(raw_obs_list) = &message.observations {
+            for val in raw_obs_list {
+                let obs_id = val
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| s.parse::<Uuid>().ok())
+                    .unwrap_or_else(Uuid::new_v4);
+
+                let raw_text = val
+                    .get("raw_text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+
+                let normalized_text = val
+                    .get("normalized_text")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                let discipline: Option<Discipline> = val
+                    .get("discipline")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok());
+
+                let event_type: Option<EventType> = val
+                    .get("event_type")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok());
+
+                let location = val.get("location").and_then(|v| v.as_str()).map(String::from);
+                let zone = val.get("zone").and_then(|v| v.as_str()).map(String::from);
+                let equipment_tag = val
+                    .get("equipment_tag")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let unit_of_measure = val
+                    .get("unit_of_measure")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let reported_progress = val.get("reported_progress").and_then(|v| v.as_f64());
+                let reported_quantity = val.get("reported_quantity").and_then(|v| v.as_f64());
+
+                let work_obs = WorkObservation {
+                    id: obs_id,
+                    project_id,
+                    document_id: doc_id,
+                    reported_by: None,
+                    observed_at: Some(Utc::now()),
+                    recorded_at: Utc::now(),
+                    discipline,
+                    location,
+                    zone,
+                    equipment_tag,
+                    raw_text: raw_text.clone(),
+                    normalized_text,
+                    event_type,
+                    reported_progress,
+                    reported_quantity,
+                    unit_of_measure,
+                    metadata: val.clone(),
+                };
+
+                if let Some(id_str) = val.get("id").and_then(|v| v.as_str()) {
+                    obs_id_map.insert(id_str.to_string(), obs_id);
+                }
+                obs_id_map.insert(raw_text, obs_id);
+                parsed_observations.push(work_obs);
+            }
+        }
+
+        // Persist observations in a short scoped write lock
+        if !parsed_observations.is_empty() {
+            let mut obs_store = self.state.observations.write().await;
+            obs_store.extend(parsed_observations);
+        }
+
+        // 2. Prepare proposals and events in-memory with a brief read-lock on activities
+        let acts = self.state.activities.read().await.clone();
+
+        let mut proposals_to_insert: Vec<MatchProposal> = Vec::new();
+        let mut events_to_insert: Vec<ActualEvent> = Vec::new();
+        let mut outbox_to_insert: Vec<OutboxEvent> = Vec::new();
+        let mut events_to_project: Vec<(Uuid, ActualEvent, chrono::NaiveDate)> = Vec::new();
+
+        if let Some(proposals_list) = &message.proposals {
+            for pval in proposals_list {
+                let obs_data = pval.get("observation");
+                let obs_raw_text = obs_data
+                    .and_then(|o| o.get("raw_text"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or_default();
+                let obs_id_str = obs_data
+                    .and_then(|o| o.get("id"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or_default();
+
+                let obs_id = obs_id_map
+                    .get(obs_id_str)
+                    .or_else(|| obs_id_map.get(obs_raw_text))
+                    .copied()
+                    .unwrap_or_else(Uuid::new_v4);
+
+                let decision_str = pval
+                    .get("decision")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("REVIEW_REQUIRED");
+
+                let auto_link_eligible = pval
+                    .get("auto_link_eligible")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+                    || decision_str == "AUTO_LINK";
+
+                let top_match = pval.get("top_match").or_else(|| {
+                    pval.get("candidates")
+                        .and_then(|c| c.as_array())
+                        .and_then(|a| a.first())
+                });
+
+                if let Some(top) = top_match {
+                    let activity_id_str = top.get("activity_id").and_then(|v| v.as_str()).unwrap_or_default();
+                    let act_id = activity_id_str
+                        .parse::<Uuid>()
+                        .unwrap_or_else(|_| crate::api::helpers::parse_uuid_or_derive(activity_id_str));
+
+                    let act_opt = acts.iter().find(|a| a.id == act_id);
+                    let confidence_score = top.get("confidence_score").and_then(|v| v.as_f64()).unwrap_or(0.85);
+                    let lexical_score = top.get("lexical_score").and_then(|v| v.as_f64()).unwrap_or(0.80);
+                    let semantic_score = top.get("semantic_score").and_then(|v| v.as_f64()).unwrap_or(0.80);
+                    let context_boost = top.get("context_boost").and_then(|v| v.as_f64()).unwrap_or(0.10);
+                    let explanation = top.get("explanation").and_then(|v| v.as_str()).map(String::from);
+                    let evidence_snippet = top.get("evidence_snippet").and_then(|v| v.as_str()).map(String::from);
+                    let match_tier: MatchTier = top
+                        .get("match_tier")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok())
+                        .unwrap_or(MatchTier::Medium);
+
+                    let prop_id = Uuid::new_v4();
+
+                    if auto_link_eligible && act_opt.is_some() {
+                        let act = act_opt.unwrap();
+                        let actual_date = Utc::now().date_naive();
+                        let progress = obs_data
+                            .and_then(|o| o.get("reported_progress"))
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(100.0);
+
+                        let reported_qty = obs_data
+                            .and_then(|o| o.get("reported_quantity"))
+                            .and_then(|v| v.as_f64());
+
+                        let new_event = ActualEvent {
+                            id: Uuid::new_v4(),
+                            project_id,
+                            activity_id: act.id,
+                            observation_id: Some(obs_id),
+                            match_proposal_id: Some(prop_id),
+                            event_type: EventType::Finish,
+                            actual_date,
+                            actual_progress_pct: Some(progress),
+                            actual_quantity: reported_qty.or(act.planned_quantity),
+                            delay_reason: None,
+                            delay_days: None,
+                            lifecycle_status: LifecycleStatus::Committed,
+                            verification_status: VerificationStatus::SystemVerified,
+                            idempotency_key: Some(format!("async-autolink-{}-{}", act.id, actual_date)),
+                            created_by: None,
+                            created_at: Utc::now(),
+                        };
+
+                        events_to_project.push((act.id, new_event.clone(), act.planned_finish_date));
+
+                        let proposal = MatchProposal {
+                            id: prop_id,
+                            project_id,
+                            observation_id: obs_id,
+                            activity_id: act.id,
+                            candidate_rank: 1,
+                            lexical_score,
+                            semantic_score,
+                            context_boost,
+                            confidence_score,
+                            match_tier,
+                            explanation,
+                            evidence_snippet,
+                            status: "AUTO_LINKED".to_string(),
+                            created_at: Utc::now(),
+                        };
+
+                        let outbox = EventLedger::create_outbox_event(
+                            project_id,
+                            "AUTO_LINKED_EVENT",
+                            &new_event,
+                        );
+                        outbox_to_insert.push(outbox);
+                        proposals_to_insert.push(proposal);
+                        events_to_insert.push(new_event);
+                        auto_committed_count += 1;
+                    } else if let Some(act) = act_opt {
+                        let proposal = MatchProposal {
+                            id: prop_id,
+                            project_id,
+                            observation_id: obs_id,
+                            activity_id: act.id,
+                            candidate_rank: 1,
+                            lexical_score,
+                            semantic_score,
+                            context_boost,
+                            confidence_score,
+                            match_tier,
+                            explanation,
+                            evidence_snippet,
+                            status: "PENDING_REVIEW".to_string(),
+                            created_at: Utc::now(),
+                        };
+                        proposals_to_insert.push(proposal);
+                        review_required_count += 1;
+                    }
+                }
+            }
+        }
+
+        // 3. Persist proposals, events, and state machine transitions in a single atomic scoped write
+        if !proposals_to_insert.is_empty() || !events_to_insert.is_empty() {
+            let mut prop_store = self.state.proposals.write().await;
+            let mut events_store = self.state.events.write().await;
+            let mut act_states = self.state.activity_states.write().await;
+            let mut outbox_store = self.state.outbox_events.write().await;
+
+            for (act_id, event, planned_finish) in &events_to_project {
+                if let Some(state_entry) = act_states.iter_mut().find(|s| s.activity_id == *act_id) {
+                    let _ = StateMachine::project_event(
+                        state_entry,
+                        event,
+                        *planned_finish,
+                    );
+                }
+            }
+
+            prop_store.extend(proposals_to_insert);
+            events_store.extend(events_to_insert);
+            outbox_store.extend(outbox_to_insert);
+        }
+
+        // 4. Create unified audit trail entry in a brief scoped lock
+        {
+            let mut audit_trail = self.state.audit_trail.write().await;
+            let mut last_hash = self.state.last_audit_hash.write().await;
+
+            let audit = EventLedger::create_audit_event(
+                project_id,
+                "AI_RESULT_INGESTED",
+                Uuid::new_v4(),
+                "INGEST_AI_RESULT",
+                None,
+                Some("AI_WORKER"),
+                None,
+                Some(serde_json::json!({
+                    "job_id": job_id,
+                    "observations": obs_count,
+                    "auto_link": auto_committed_count,
+                    "review_required": review_required_count,
+                })),
+                last_hash.as_deref(),
+            );
+            *last_hash = Some(audit.payload_hash.clone());
+            audit_trail.push(audit);
+        }
+
+        // Invalidate Redis caches for the affected project
         if let Some(cache) = &self.cache {
             let _ = cache.invalidate_project(project_id).await;
         }
@@ -191,3 +454,4 @@ impl ResultConsumer {
         Ok(())
     }
 }
+
