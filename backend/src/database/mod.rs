@@ -405,8 +405,8 @@ impl Database {
                 a.discipline, a.planned_start_date, a.planned_finish_date, a.planned_duration_days,
                 a.planned_quantity, a.unit_of_measure, a.location, a.zone, a.equipment_tag, a.weightage,
                 a.critical_path, a.created_at as a_created_at, a.updated_at as a_updated_at,
-                s.execution_status, s.actual_start_date, s.actual_finish_date, s.current_progress_pct,
-                s.cumulative_quantity, s.last_event_id, s.last_event_date, s.is_critical_path_delayed,
+                s.execution_status, s.actual_start_date, s.actual_finish_date, s.current_progress_pct::float8 as current_progress_pct,
+                s.cumulative_quantity::float8 as cumulative_quantity, s.last_event_id, s.last_event_date, s.is_critical_path_delayed,
                 s.variance_days, s.updated_at as s_updated_at
             FROM activities a
             LEFT JOIN activity_current_state s ON a.id = s.activity_id
@@ -1036,7 +1036,7 @@ impl Database {
 
         // 2. Lock target activity current state (enforcing strict project boundary)
         let act_state_row = sqlx::query(
-            "SELECT current_progress_pct, execution_status, actual_start_date FROM activity_current_state WHERE activity_id = $1 AND project_id = $2 FOR UPDATE"
+            "SELECT current_progress_pct::float8 as current_progress_pct, execution_status, actual_start_date FROM activity_current_state WHERE activity_id = $1 AND project_id = $2 FOR UPDATE"
         )
         .bind(target_act_id)
         .bind(project_id)

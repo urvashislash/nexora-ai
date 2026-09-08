@@ -209,3 +209,239 @@ async fn test_high_throughput_concurrent_observations_chain_continuity() {
         "All 15 observations must have audit entries"
     );
 }
+
+fn get_test_db_url() -> Option<String> {
+    if let Ok(url) = std::env::var("DATABASE_URL") {
+        if !url.is_empty() {
+            return Some(url);
+        }
+    }
+    if let Ok(url) = std::env::var("DATABASE_POOLER_URL") {
+        if !url.is_empty() {
+            return Some(url);
+        }
+    }
+    for env_path in &["../.env", ".env", "../../.env"] {
+        if let Ok(content) = std::fs::read_to_string(env_path) {
+            for line in content.lines() {
+                if let Some(val) = line.strip_prefix("DATABASE_POOLER_URL=") {
+                    let trimmed = val.trim().trim_matches('"');
+                    if !trimmed.is_empty() {
+                        return Some(trimmed.to_string());
+                    }
+                }
+                if let Some(val) = line.strip_prefix("DATABASE_URL=") {
+                    let trimmed = val.trim().trim_matches('"');
+                    if !trimmed.is_empty() {
+                        return Some(trimmed.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+#[tokio::test]
+async fn test_real_postgresql_concurrent_proposal_approvals_with_row_locking() {
+    let _guard = TEST_ENV_LOCK.lock().await;
+
+    let db_url = match get_test_db_url() {
+        Some(url) => url,
+        None => {
+            eprintln!("SKIPPING real PostgreSQL concurrency test: DATABASE_URL not set");
+            return;
+        }
+    };
+
+    let db = match backend::database::Database::new(&db_url).await {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!(
+                "SKIPPING real PostgreSQL concurrency test: cannot connect to DB ({})",
+                e
+            );
+            return;
+        }
+    };
+
+    let db_arc = std::sync::Arc::new(db);
+    let admin_id = Uuid::new_v4();
+    let project_code = format!("CONC-{}", &Uuid::new_v4().to_string()[..6]).to_uppercase();
+
+    let project_input = ProjectCreateInput {
+        code: project_code.clone(),
+        name: "PostgreSQL Concurrency Test Project".into(),
+        description: Some("Testing real row-level locks under 10 concurrent transactions".into()),
+        timezone: Some("UTC".into()),
+        currency: Some("USD".into()),
+        baseline_activities: None,
+    };
+
+    let project = match db_arc
+        .create_project_tx(
+            &project_input,
+            admin_id,
+            Some("admin@test.com"),
+            Some("Test Admin"),
+        )
+        .await
+    {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!(
+                "SKIPPING real PostgreSQL test: create_project_tx failed: {}",
+                e
+            );
+            return;
+        }
+    };
+
+    // Retrieve created baseline version and wbs root
+    let version_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM schedule_versions WHERE project_id = $1 LIMIT 1")
+            .bind(project.id)
+            .fetch_one(db_arc.pool())
+            .await
+            .unwrap();
+
+    let wbs_id: Uuid = sqlx::query_scalar("SELECT id FROM wbs_nodes WHERE project_id = $1 LIMIT 1")
+        .bind(project.id)
+        .fetch_one(db_arc.pool())
+        .await
+        .unwrap();
+
+    let activity_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO activities (id, project_id, schedule_version_id, wbs_id, code, name, discipline, planned_start_date, planned_finish_date, planned_duration_days, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'ACT-REAL-01', 'Real DB Activity', 'CIVIL', CURRENT_DATE, CURRENT_DATE + 5, 5, now(), now())"
+    )
+    .bind(activity_id)
+    .bind(project.id)
+    .bind(version_id)
+    .bind(wbs_id)
+    .execute(db_arc.pool())
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO activity_current_state (activity_id, project_id, execution_status, current_progress_pct, updated_at)
+         VALUES ($1, $2, 'NOT_STARTED', 0.0, now())"
+    )
+    .bind(activity_id)
+    .bind(project.id)
+    .execute(db_arc.pool())
+    .await
+    .unwrap();
+
+    let obs_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO work_observations (id, project_id, raw_text, observed_at, recorded_at)
+         VALUES ($1, $2, 'Concurrent site test observation', now(), now())",
+    )
+    .bind(obs_id)
+    .bind(project.id)
+    .execute(db_arc.pool())
+    .await
+    .unwrap();
+
+    let proposal_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO match_proposals (id, project_id, observation_id, activity_id, candidate_rank, lexical_score, semantic_score, confidence_score, match_tier, status, created_at)
+         VALUES ($1, $2, $3, $4, 1, 0.95, 0.95, 0.95, 'HIGH', 'PENDING_REVIEW', now())"
+    )
+    .bind(proposal_id)
+    .bind(project.id)
+    .bind(obs_id)
+    .bind(activity_id)
+    .execute(db_arc.pool())
+    .await
+    .unwrap();
+
+    let planner_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO project_members (id, project_id, user_id, email, full_name, role, is_active, created_at)
+         VALUES ($1, $2, $3, 'planner@test.com', 'Planner User', 'PLANNER', true, now())"
+    )
+    .bind(Uuid::new_v4())
+    .bind(project.id)
+    .bind(planner_id)
+    .execute(db_arc.pool())
+    .await
+    .unwrap();
+
+    // Spawn 10 simultaneous database transactions attempting to approve the same proposal
+    let mut handles = Vec::new();
+    for i in 0..10 {
+        let db_clone = db_arc.clone();
+        let h = tokio::spawn(async move {
+            db_clone
+                .approve_proposal_tx(
+                    proposal_id,
+                    planner_id,
+                    None,
+                    Some(format!("PostgreSQL concurrent attempt {}", i)),
+                )
+                .await
+        });
+        handles.push(h);
+    }
+
+    let mut success_count = 0;
+    let mut conflict_count = 0;
+
+    for h in handles {
+        let res = h.await.unwrap();
+        match res {
+            Ok(_) => success_count += 1,
+            Err(e) => {
+                eprintln!("Concurrent attempt error: {:?}", e);
+                conflict_count += 1;
+            }
+        }
+    }
+
+    // Exactly 1 approval must succeed in PostgreSQL via FOR UPDATE row locking
+    assert_eq!(
+        success_count, 1,
+        "Exactly one real PostgreSQL transaction must succeed"
+    );
+    assert_eq!(
+        conflict_count, 9,
+        "All 9 concurrent conflicting transactions must be rolled back by PostgreSQL"
+    );
+
+    // Verify durable state directly in PostgreSQL
+    let approvals_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM approvals WHERE proposal_id = $1")
+            .bind(proposal_id)
+            .fetch_one(db_arc.pool())
+            .await
+            .unwrap();
+    assert_eq!(
+        approvals_count, 1,
+        "Exactly one durable approval record must exist in PostgreSQL"
+    );
+
+    let events_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM actual_events WHERE match_proposal_id = $1")
+            .bind(proposal_id)
+            .fetch_one(db_arc.pool())
+            .await
+            .unwrap();
+    assert_eq!(
+        events_count, 1,
+        "Exactly one durable actual event must exist in PostgreSQL"
+    );
+
+    let final_status: String =
+        sqlx::query_scalar("SELECT status FROM match_proposals WHERE id = $1")
+            .bind(proposal_id)
+            .fetch_one(db_arc.pool())
+            .await
+            .unwrap();
+    assert_eq!(
+        final_status, "ACCEPTED",
+        "Proposal status must be ACCEPTED in PostgreSQL"
+    );
+}
