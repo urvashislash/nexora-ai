@@ -75,6 +75,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         panic!("FATAL: PostgreSQL database is mandatory in production environment. Refusing to start Trust Plane without persistence.");
     }
 
+    // Validate JWT configuration on startup (fails fast if insecure/missing in production)
+    backend::api::middleware::get_jwt_secret();
+
     // -------------------------------------------------------------------------
     // RabbitMQ Connection Pool
     // -------------------------------------------------------------------------
