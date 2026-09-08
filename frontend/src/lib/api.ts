@@ -25,10 +25,21 @@ interface RequestOptions extends RequestInit {
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<{ data: T | null; error: string | null; isLive: boolean }> {
   const url = `${API_BASE_URL}${path}`;
+
+  // Automatically attach active Supabase JWT session token if present and not overridden
+  let token: string | undefined;
+  try {
+    const sessionRes = await supabase.auth.getSession();
+    token = sessionRes?.data?.session?.access_token;
+  } catch {
+    // Supabase auth client not configured or session unavailable
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-user-id': options.userId || DEFAULT_USER_ID,
     'x-user-role': options.userRole || DEFAULT_USER_ROLE,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers as Record<string, string> || {}),
   };
 

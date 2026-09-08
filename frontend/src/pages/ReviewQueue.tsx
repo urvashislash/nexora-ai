@@ -3,15 +3,18 @@ import {
   CheckCircle2, 
   XCircle, 
   Check, 
+  CheckCheck,
   Search, 
   MessageSquare, 
   AlertTriangle, 
   X, 
   ShieldCheck, 
-  Tag
+  Tag,
+  Loader2
 } from 'lucide-react';
 import type { ReviewQueueItem, Activity, ReviewQueueFilters, ToastMessage } from '../types';
 import { animateStaggerEntrance } from '../lib/animations';
+import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardTitle } from '../components/ui/card';
@@ -138,6 +141,8 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
     animateStaggerEntrance('.review-queue-card', { duration: 400, stagger: 40 });
   }, [filteredItems.length]);
 
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+
   // Action handlers
   const handleApprove = useCallback(async (item: ReviewQueueItem) => {
     try {
@@ -148,6 +153,32 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
       addToast('error', 'Approval Failed', 'An error occurred while validating the transaction.');
     }
   }, [onApprove, commentText]);
+
+  const handleBatchApprove = useCallback(async () => {
+    if (filteredItems.length === 0 || isBatchProcessing) return;
+    const proposalIds = filteredItems.map(i => i.proposal.id);
+    setIsBatchProcessing(true);
+
+    try {
+      const result = await api.batchApproveProposals(proposalIds);
+      if (result.approved_count > 0) {
+        addToast('success', 'Batch Approved', `Successfully committed ${result.approved_count} proposals.`);
+        for (const id of proposalIds) {
+          try {
+            await onApprove(id, 'Batch approved via Lead Planner review');
+          } catch {
+            // Local fallback
+          }
+        }
+      } else {
+        addToast('error', 'Batch Approval Failed', result.errors?.join('; ') || 'Server rejected batch operation.');
+      }
+    } catch (err: any) {
+      addToast('error', 'Batch Failed', err?.message || 'Network error during batch approval.');
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  }, [filteredItems, isBatchProcessing, onApprove]);
 
   const handleConfirmReject = useCallback(async () => {
     if (!selectedItem) return;
@@ -264,6 +295,27 @@ export const ReviewQueue: React.FC<ReviewQueueProps> = ({
 
           <div className="flex items-center gap-3 text-xs font-sans text-slate-600">
             <span><strong className="text-slate-900 font-semibold">{filteredItems.length}</strong> of {items.length} pending</span>
+            {filteredItems.length > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBatchApprove}
+                disabled={isBatchProcessing}
+                className="h-7 text-xs font-medium text-emerald-800 border-emerald-300 bg-emerald-50 hover:bg-emerald-100/80"
+              >
+                {isBatchProcessing ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin mr-1 text-emerald-700" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCheck className="h-3.5 w-3.5 mr-1 text-emerald-700" />
+                    Approve All ({filteredItems.length})
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </Card>
