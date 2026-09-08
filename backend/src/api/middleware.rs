@@ -31,10 +31,18 @@ pub enum Permission {
     Admin,
 }
 
-/// Authenticated caller extracted from request headers
+/// Authenticated caller identity and credentials extracted from verified request JWT.
+///
+/// # NEXORA Authority Architecture
+/// - **JWT (`user_id`)**: Cryptographic identity authentication only.
+/// - **`project_members`**: Authoritative project authorization and granular project permissions.
+/// - **`AuthContext.role`**: Platform-level administrative role only (e.g. system health, global admin, auditor).
+///   All project-scoped operations derive their effective role and permissions directly from `project_members`.
 #[derive(Debug, Clone)]
 pub struct AuthContext {
     pub user_id: Uuid,
+    /// Platform-level administrative role (e.g., global superadmin).
+    /// Project-scoped operations strictly override this with the caller's role in `project_members`.
     pub role: UserRole,
     pub email: Option<String>,
     pub full_name: Option<String>,
@@ -498,13 +506,23 @@ impl RateLimitMiddleware {
         let client_key = extract_client_key(request.headers());
 
         let check_res = if let Some(ref redis) = self.redis_cache {
-            redis
+            match redis
                 .check_rate_limit(
                     &client_key,
                     self.max_requests,
                     self.window_duration.as_secs().max(1),
                 )
                 .await
+            {
+                Ok(rate_result) => rate_result,
+                Err(err) => {
+                    tracing::warn!(
+                        "Redis rate limiter unavailable ({}); falling over to local in-memory limiter",
+                        err
+                    );
+                    self.limiter.check(&client_key).await
+                }
+            }
         } else {
             self.limiter.check(&client_key).await
         };
