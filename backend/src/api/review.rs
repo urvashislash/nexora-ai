@@ -27,7 +27,7 @@ pub async fn get_review_queue(
                 .await
             {
                 tracing::debug!("Review queue cache HIT for project {}", project_id);
-                return Json(cached);
+                return (axum::http::StatusCode::OK, Json(cached)).into_response();
             }
         }
     }
@@ -50,18 +50,23 @@ pub async fn get_review_queue(
                             .await;
                     }
                 }
-                return Json(value);
+                return (axum::http::StatusCode::OK, Json(value)).into_response();
             }
             Err(e) => {
-                tracing::warn!(
-                    "Failed to query DB review queue: {}, falling back to in-memory",
-                    e
-                );
+                tracing::error!("Failed to query DB review queue: {}", e);
+                return (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "Database query failed",
+                        "details": e.to_string()
+                    })),
+                )
+                    .into_response();
             }
         }
     }
 
-    // 3. Fallback to in-memory state
+    // 3. Fallback to in-memory state (unit test mode only)
     let proposals = state.proposals.read().await;
     let obs = state.observations.read().await;
     let acts = state.activities.read().await;
@@ -97,5 +102,5 @@ pub async fn get_review_queue(
         }
     }
 
-    Json(value)
+    (axum::http::StatusCode::OK, Json(value)).into_response()
 }

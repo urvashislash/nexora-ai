@@ -149,6 +149,8 @@ impl Database {
         &self,
         input: &ProjectCreateInput,
         creator_id: Uuid,
+        creator_email: Option<&str>,
+        creator_name: Option<&str>,
     ) -> Result<Project> {
         let mut tx = self.pool.begin().await?;
 
@@ -179,14 +181,18 @@ impl Database {
 
         // 2. Insert creator into project_members as ADMIN
         let member_id = Uuid::new_v4();
+        let default_email = format!("user-{}@nexora.ai", &creator_id.to_string()[..8]);
+        let member_email = creator_email.unwrap_or(&default_email);
+        let member_name = creator_name.unwrap_or("Project Admin");
+
         sqlx::query(
             "INSERT INTO project_members (id, project_id, user_id, email, full_name, role, is_active, created_at) VALUES ($1, $2, $3, $4, $5, 'ADMIN', true, $6)"
         )
         .bind(member_id)
         .bind(project_id)
         .bind(creator_id)
-        .bind("lead.planner@nexora.ai")
-        .bind("Lead Planner")
+        .bind(member_email)
+        .bind(member_name)
         .bind(now)
         .execute(&mut *tx)
         .await?;
@@ -484,6 +490,374 @@ impl Database {
         Ok(list)
     }
 
+    /// Transactionally persists an observation and records an immutable SHA-256 audit entry
+    pub async fn create_observation_tx(
+        &self,
+        obs: &WorkObservation,
+        actor_id: Option<Uuid>,
+        actor_role: Option<&str>,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        let disc_str = obs.discipline.map(|d| {
+            serde_json::to_string(&d)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string()
+        });
+        let event_type_str = obs.event_type.map(|e| {
+            serde_json::to_string(&e)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string()
+        });
+
+        sqlx::query(
+            "INSERT INTO work_observations (id, project_id, document_id, reported_by, observed_at, recorded_at, discipline, location, zone, equipment_tag, raw_text, normalized_text, event_type, reported_progress, reported_quantity, unit_of_measure, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+             ON CONFLICT (id) DO NOTHING"
+        )
+        .bind(obs.id)
+        .bind(obs.project_id)
+        .bind(obs.document_id)
+        .bind(obs.reported_by)
+        .bind(obs.observed_at)
+        .bind(obs.recorded_at)
+        .bind(disc_str)
+        .bind(&obs.location)
+        .bind(&obs.zone)
+        .bind(&obs.equipment_tag)
+        .bind(&obs.raw_text)
+        .bind(&obs.normalized_text)
+        .bind(event_type_str)
+        .bind(obs.reported_progress)
+        .bind(obs.reported_quantity)
+        .bind(&obs.unit_of_measure)
+        .bind(&obs.metadata)
+        .execute(&mut *tx)
+        .await?;
+
+        let prev_hash: Option<String> = sqlx::query_scalar(
+            "SELECT payload_hash FROM audit_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind(obs.project_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let now = Utc::now();
+        let payload_hash = EventLedger::compute_hash(
+            &obs.id,
+            "CREATE_OBSERVATION",
+            &serde_json::json!({
+                "raw_text": obs.raw_text,
+                "discipline": obs.discipline,
+                "progress": obs.reported_progress,
+                "location": obs.location,
+            }),
+            prev_hash.as_deref(),
+            &now,
+        );
+
+        let audit_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO audit_events (id, project_id, entity_type, entity_id, action, actor_id, actor_role, payload_hash, previous_hash, created_at)
+             VALUES ($1, $2, 'WORK_OBSERVATION', $3, 'CREATE_OBSERVATION', $4, $5, $6, $7, $8)"
+        )
+        .bind(audit_id)
+        .bind(obs.project_id)
+        .bind(obs.id)
+        .bind(actor_id)
+        .bind(actor_role.unwrap_or("SUPERVISOR"))
+        .bind(&payload_hash)
+        .bind(prev_hash)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Fetches all actual events for a project
+    pub async fn list_actual_events(
+        &self,
+        project_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<ActualEvent>> {
+        let rows = sqlx::query(
+            "SELECT id, project_id, activity_id, observation_id, match_proposal_id, event_type, actual_date, actual_progress_pct, actual_quantity, delay_reason, delay_days, lifecycle_status, verification_status, idempotency_key, created_by, created_at
+             FROM actual_events WHERE project_id = $1 ORDER BY actual_date DESC, created_at DESC LIMIT $2 OFFSET $3"
+        )
+        .bind(project_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut events = Vec::new();
+        for r in rows {
+            let evt_type_str: String = r.try_get("event_type")?;
+            let lifecycle_str: String = r.try_get("lifecycle_status")?;
+            let verif_str: String = r.try_get("verification_status")?;
+
+            let event_type = match evt_type_str.to_uppercase().as_str() {
+                "START" => EventType::Start,
+                "PROGRESS" => EventType::Progress,
+                "FINISH" => EventType::Finish,
+                "DELAY" => EventType::Delay,
+                "BLOCKER" => EventType::Blocker,
+                "INSPECTION" => EventType::Inspection,
+                _ => EventType::Finish,
+            };
+
+            let lifecycle_status = match lifecycle_str.to_uppercase().as_str() {
+                "PROPOSED" => LifecycleStatus::Proposed,
+                "MATCHED" => LifecycleStatus::Matched,
+                "REVIEW_REQUIRED" => LifecycleStatus::ReviewRequired,
+                "APPROVED" => LifecycleStatus::Approved,
+                "COMMITTED" => LifecycleStatus::Committed,
+                "REJECTED" => LifecycleStatus::Rejected,
+                _ => LifecycleStatus::Committed,
+            };
+
+            let verification_status = match verif_str.to_uppercase().as_str() {
+                "SYSTEM_VERIFIED" => VerificationStatus::SystemVerified,
+                "HUMAN_VERIFIED" => VerificationStatus::HumanVerified,
+                _ => VerificationStatus::Unverified,
+            };
+
+            events.push(ActualEvent {
+                id: r.try_get("id")?,
+                project_id: r.try_get("project_id")?,
+                activity_id: r.try_get("activity_id")?,
+                observation_id: r.try_get("observation_id")?,
+                match_proposal_id: r.try_get("match_proposal_id")?,
+                event_type,
+                actual_date: r.try_get("actual_date")?,
+                actual_progress_pct: r.try_get("actual_progress_pct")?,
+                actual_quantity: r.try_get("actual_quantity")?,
+                delay_reason: r.try_get("delay_reason")?,
+                delay_days: r.try_get("delay_days")?,
+                lifecycle_status,
+                verification_status,
+                idempotency_key: r.try_get("idempotency_key")?,
+                created_by: r.try_get("created_by")?,
+                created_at: r.try_get("created_at")?,
+            });
+        }
+        Ok(events)
+    }
+
+    /// Atomically persists an AI processing result into PostgreSQL
+    pub async fn ingest_ai_result_tx(
+        &self,
+        project_id: Uuid,
+        job_id: Option<&str>,
+        observations: &[WorkObservation],
+        proposals: &[MatchProposal],
+        auto_events: &[(ActualEvent, Option<chrono::NaiveDate>)],
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        // 1. Insert observations
+        for obs in observations {
+            let disc_str = obs.discipline.map(|d| {
+                serde_json::to_string(&d)
+                    .unwrap_or_default()
+                    .trim_matches('"')
+                    .to_string()
+            });
+            let evt_str = obs.event_type.map(|e| {
+                serde_json::to_string(&e)
+                    .unwrap_or_default()
+                    .trim_matches('"')
+                    .to_string()
+            });
+            sqlx::query(
+                "INSERT INTO work_observations (id, project_id, document_id, reported_by, observed_at, recorded_at, discipline, location, zone, equipment_tag, raw_text, normalized_text, event_type, reported_progress, reported_quantity, unit_of_measure, metadata)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                 ON CONFLICT (id) DO NOTHING"
+            )
+            .bind(obs.id)
+            .bind(obs.project_id)
+            .bind(obs.document_id)
+            .bind(obs.reported_by)
+            .bind(obs.observed_at)
+            .bind(obs.recorded_at)
+            .bind(disc_str)
+            .bind(&obs.location)
+            .bind(&obs.zone)
+            .bind(&obs.equipment_tag)
+            .bind(&obs.raw_text)
+            .bind(&obs.normalized_text)
+            .bind(evt_str)
+            .bind(obs.reported_progress)
+            .bind(obs.reported_quantity)
+            .bind(&obs.unit_of_measure)
+            .bind(&obs.metadata)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // 2. Insert proposals
+        for prop in proposals {
+            let tier_str = serde_json::to_string(&prop.match_tier)
+                .unwrap_or_else(|_| "\"MEDIUM\"".to_string())
+                .trim_matches('"')
+                .to_string();
+
+            sqlx::query(
+                "INSERT INTO match_proposals (id, project_id, observation_id, activity_id, candidate_rank, lexical_score, semantic_score, context_boost, confidence_score, match_tier, explanation, evidence_snippet, status, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                 ON CONFLICT (id) DO NOTHING"
+            )
+            .bind(prop.id)
+            .bind(prop.project_id)
+            .bind(prop.observation_id)
+            .bind(prop.activity_id)
+            .bind(prop.candidate_rank)
+            .bind(prop.lexical_score)
+            .bind(prop.semantic_score)
+            .bind(prop.context_boost)
+            .bind(prop.confidence_score)
+            .bind(&tier_str)
+            .bind(&prop.explanation)
+            .bind(&prop.evidence_snippet)
+            .bind(&prop.status)
+            .bind(prop.created_at)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // 3. Insert auto-linked actual events and update activity current state
+        let now = Utc::now();
+        for (evt, planned_finish) in auto_events {
+            let evt_type_str = serde_json::to_string(&evt.event_type)
+                .unwrap_or_else(|_| "\"FINISH\"".to_string())
+                .trim_matches('"')
+                .to_string();
+            let lifecycle_str = serde_json::to_string(&evt.lifecycle_status)
+                .unwrap_or_else(|_| "\"COMMITTED\"".to_string())
+                .trim_matches('"')
+                .to_string();
+            let verif_str = serde_json::to_string(&evt.verification_status)
+                .unwrap_or_else(|_| "\"SYSTEM_VERIFIED\"".to_string())
+                .trim_matches('"')
+                .to_string();
+
+            sqlx::query(
+                "INSERT INTO actual_events (id, project_id, activity_id, observation_id, match_proposal_id, event_type, actual_date, actual_progress_pct, actual_quantity, delay_reason, delay_days, lifecycle_status, verification_status, idempotency_key, created_by, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                 ON CONFLICT (id) DO NOTHING"
+            )
+            .bind(evt.id)
+            .bind(evt.project_id)
+            .bind(evt.activity_id)
+            .bind(evt.observation_id)
+            .bind(evt.match_proposal_id)
+            .bind(&evt_type_str)
+            .bind(evt.actual_date)
+            .bind(evt.actual_progress_pct)
+            .bind(evt.actual_quantity)
+            .bind(&evt.delay_reason)
+            .bind(evt.delay_days)
+            .bind(&lifecycle_str)
+            .bind(&verif_str)
+            .bind(&evt.idempotency_key)
+            .bind(evt.created_by)
+            .bind(evt.created_at)
+            .execute(&mut *tx)
+            .await?;
+
+            let progress = evt.actual_progress_pct.unwrap_or(100.0);
+            let exec_status = if progress >= 100.0 {
+                "COMPLETED"
+            } else {
+                "IN_PROGRESS"
+            };
+            let variance_days = planned_finish
+                .map(|pf| (evt.actual_date - pf).num_days() as i32)
+                .unwrap_or(0);
+
+            sqlx::query(
+                "UPDATE activity_current_state SET execution_status = $1, actual_finish_date = $2, current_progress_pct = GREATEST(current_progress_pct, $3), last_event_id = $4, last_event_date = $5, variance_days = $6, updated_at = $7 WHERE activity_id = $8"
+            )
+            .bind(exec_status)
+            .bind(evt.actual_date)
+            .bind(progress)
+            .bind(evt.id)
+            .bind(evt.actual_date)
+            .bind(variance_days)
+            .bind(now)
+            .bind(evt.activity_id)
+            .execute(&mut *tx)
+            .await?;
+
+            sqlx::query(
+                "INSERT INTO outbox_events (id, project_id, event_type, payload, status, retry_count, created_at)
+                 VALUES ($1, $2, 'AUTO_LINKED_EVENT', $3, 'PENDING', 0, $4)"
+            )
+            .bind(Uuid::new_v4())
+            .bind(project_id)
+            .bind(serde_json::to_value(evt).unwrap_or(serde_json::json!({})))
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // 4. Update document_jobs if job_id was provided
+        if let Some(jid) = job_id {
+            if let Ok(job_uuid) = Uuid::parse_str(jid) {
+                sqlx::query(
+                    "UPDATE document_jobs SET status = 'COMPLETED', completed_at = $1 WHERE id = $2"
+                )
+                .bind(now)
+                .bind(job_uuid)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        // 5. Insert audit event
+        let prev_hash: Option<String> = sqlx::query_scalar(
+            "SELECT payload_hash FROM audit_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind(project_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let audit_id = Uuid::new_v4();
+        let payload_hash = EventLedger::compute_hash(
+            &project_id,
+            "INGEST_AI_RESULT",
+            &serde_json::json!({
+                "job_id": job_id,
+                "observations_count": observations.len(),
+                "proposals_count": proposals.len(),
+                "auto_linked_count": auto_events.len(),
+            }),
+            prev_hash.as_deref(),
+            &now,
+        );
+
+        sqlx::query(
+            "INSERT INTO audit_events (id, project_id, entity_type, entity_id, action, actor_id, actor_role, payload_hash, previous_hash, created_at)
+             VALUES ($1, $2, 'AI_INGEST', $3, 'INGEST_AI_RESULT', NULL, 'AI_WORKER', $4, $5, $6)"
+        )
+        .bind(audit_id)
+        .bind(project_id)
+        .bind(audit_id)
+        .bind(&payload_hash)
+        .bind(prev_hash)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
     /// Transactionally approves a match proposal: inserts approval, actual event, updates activity current state, records audit and outbox
     pub async fn approve_proposal_tx(
         &self,
@@ -696,9 +1070,16 @@ impl Database {
     }
 
     /// Verifies the cryptographic integrity of the entire audit chain in PostgreSQL
-    pub async fn verify_audit_chain(&self, project_id: Uuid) -> Result<Result<(), usize>> {
+    pub async fn verify_audit_chain(
+        &self,
+        project_id: Uuid,
+    ) -> Result<(bool, usize, Option<usize>)> {
         let events = self.list_audit_trail(project_id, 10000, 0).await?;
-        Ok(EventLedger::verify_chain_integrity(&events))
+        let count = events.len();
+        match EventLedger::verify_chain_integrity(&events) {
+            Ok(()) => Ok((true, count, None)),
+            Err(broken_idx) => Ok((false, count, Some(broken_idx))),
+        }
     }
 
     /// Computes dashboard KPIs directly from PostgreSQL projections

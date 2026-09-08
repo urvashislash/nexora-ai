@@ -47,10 +47,6 @@ pub async fn create_observation(
     ValidationEngine::validate_quantity_bounds(payload.reported_quantity)
         .map_err(|e| ApiError::validation(e.to_string()))?;
 
-    let mut obs_list = state.observations.write().await;
-    let mut audit_trail = state.audit_trail.write().await;
-    let mut last_hash_lock = state.last_audit_hash.write().await;
-
     let obs = WorkObservation {
         id: Uuid::new_v4(),
         project_id,
@@ -70,6 +66,36 @@ pub async fn create_observation(
         unit_of_measure: payload.unit_of_measure,
         metadata: payload.metadata.unwrap_or(serde_json::json!({})),
     };
+
+    // Persist to PostgreSQL if connected
+    if let Some(ref db) = state.database {
+        db.create_observation_tx(&obs, payload.reported_by, Some("SUPERVISOR"))
+            .await
+            .map_err(|e| {
+                tracing::error!("Database observation insert failed: {}", e);
+                ApiError::internal(format!("Database error: {}", e))
+            })?;
+
+        let mut obs_list = state.observations.write().await;
+        obs_list.push(obs.clone());
+
+        return Ok((StatusCode::CREATED, Json(obs)));
+    }
+
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return Err(ApiError::internal(
+            "PostgreSQL persistence is mandatory in production environment",
+        ));
+    }
+
+    // In-memory fallback (only for offline unit test mode without database)
+    let mut obs_list = state.observations.write().await;
+    let mut audit_trail = state.audit_trail.write().await;
+    let mut last_hash_lock = state.last_audit_hash.write().await;
 
     let audit = EventLedger::create_audit_event(
         project_id,
@@ -91,13 +117,6 @@ pub async fn create_observation(
     obs_list.push(obs.clone());
     audit_trail.push(audit);
 
-    // Persist to PostgreSQL if connected
-    if let Some(ref db) = state.database {
-        if let Err(e) = db.insert_observation(&obs).await {
-            tracing::warn!("Database observation insert failed: {}", e);
-        }
-    }
-
     Ok((StatusCode::CREATED, Json(obs)))
 }
 
@@ -112,10 +131,8 @@ pub async fn get_observations(
         let page = pagination.page.unwrap_or(1).max(1) as i64;
         let offset = (page - 1) * limit;
         if let Ok(db_obs) = db.list_observations(project_id, limit, offset).await {
-            if !db_obs.is_empty() {
-                let paginated = pagination.apply(&db_obs);
-                return Json(paginated);
-            }
+            let paginated = pagination.apply(&db_obs);
+            return Json(paginated);
         }
     }
 
@@ -187,16 +204,22 @@ pub async fn ingest_observations(
     Path(project_id): Path<Uuid>,
     Json(payload): Json<IngestRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let mut obs_list = state.observations.write().await;
-    let mut prop_list = state.proposals.write().await;
-    let mut events = state.events.write().await;
-    let mut act_states = state.activity_states.write().await;
-    let mut audit_trail = state.audit_trail.write().await;
-    let mut outbox_store = state.outbox_events.write().await;
-    let mut last_hash_lock = state.last_audit_hash.write().await;
-    let acts = state.activities.read().await;
+    let acts = if let Some(ref db) = state.database {
+        db.list_activities_with_state(project_id)
+            .await
+            .map(|list| {
+                list.into_iter()
+                    .map(|item| item.activity)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    } else {
+        state.activities.read().await.clone()
+    };
 
-    let mut auto_committed = 0;
+    let mut observations_to_save: Vec<WorkObservation> = Vec::new();
+    let mut proposals_to_save: Vec<MatchProposal> = Vec::new();
+
     let mut review_required = 0;
     let mut unmatched = 0;
 
@@ -221,88 +244,15 @@ pub async fn ingest_observations(
             unit_of_measure: item.observation.unit_of_measure.clone(),
             metadata: serde_json::json!({}),
         };
-        obs_list.push(obs);
+        observations_to_save.push(obs);
 
         if let Some(prop_data) = &item.proposal {
             let prop_id = Uuid::new_v4();
             let act_opt = acts.iter().find(|a| a.id == prop_data.activity_id);
 
-            if let (true, Some(act)) = (prop_data.auto_link_eligible, act_opt) {
-                let actual_date = Utc::now().date_naive();
-                let progress = item.observation.reported_progress.unwrap_or(100.0);
-
-                let new_event = ActualEvent {
-                    id: Uuid::new_v4(),
-                    project_id,
-                    activity_id: act.id,
-                    observation_id: Some(obs_id),
-                    match_proposal_id: Some(prop_id),
-                    event_type: item.observation.event_type.unwrap_or(EventType::Finish),
-                    actual_date,
-                    actual_progress_pct: Some(progress),
-                    actual_quantity: item.observation.reported_quantity.or(act.planned_quantity),
-                    delay_reason: None,
-                    delay_days: None,
-                    lifecycle_status: LifecycleStatus::Committed,
-                    verification_status: VerificationStatus::SystemVerified,
-                    idempotency_key: Some(format!("autolink-{}-{}", act.id, actual_date)),
-                    created_by: None,
-                    created_at: Utc::now(),
-                };
-
-                if let Some(state_entry) = act_states.iter_mut().find(|s| s.activity_id == act.id) {
-                    let _ = crate::domain::state_machine::StateMachine::project_event(
-                        state_entry,
-                        &new_event,
-                        act.planned_finish_date,
-                    );
-                }
-
-                let proposal = MatchProposal {
-                    id: prop_id,
-                    project_id,
-                    observation_id: obs_id,
-                    activity_id: act.id,
-                    candidate_rank: prop_data.candidate_rank,
-                    lexical_score: prop_data.lexical_score,
-                    semantic_score: prop_data.semantic_score,
-                    context_boost: prop_data.context_boost,
-                    confidence_score: prop_data.confidence_score,
-                    match_tier: prop_data.match_tier,
-                    explanation: prop_data.explanation.clone(),
-                    evidence_snippet: prop_data.evidence_snippet.clone(),
-                    status: "AUTO_LINKED".to_string(),
-                    created_at: Utc::now(),
-                };
-                prop_list.push(proposal);
-
-                let audit = EventLedger::create_audit_event(
-                    project_id,
-                    "ACTUAL_EVENT",
-                    new_event.id,
-                    "SYSTEM_VERIFIED_AUTO_LINK",
-                    None,
-                    Some("RUST_TRUST_LAYER"),
-                    Some(serde_json::json!({"lifecycle_status": "MATCHED"})),
-                    Some(serde_json::json!({
-                        "lifecycle_status": "COMMITTED",
-                        "verification_status": "SYSTEM_VERIFIED",
-                        "activity_code": act.code
-                    })),
-                    last_hash_lock.as_deref(),
-                );
-                *last_hash_lock = Some(audit.payload_hash.clone());
-
-                let outbox =
-                    EventLedger::create_outbox_event(project_id, "AUTO_LINKED_EVENT", &new_event);
-                outbox_store.push(outbox);
-
-                events.push(new_event);
-                audit_trail.push(audit);
-                auto_committed += 1;
-            } else if let (true, Some(act)) =
-                (prop_data.match_tier != MatchTier::Unmatched, act_opt)
-            {
+            // Trust Boundary Enforcement: HTTP client cannot force auto_link_eligible.
+            // All client-ingested matches MUST be reviewed by human planner.
+            if let Some(act) = act_opt {
                 let proposal = MatchProposal {
                     id: prop_id,
                     project_id,
@@ -319,27 +269,7 @@ pub async fn ingest_observations(
                     status: "PENDING_REVIEW".to_string(),
                     created_at: Utc::now(),
                 };
-                prop_list.push(proposal);
-
-                let audit = EventLedger::create_audit_event(
-                    project_id,
-                    "MATCH_PROPOSAL",
-                    prop_id,
-                    "CREATE_PROPOSAL_REVIEW_REQUIRED",
-                    None,
-                    Some("RUST_TRUST_LAYER"),
-                    None,
-                    Some(serde_json::json!({
-                        "status": "PENDING_REVIEW",
-                        "confidence_score": prop_data.confidence_score,
-                        "match_tier": prop_data.match_tier,
-                        "activity_code": act.code
-                    })),
-                    last_hash_lock.as_deref(),
-                );
-                *last_hash_lock = Some(audit.payload_hash.clone());
-                audit_trail.push(audit);
-
+                proposals_to_save.push(proposal);
                 review_required += 1;
             } else {
                 unmatched += 1;
@@ -349,10 +279,64 @@ pub async fn ingest_observations(
         }
     }
 
+    // Persist to PostgreSQL if connected
+    if let Some(ref db) = state.database {
+        db.ingest_ai_result_tx(
+            project_id,
+            None,
+            &observations_to_save,
+            &proposals_to_save,
+            &[],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to persist batch ingestion into PostgreSQL: {}", e);
+            ApiError::internal(format!("Database error: {}", e))
+        })?;
+    } else {
+        let is_prod = std::env::var("APP_ENV")
+            .or_else(|_| std::env::var("ENVIRONMENT"))
+            .map(|v| v.to_lowercase() == "production")
+            .unwrap_or(false);
+        if is_prod {
+            return Err(ApiError::internal(
+                "PostgreSQL persistence is mandatory in production environment",
+            ));
+        }
+
+        // In-memory fallback for offline test mode
+        let mut obs_list = state.observations.write().await;
+        let mut prop_list = state.proposals.write().await;
+        let mut audit_trail = state.audit_trail.write().await;
+        let mut last_hash_lock = state.last_audit_hash.write().await;
+
+        obs_list.extend(observations_to_save.clone());
+        for p in &proposals_to_save {
+            let audit = EventLedger::create_audit_event(
+                project_id,
+                "MATCH_PROPOSAL",
+                p.id,
+                "CREATE_PROPOSAL_REVIEW_REQUIRED",
+                None,
+                Some("RUST_TRUST_LAYER"),
+                None,
+                Some(serde_json::json!({
+                    "status": "PENDING_REVIEW",
+                    "confidence_score": p.confidence_score,
+                    "match_tier": p.match_tier,
+                })),
+                last_hash_lock.as_deref(),
+            );
+            *last_hash_lock = Some(audit.payload_hash.clone());
+            audit_trail.push(audit);
+        }
+        prop_list.extend(proposals_to_save);
+    }
+
     let resp = IngestResponse {
         project_id,
         total_ingested: payload.items.len(),
-        auto_committed,
+        auto_committed: 0, // Trust boundary: client-supplied proposals require human review
         review_required,
         unmatched,
     };

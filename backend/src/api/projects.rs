@@ -28,9 +28,16 @@ pub async fn create_project(
     }
 
     if let Some(ref db) = state.database {
-        match db.create_project_tx(&payload, auth.user_id).await {
+        match db
+            .create_project_tx(
+                &payload,
+                auth.user_id,
+                auth.email.as_deref(),
+                auth.full_name.as_deref(),
+            )
+            .await
+        {
             Ok(project) => {
-                // Keep in-memory cache synchronized
                 let mut projects = state.projects.write().await;
                 if !projects.iter().any(|p| p.id == project.id) {
                     projects.push(project.clone());
@@ -47,7 +54,17 @@ pub async fn create_project(
         }
     }
 
-    // In-memory fallback (when database is offline / unit test mode)
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return Err(ApiError::internal(
+            "PostgreSQL persistence is mandatory in production environment",
+        ));
+    }
+
+    // In-memory fallback (only for offline unit test mode without database)
     let project_id = Uuid::new_v4();
     let now = chrono::Utc::now();
     let project = Project {
@@ -72,11 +89,11 @@ pub async fn create_project(
 /// GET /api/v1/projects - Lists all active projects
 pub async fn list_projects(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
     if let Some(ref db) = state.database {
-        if let Ok(projects) = db.load_projects().await {
-            if !projects.is_empty() {
-                return Ok(Json(projects));
-            }
-        }
+        let projects = db.load_projects().await.map_err(|e| {
+            tracing::error!("Failed to load projects from PostgreSQL: {}", e);
+            ApiError::internal(format!("Database error: {}", e))
+        })?;
+        return Ok(Json(projects));
     }
 
     let projects = state.projects.read().await;
@@ -89,9 +106,13 @@ pub async fn get_project(
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
     if let Some(ref db) = state.database {
-        if let Ok(Some(project)) = db.get_project(project_id).await {
-            return Ok(Json(project));
-        }
+        let project = db.get_project(project_id).await.map_err(|e| {
+            tracing::error!("Failed to get project {}: {}", project_id, e);
+            ApiError::internal(format!("Database error: {}", e))
+        })?;
+
+        let project = project.ok_or_else(|| ApiError::not_found("Project not found"))?;
+        return Ok(Json(project));
     }
 
     let projects = state.projects.read().await;

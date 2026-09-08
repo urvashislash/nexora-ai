@@ -263,14 +263,18 @@ impl ResultConsumer {
             }
         }
 
-        // Persist observations in a short scoped write lock
-        if !parsed_observations.is_empty() {
-            let mut obs_store = self.state.observations.write().await;
-            obs_store.extend(parsed_observations);
-        }
-
-        // 2. Prepare proposals and events in-memory with a brief read-lock on activities
-        let acts = self.state.activities.read().await.clone();
+        // 2. Prepare proposals and events in-memory with activities from database (or in-memory for tests)
+        let acts: Vec<Activity> = if let Some(db) = &self.state.database {
+            match db.list_activities_with_state(project_id).await {
+                Ok(items) => items.into_iter().map(|item| item.activity).collect(),
+                Err(e) => {
+                    tracing::warn!("Failed to query DB activities in consumer: {}", e);
+                    self.state.activities.read().await.clone()
+                }
+            }
+        } else {
+            self.state.activities.read().await.clone()
+        };
 
         let mut proposals_to_insert: Vec<MatchProposal> = Vec::new();
         let mut events_to_insert: Vec<ActualEvent> = Vec::new();
@@ -445,27 +449,48 @@ impl ResultConsumer {
             }
         }
 
-        // 3. Persist proposals, events, and state machine transitions in a single atomic scoped write
-        if !proposals_to_insert.is_empty() || !events_to_insert.is_empty() {
-            let mut prop_store = self.state.proposals.write().await;
-            let mut events_store = self.state.events.write().await;
-            let mut act_states = self.state.activity_states.write().await;
-            let mut outbox_store = self.state.outbox_events.write().await;
-
-            for (act_id, event, planned_finish) in &events_to_project {
-                if let Some(state_entry) = act_states.iter_mut().find(|s| s.activity_id == *act_id)
-                {
-                    let _ = StateMachine::project_event(state_entry, event, *planned_finish);
-                }
+        // 3. Persist transactionally to PostgreSQL if available, or fall back to in-memory for unit tests
+        if let Some(db) = &self.state.database {
+            let auto_events_input: Vec<(ActualEvent, Option<chrono::NaiveDate>)> =
+                events_to_project
+                    .iter()
+                    .map(|(_, ev, planned)| (ev.clone(), Some(*planned)))
+                    .collect();
+            db.ingest_ai_result_tx(
+                project_id,
+                Some(job_id),
+                &parsed_observations,
+                &proposals_to_insert,
+                &auto_events_input,
+            )
+            .await?;
+        } else {
+            // In-memory fallback (offline / unit test mode only)
+            if !parsed_observations.is_empty() {
+                let mut obs_store = self.state.observations.write().await;
+                obs_store.extend(parsed_observations);
             }
 
-            prop_store.extend(proposals_to_insert);
-            events_store.extend(events_to_insert);
-            outbox_store.extend(outbox_to_insert);
-        }
+            if !proposals_to_insert.is_empty() || !events_to_insert.is_empty() {
+                let mut prop_store = self.state.proposals.write().await;
+                let mut events_store = self.state.events.write().await;
+                let mut act_states = self.state.activity_states.write().await;
+                let mut outbox_store = self.state.outbox_events.write().await;
 
-        // 4. Create unified audit trail entry in a brief scoped lock
-        {
+                for (act_id, event, planned_finish) in &events_to_project {
+                    if let Some(state_entry) =
+                        act_states.iter_mut().find(|s| s.activity_id == *act_id)
+                    {
+                        let _ = StateMachine::project_event(state_entry, event, *planned_finish);
+                    }
+                }
+
+                prop_store.extend(proposals_to_insert);
+                events_store.extend(events_to_insert);
+                outbox_store.extend(outbox_to_insert);
+            }
+
+            // Create unified audit trail entry in in-memory state
             let mut audit_trail = self.state.audit_trail.write().await;
             let mut last_hash = self.state.last_audit_hash.write().await;
 

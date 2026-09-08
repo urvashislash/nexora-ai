@@ -26,10 +26,21 @@ pub async fn get_audit_trail(
         let limit = pagination.limit.unwrap_or(50) as i64;
         let page = pagination.page.unwrap_or(1).max(1) as i64;
         let offset = (page - 1) * limit;
-        if let Ok(db_trail) = db.list_audit_trail(project_id, limit, offset).await {
-            if !db_trail.is_empty() {
+        match db.list_audit_trail(project_id, limit, offset).await {
+            Ok(db_trail) => {
                 let paginated = pagination.apply(&db_trail);
-                return Json(paginated);
+                return (axum::http::StatusCode::OK, Json(paginated)).into_response();
+            }
+            Err(e) => {
+                tracing::error!("Failed to query DB audit trail: {}", e);
+                return (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "Database query failed",
+                        "details": e.to_string()
+                    })),
+                )
+                    .into_response();
             }
         }
     }
@@ -41,7 +52,7 @@ pub async fn get_audit_trail(
         .cloned()
         .collect();
     let paginated = pagination.apply(&filtered);
-    Json(paginated)
+    (axum::http::StatusCode::OK, Json(paginated)).into_response()
 }
 
 pub async fn verify_audit_chain(
@@ -49,21 +60,47 @@ pub async fn verify_audit_chain(
     Path(project_id): Path<Uuid>,
 ) -> impl IntoResponse {
     if let Some(ref db) = state.database {
-        if let Ok(result) = db.verify_audit_chain(project_id).await {
-            match result {
-                Ok(()) => {
-                    return Json(serde_json::json!({
-                        "valid": true,
-                        "message": "Audit chain integrity fully verified against PostgreSQL"
-                    }))
+        match db.verify_audit_chain(project_id).await {
+            Ok((valid, total, broken_idx)) => {
+                if valid {
+                    return (
+                        axum::http::StatusCode::OK,
+                        Json(serde_json::json!({
+                            "valid": true,
+                            "total_events": total,
+                            "verified_count": total,
+                            "message": "Audit chain integrity fully verified against PostgreSQL"
+                        })),
+                    )
+                        .into_response();
+                } else {
+                    return (
+                        axum::http::StatusCode::OK,
+                        Json(serde_json::json!({
+                            "valid": false,
+                            "total_events": total,
+                            "verified_count": broken_idx.unwrap_or(0),
+                            "broken_at_index": broken_idx,
+                            "message": format!(
+                                "Audit chain verification failed at event index {}",
+                                broken_idx.unwrap_or(0)
+                            )
+                        })),
+                    )
+                        .into_response();
                 }
-                Err(broken_idx) => {
-                    return Json(serde_json::json!({
+            }
+            Err(e) => {
+                tracing::error!("Failed to verify DB audit chain: {}", e);
+                return (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
                         "valid": false,
-                        "broken_at_index": broken_idx,
-                        "message": format!("Audit chain verification failed at event index {}", broken_idx)
-                    }))
-                }
+                        "error": "Failed to verify audit chain against database",
+                        "details": e.to_string()
+                    })),
+                )
+                    .into_response();
             }
         }
     }
@@ -77,17 +114,27 @@ pub async fn verify_audit_chain(
 
     let result = EventLedger::verify_chain_integrity(&filtered);
     match result {
-        Ok(()) => Json(serde_json::json!({
-            "valid": true,
-            "total_events": filtered.len(),
-            "message": "Audit chain integrity fully verified"
-        })),
-        Err(broken_idx) => Json(serde_json::json!({
-            "valid": false,
-            "total_events": filtered.len(),
-            "broken_at_index": broken_idx,
-            "message": format!("Audit chain verification failed at event index {}", broken_idx)
-        })),
+        Ok(()) => (
+            axum::http::StatusCode::OK,
+            Json(serde_json::json!({
+                "valid": true,
+                "total_events": filtered.len(),
+                "verified_count": filtered.len(),
+                "message": "Audit chain integrity fully verified"
+            })),
+        )
+            .into_response(),
+        Err(broken_idx) => (
+            axum::http::StatusCode::OK,
+            Json(serde_json::json!({
+                "valid": false,
+                "total_events": filtered.len(),
+                "verified_count": broken_idx,
+                "broken_at_index": broken_idx,
+                "message": format!("Audit chain verification failed at event index {}", broken_idx)
+            })),
+        )
+            .into_response(),
     }
 }
 

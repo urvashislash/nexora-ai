@@ -27,42 +27,25 @@ pub async fn get_activities(
                 .await
             {
                 tracing::debug!("Activities cache HIT for project {}", project_id);
-                return Json(cached);
+                return (axum::http::StatusCode::OK, Json(cached)).into_response();
             }
         }
     }
 
     let combined: Vec<ActivityWithState> = if let Some(ref db) = state.database {
-        if let Ok(acts) = db.list_activities_with_state(project_id).await {
-            if !acts.is_empty() {
-                acts
-            } else {
-                let acts = state.activities.read().await;
-                let states = state.activity_states.read().await;
-                acts.iter()
-                    .filter(|a| a.project_id == project_id)
-                    .map(|a| {
-                        let s = states.iter().find(|st| st.activity_id == a.id).cloned();
-                        ActivityWithState {
-                            activity: a.clone(),
-                            state: s,
-                        }
-                    })
-                    .collect()
+        match db.list_activities_with_state(project_id).await {
+            Ok(acts) => acts,
+            Err(e) => {
+                tracing::error!("Failed to query activities from database: {}", e);
+                return (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": format!("Database error: {}", e),
+                        "code": "DATABASE_ERROR"
+                    })),
+                )
+                    .into_response();
             }
-        } else {
-            let acts = state.activities.read().await;
-            let states = state.activity_states.read().await;
-            acts.iter()
-                .filter(|a| a.project_id == project_id)
-                .map(|a| {
-                    let s = states.iter().find(|st| st.activity_id == a.id).cloned();
-                    ActivityWithState {
-                        activity: a.clone(),
-                        state: s,
-                    }
-                })
-                .collect()
         }
     } else {
         let acts = state.activities.read().await;
@@ -96,7 +79,7 @@ pub async fn get_activities(
         }
     }
 
-    Json(value)
+    Json(value).into_response()
 }
 
 /// GET /api/v1/projects/:id/events — list all actual events for a project
@@ -105,6 +88,17 @@ pub async fn get_events(
     Path(project_id): Path<Uuid>,
     Query(pagination): Query<PaginationParams>,
 ) -> impl IntoResponse {
+    let limit = pagination.limit.unwrap_or(50) as i64;
+    let page = pagination.page.unwrap_or(1).max(1) as i64;
+    let offset = (page - 1) * limit;
+
+    if let Some(ref db) = state.database {
+        if let Ok(events) = db.list_actual_events(project_id, limit, offset).await {
+            let paginated = pagination.apply(&events);
+            return Json(paginated).into_response();
+        }
+    }
+
     let events = state.events.read().await;
     let filtered: Vec<ActualEvent> = events
         .iter()
@@ -112,5 +106,5 @@ pub async fn get_events(
         .cloned()
         .collect();
     let paginated = pagination.apply(&filtered);
-    Json(paginated)
+    Json(paginated).into_response()
 }

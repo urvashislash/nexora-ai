@@ -38,7 +38,7 @@ pub async fn get_dashboard(
             .await
         {
             tracing::debug!("Dashboard cache HIT for project {}", project_id);
-            return Json(cached);
+            return (axum::http::StatusCode::OK, Json(cached)).into_response();
         }
     }
 
@@ -56,18 +56,23 @@ pub async fn get_dashboard(
                         )
                         .await;
                 }
-                return Json(kpis);
+                return (axum::http::StatusCode::OK, Json(kpis)).into_response();
             }
             Err(e) => {
-                tracing::warn!(
-                    "Failed to query DB dashboard KPIs: {}, falling back to in-memory",
-                    e
-                );
+                tracing::error!("Failed to query DB dashboard KPIs: {}", e);
+                return (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "Database query failed",
+                        "details": e.to_string()
+                    })),
+                )
+                    .into_response();
             }
         }
     }
 
-    // 3. Fallback to in-memory state
+    // 3. Fallback to in-memory state (unit test mode only)
     let obs = state.observations.read().await;
     let proposals = state.proposals.read().await;
     let events = state.events.read().await;
@@ -102,8 +107,8 @@ pub async fn get_dashboard(
     };
 
     let kpis = DashboardKPIs {
-        total_observations: obs.len(),
-        extracted_events: events.len(),
+        total_observations: obs.iter().filter(|o| o.project_id == project_id).count(),
+        extracted_events: events.iter().filter(|e| e.project_id == project_id).count(),
         auto_linked_events: auto_linked,
         review_queue_count: review_queue,
         unmatched_count: unmatched,
@@ -124,5 +129,5 @@ pub async fn get_dashboard(
             .await;
     }
 
-    Json(kpis)
+    (axum::http::StatusCode::OK, Json(kpis)).into_response()
 }
