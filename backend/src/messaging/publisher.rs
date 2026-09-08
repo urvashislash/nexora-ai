@@ -61,7 +61,7 @@ impl RabbitPublisher {
         channel
             .exchange_declare(
                 EXCHANGE,
-                ExchangeKind::Topic,
+                ExchangeKind::Direct,
                 ExchangeDeclareOptions {
                     durable: true,
                     ..Default::default()
@@ -127,7 +127,25 @@ impl RabbitPublisher {
             .queue_bind(
                 QUEUE_EVENTS,
                 EXCHANGE,
-                "event.#",
+                ROUTING_KEY_ACTIVITY_COMMITTED,
+                QueueBindOptions::default(),
+                FieldTable::default(),
+            )
+            .await?;
+        channel
+            .queue_bind(
+                QUEUE_EVENTS,
+                EXCHANGE,
+                ROUTING_KEY_PROPOSAL_CREATED,
+                QueueBindOptions::default(),
+                FieldTable::default(),
+            )
+            .await?;
+        channel
+            .queue_bind(
+                QUEUE_EVENTS,
+                EXCHANGE,
+                ROUTING_KEY_PROJECT_CHANGED,
                 QueueBindOptions::default(),
                 FieldTable::default(),
             )

@@ -33,24 +33,44 @@ pub async fn get_review_queue(
         }
     }
 
+    // 2. Query PostgreSQL if database is available
+    if let Some(db) = &state.database {
+        match db.list_review_queue(project_id).await {
+            Ok(items) => {
+                let paginated = pagination.apply(&items);
+                let value = serde_json::to_value(&paginated).unwrap_or(serde_json::json!([]));
+                if pagination.page.is_none() && pagination.limit.is_none() {
+                    if let Some(cache) = &state.redis_cache {
+                        cache
+                            .set(
+                                "review_queue",
+                                Some(project_id),
+                                &value,
+                                state.cache_ttl.review_queue_secs,
+                            )
+                            .await;
+                    }
+                }
+                return Json(value);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to query DB review queue: {}, falling back to in-memory", e);
+            }
+        }
+    }
+
+    // 3. Fallback to in-memory state
     let proposals = state.proposals.read().await;
     let obs = state.observations.read().await;
     let acts = state.activities.read().await;
 
-    #[derive(Serialize, Clone)]
-    struct ReviewItem {
-        proposal: MatchProposal,
-        observation: Option<WorkObservation>,
-        activity: Option<Activity>,
-    }
-
-    let pending: Vec<ReviewItem> = proposals
+    let pending: Vec<ReviewQueueItem> = proposals
         .iter()
         .filter(|p| p.project_id == project_id && p.status == "PENDING_REVIEW")
         .map(|p| {
             let observation = obs.iter().find(|o| o.id == p.observation_id).cloned();
             let activity = acts.iter().find(|a| a.id == p.activity_id).cloned();
-            ReviewItem {
+            ReviewQueueItem {
                 proposal: p.clone(),
                 observation,
                 activity,

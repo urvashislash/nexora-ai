@@ -1,6 +1,7 @@
 pub mod activities;
 pub mod audit;
 pub mod dashboard;
+pub mod documents;
 pub mod error;
 pub mod export;
 pub mod handlers;

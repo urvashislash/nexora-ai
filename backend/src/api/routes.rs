@@ -78,7 +78,12 @@ pub fn create_router(state: AppState) -> Router {
         .max_age(std::time::Duration::from_secs(86400));
 
     // --- Public routes (no auth required) ---
-    let public_routes = Router::new().route("/api/v1/health", get(health_check));
+    let public_routes = Router::new()
+        .route("/api/v1/health", get(health_check))
+        .route("/liveness", get(super::health::liveness))
+        .route("/readiness", get(super::health::readiness))
+        .route("/api/v1/health/liveness", get(super::health::liveness))
+        .route("/api/v1/health/readiness", get(super::health::readiness));
 
     // --- Read-only project routes (ViewProject permission) ---
     let view_project_routes = Router::new()
@@ -89,6 +94,17 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/projects/:id/review-queue", get(get_review_queue))
         .layer(middleware::from_fn(move |req, next| {
             require_permission(req, next, Permission::ViewProject)
+        }));
+
+    // --- Document and Durable Job routes (CreateObservation permission) ---
+    let document_routes = Router::new()
+        .route(
+            "/api/v1/projects/:id/documents",
+            get(super::documents::list_documents).post(super::documents::create_document),
+        )
+        .route("/api/v1/jobs/:id", get(super::documents::get_job))
+        .layer(middleware::from_fn(move |req, next| {
+            require_permission(req, next, Permission::CreateObservation)
         }));
 
     // --- Observation creation routes (CreateObservation permission) ---
@@ -171,6 +187,7 @@ pub fn create_router(state: AppState) -> Router {
         .merge(public_routes)
         .merge(project_routes)
         .merge(view_project_routes)
+        .merge(document_routes)
         .merge(observation_routes)
         .merge(approval_routes)
         .merge(override_routes)

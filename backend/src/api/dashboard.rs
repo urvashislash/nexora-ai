@@ -31,7 +31,7 @@ pub async fn get_dashboard(
     State(state): State<AppState>,
     Path(project_id): Path<Uuid>,
 ) -> impl IntoResponse {
-    // Try Redis cache first
+    // 1. Try Redis cache first
     if let Some(cache) = &state.redis_cache {
         if let Some(cached) = cache
             .get::<DashboardKPIs>("dashboard", Some(project_id))
@@ -42,6 +42,29 @@ pub async fn get_dashboard(
         }
     }
 
+    // 2. Query PostgreSQL projection truth if available
+    if let Some(db) = &state.database {
+        match db.get_dashboard_kpis(project_id).await {
+            Ok(kpis) => {
+                if let Some(cache) = &state.redis_cache {
+                    cache
+                        .set(
+                            "dashboard",
+                            Some(project_id),
+                            &kpis,
+                            state.cache_ttl.dashboard_secs,
+                        )
+                        .await;
+                }
+                return Json(kpis);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to query DB dashboard KPIs: {}, falling back to in-memory", e);
+            }
+        }
+    }
+
+    // 3. Fallback to in-memory state
     let obs = state.observations.read().await;
     let proposals = state.proposals.read().await;
     let events = state.events.read().await;

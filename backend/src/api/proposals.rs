@@ -225,6 +225,28 @@ pub async fn reject_proposal(
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
     let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
+
+    if let Some(db) = &state.database {
+        match db.reject_proposal_tx(proposal_id, payload.reviewer_id, payload.comments.clone()).await {
+            Ok(()) => {
+                if let Some(cache) = &state.redis_cache {
+                    let proposals = state.proposals.read().await;
+                    if let Some(p) = proposals.iter().find(|p| p.id == proposal_id) {
+                        cache.invalidate_project(p.project_id).await;
+                    }
+                }
+                return Ok(Json(serde_json::json!({
+                    "status": "REJECTED",
+                    "proposal_id": proposal_id,
+                    "message": "Proposal rejected transactionally in PostgreSQL"
+                })));
+            }
+            Err(e) => {
+                tracing::warn!("reject_proposal_tx error: {}, falling back to in-memory", e);
+            }
+        }
+    }
+
     let mut proposals = state.proposals.write().await;
     let mut audit_trail = state.audit_trail.write().await;
     let mut approvals_store = state.approvals.write().await;
@@ -313,6 +335,29 @@ pub async fn override_proposal(
     let selected_activity_id = payload.selected_activity_id.ok_or(ApiError::bad_request(
         "selected_activity_id is required for override",
     ))?;
+
+    if let Some(db) = &state.database {
+        match db.approve_proposal_tx(proposal_id, payload.reviewer_id, Some(selected_activity_id), payload.comments.clone()).await {
+            Ok(event_id) => {
+                if let Some(cache) = &state.redis_cache {
+                    let proposals = state.proposals.read().await;
+                    if let Some(p) = proposals.iter().find(|p| p.id == proposal_id) {
+                        cache.invalidate_project(p.project_id).await;
+                    }
+                }
+                return Ok(Json(serde_json::json!({
+                    "status": "OVERRIDDEN",
+                    "proposal_id": proposal_id,
+                    "event_id": event_id,
+                    "selected_activity_id": selected_activity_id,
+                    "message": "Proposal target overridden transactionally in PostgreSQL"
+                })));
+            }
+            Err(e) => {
+                tracing::warn!("approve_proposal_tx (override) error: {}, falling back to in-memory", e);
+            }
+        }
+    }
 
     let mut proposals = state.proposals.write().await;
     let mut events = state.events.write().await;

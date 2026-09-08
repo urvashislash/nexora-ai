@@ -280,4 +280,56 @@ pub struct ActivityWithState {
     pub state: Option<ActivityCurrentState>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Document {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub filename: String,
+    pub mime_type: String,
+    pub size_bytes: Option<i64>,
+    pub storage_bucket: String,
+    pub storage_key: String,
+    pub checksum_sha256: Option<String>,
+    pub source_type: String,
+    pub classification: String,
+    pub uploaded_by: Option<Uuid>,
+    pub uploaded_at: DateTime<Utc>,
+    pub processing_status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentJob {
+    pub id: Uuid,
+    pub document_id: Uuid,
+    pub job_type: String,
+    pub status: String,
+    pub attempt_count: i32,
+    pub max_attempts: i32,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentCreateInput {
+    pub filename: String,
+    pub mime_type: Option<String>,
+    pub size_bytes: Option<i64>,
+    pub storage_key: Option<String>,
+    pub storage_bucket: Option<String>,
+    pub source_type: Option<String>,
+    pub checksum_sha256: Option<String>,
+    pub text_content: Option<String>,
+    pub content_base64: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewQueueItem {
+    pub proposal: MatchProposal,
+    pub observation: Option<WorkObservation>,
+    pub activity: Option<Activity>,
+}
+
 

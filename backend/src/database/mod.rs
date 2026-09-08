@@ -650,4 +650,417 @@ impl Database {
         let events = self.list_audit_trail(project_id, 10000, 0).await?;
         Ok(EventLedger::verify_chain_integrity(&events))
     }
+
+    /// Computes dashboard KPIs directly from PostgreSQL projections
+    pub async fn get_dashboard_kpis(&self, project_id: Uuid) -> Result<crate::api::dashboard::DashboardKPIs> {
+        let obs_count: i64 = sqlx::query_scalar("SELECT count(*) FROM work_observations WHERE project_id = $1")
+            .bind(project_id)
+            .fetch_one(&*self.pool)
+            .await?;
+
+        let events_count: i64 = sqlx::query_scalar("SELECT count(*) FROM actual_events WHERE project_id = $1")
+            .bind(project_id)
+            .fetch_one(&*self.pool)
+            .await?;
+
+        let prop_row = sqlx::query(
+            "SELECT 
+                count(*) FILTER (WHERE status = 'AUTO_LINKED') as auto_linked,
+                count(*) FILTER (WHERE status = 'PENDING_REVIEW') as review_queue,
+                count(*) FILTER (WHERE match_tier = 'UNMATCHED') as unmatched
+             FROM match_proposals WHERE project_id = $1"
+        )
+        .bind(project_id)
+        .fetch_one(&*self.pool)
+        .await?;
+
+        let auto_linked: i64 = prop_row.try_get("auto_linked")?;
+        let review_queue: i64 = prop_row.try_get("review_queue")?;
+        let unmatched: i64 = prop_row.try_get("unmatched")?;
+
+        let act_row = sqlx::query(
+            "SELECT 
+                count(*) FILTER (WHERE execution_status = 'COMPLETED') as completed,
+                count(*) FILTER (WHERE execution_status = 'IN_PROGRESS') as in_progress,
+                coalesce(sum(current_progress_pct), 0.0) as total_progress,
+                count(*) as total_count
+             FROM activity_current_state WHERE project_id = $1"
+        )
+        .bind(project_id)
+        .fetch_one(&*self.pool)
+        .await?;
+
+        let completed: i64 = act_row.try_get("completed")?;
+        let in_progress: i64 = act_row.try_get("in_progress")?;
+        let total_progress: f64 = act_row.try_get("total_progress")?;
+        let total_count: i64 = act_row.try_get("total_count")?;
+
+        let overall_pct = if total_count > 0 {
+            total_progress / (total_count as f64)
+        } else {
+            0.0
+        };
+
+        Ok(crate::api::dashboard::DashboardKPIs {
+            total_observations: obs_count as usize,
+            extracted_events: events_count as usize,
+            auto_linked_events: auto_linked as usize,
+            review_queue_count: review_queue as usize,
+            unmatched_count: unmatched as usize,
+            completed_activities: completed as usize,
+            in_progress_activities: in_progress as usize,
+            overall_progress_pct: (overall_pct * 100.0).round() / 100.0,
+        })
+    }
+
+    /// Fetches review queue items with joined observation and activity from PostgreSQL
+    pub async fn list_review_queue(&self, project_id: Uuid) -> Result<Vec<ReviewQueueItem>> {
+        let rows = sqlx::query(
+            "SELECT 
+                mp.id, mp.project_id, mp.observation_id, mp.activity_id, mp.candidate_rank,
+                mp.lexical_score, mp.semantic_score, mp.context_boost, mp.confidence_score,
+                mp.match_tier, mp.explanation, mp.evidence_snippet, mp.status, mp.created_at,
+                wo.raw_text as obs_raw_text, wo.normalized_text as obs_normalized_text,
+                wo.discipline as obs_discipline, wo.location as obs_location, wo.zone as obs_zone,
+                wo.equipment_tag as obs_equipment_tag, wo.event_type as obs_event_type,
+                wo.reported_progress as obs_reported_progress, wo.reported_quantity as obs_reported_quantity,
+                wo.unit_of_measure as obs_unit_of_measure, wo.metadata as obs_metadata,
+                wo.observed_at as obs_observed_at, wo.recorded_at as obs_recorded_at,
+                a.code as act_code, a.name as act_name, a.discipline as act_discipline,
+                a.planned_start_date as act_start, a.planned_finish_date as act_finish,
+                a.planned_duration_days as act_duration, a.weightage as act_weightage,
+                a.critical_path as act_critical
+             FROM match_proposals mp
+             LEFT JOIN work_observations wo ON mp.observation_id = wo.id
+             LEFT JOIN activities a ON mp.activity_id = a.id
+             WHERE mp.project_id = $1 AND mp.status = 'PENDING_REVIEW'
+             ORDER BY mp.created_at DESC"
+        )
+        .bind(project_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut items = Vec::new();
+        for r in rows {
+            let match_tier_str: String = r.try_get("match_tier")?;
+            let match_tier = match match_tier_str.to_uppercase().as_str() {
+                "HIGH" => MatchTier::High,
+                "MEDIUM" => MatchTier::Medium,
+                "LOW" => MatchTier::Low,
+                _ => MatchTier::Unmatched,
+            };
+
+            let proposal = MatchProposal {
+                id: r.try_get("id")?,
+                project_id: r.try_get("project_id")?,
+                observation_id: r.try_get("observation_id")?,
+                activity_id: r.try_get("activity_id")?,
+                candidate_rank: r.try_get("candidate_rank")?,
+                lexical_score: r.try_get("lexical_score")?,
+                semantic_score: r.try_get("semantic_score")?,
+                context_boost: r.try_get("context_boost")?,
+                confidence_score: r.try_get("confidence_score")?,
+                match_tier,
+                explanation: r.try_get("explanation").ok(),
+                evidence_snippet: r.try_get("evidence_snippet").ok(),
+                status: r.try_get("status")?,
+                created_at: r.try_get("created_at")?,
+            };
+
+            let observation = if let Ok(raw_text) = r.try_get::<String, _>("obs_raw_text") {
+                let disc: Option<Discipline> = r.try_get::<Option<String>, _>("obs_discipline")?
+                    .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok());
+                let evt: Option<EventType> = r.try_get::<Option<String>, _>("obs_event_type")?
+                    .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok());
+
+                Some(WorkObservation {
+                    id: proposal.observation_id,
+                    project_id,
+                    document_id: None,
+                    reported_by: None,
+                    observed_at: r.try_get("obs_observed_at").ok().flatten(),
+                    recorded_at: r.try_get("obs_recorded_at").unwrap_or_else(|_| Utc::now()),
+                    discipline: disc,
+                    location: r.try_get("obs_location").ok().flatten(),
+                    zone: r.try_get("obs_zone").ok().flatten(),
+                    equipment_tag: r.try_get("obs_equipment_tag").ok().flatten(),
+                    raw_text,
+                    normalized_text: r.try_get("obs_normalized_text").ok().flatten(),
+                    event_type: evt,
+                    reported_progress: r.try_get("obs_reported_progress").ok().flatten(),
+                    reported_quantity: r.try_get("obs_reported_quantity").ok().flatten(),
+                    unit_of_measure: r.try_get("obs_unit_of_measure").ok().flatten(),
+                    metadata: r.try_get("obs_metadata").unwrap_or_else(|_| serde_json::json!({})),
+                })
+            } else {
+                None
+            };
+
+            let activity = if let Ok(code) = r.try_get::<String, _>("act_code") {
+                let disc_str: String = r.try_get("act_discipline")?;
+                let discipline = serde_json::from_value(serde_json::Value::String(disc_str))
+                    .unwrap_or(Discipline::General);
+
+                Some(Activity {
+                    id: proposal.activity_id,
+                    project_id,
+                    schedule_version_id: Uuid::nil(),
+                    wbs_id: Uuid::nil(),
+                    code,
+                    name: r.try_get("act_name")?,
+                    description: None,
+                    discipline,
+                    planned_start_date: r.try_get("act_start")?,
+                    planned_finish_date: r.try_get("act_finish")?,
+                    planned_duration_days: r.try_get("act_duration")?,
+                    planned_quantity: None,
+                    unit_of_measure: None,
+                    location: None,
+                    zone: None,
+                    equipment_tag: None,
+                    weightage: r.try_get("act_weightage").unwrap_or(1.0),
+                    critical_path: r.try_get("act_critical").unwrap_or(false),
+                })
+            } else {
+                None
+            };
+
+            items.push(ReviewQueueItem {
+                proposal,
+                observation,
+                activity,
+            });
+        }
+
+        Ok(items)
+    }
+
+    /// Transactionally rejects a match proposal
+    pub async fn reject_proposal_tx(
+        &self,
+        proposal_id: Uuid,
+        reviewer_id: Uuid,
+        comments: Option<String>,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        let prop_row = sqlx::query("SELECT project_id, status FROM match_proposals WHERE id = $1 FOR UPDATE")
+            .bind(proposal_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Proposal not found"))?;
+
+        let project_id: Uuid = prop_row.try_get("project_id")?;
+        let status: String = prop_row.try_get("status")?;
+        if status == "REJECTED" {
+            return Ok(());
+        }
+
+        sqlx::query("UPDATE match_proposals SET status = 'REJECTED' WHERE id = $1")
+            .bind(proposal_id)
+            .execute(&mut *tx)
+            .await?;
+
+        let approval_id = Uuid::new_v4();
+        let now = Utc::now();
+        sqlx::query(
+            "INSERT INTO approvals (id, project_id, proposal_id, action, reviewed_by, reviewed_at, comments)
+             VALUES ($1, $2, $3, 'REJECT', $4, $5, $6)"
+        )
+        .bind(approval_id)
+        .bind(project_id)
+        .bind(proposal_id)
+        .bind(reviewer_id)
+        .bind(now)
+        .bind(comments.as_deref().unwrap_or("Rejected via Trust Plane"))
+        .execute(&mut *tx)
+        .await?;
+
+        let prev_hash: Option<String> = sqlx::query_scalar(
+            "SELECT payload_hash FROM audit_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind(project_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let audit = EventLedger::create_audit_event(
+            project_id,
+            "PROPOSAL_REJECTION",
+            proposal_id,
+            "REJECT",
+            Some(reviewer_id),
+            Some("PLANNER"),
+            Some(serde_json::json!({"status": "PENDING_REVIEW"})),
+            Some(serde_json::json!({"status": "REJECTED", "comments": comments})),
+            prev_hash.as_deref(),
+        );
+
+        sqlx::query(
+            "INSERT INTO audit_events (id, project_id, entity_type, entity_id, action, actor_id, actor_role, before_state, after_state, payload_hash, previous_hash, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"
+        )
+        .bind(audit.id)
+        .bind(audit.project_id)
+        .bind(&audit.entity_type)
+        .bind(audit.entity_id)
+        .bind(&audit.action)
+        .bind(audit.actor_id)
+        .bind(&audit.actor_role)
+        .bind(&audit.before_state)
+        .bind(&audit.after_state)
+        .bind(&audit.payload_hash)
+        .bind(&audit.previous_hash)
+        .bind(audit.created_at)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Creates a document record and an associated durable document_jobs entry transactionally
+    pub async fn create_document_and_job(
+        &self,
+        project_id: Uuid,
+        input: &DocumentCreateInput,
+        uploaded_by: Option<Uuid>,
+    ) -> Result<(Document, DocumentJob)> {
+        let mut tx = self.pool.begin().await?;
+
+        let doc_id = Uuid::new_v4();
+        let now = Utc::now();
+        let mime_type = input.mime_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
+        let storage_bucket = input.storage_bucket.clone().unwrap_or_else(|| "evidence-documents".to_string());
+        let storage_key = input.storage_key.clone().unwrap_or_else(|| format!("{}/reports/{}_{}", project_id, now.timestamp(), input.filename));
+        let source_type = input.source_type.clone().unwrap_or_else(|| "DAILY_REPORT".to_string());
+        let classification = "INTERNAL".to_string();
+        let processing_status = "QUEUED".to_string();
+
+        sqlx::query(
+            "INSERT INTO documents (id, project_id, filename, mime_type, size_bytes, storage_bucket, storage_key, checksum_sha256, source_type, classification, uploaded_by, uploaded_at, processing_status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"
+        )
+        .bind(doc_id)
+        .bind(project_id)
+        .bind(&input.filename)
+        .bind(&mime_type)
+        .bind(input.size_bytes)
+        .bind(&storage_bucket)
+        .bind(&storage_key)
+        .bind(&input.checksum_sha256)
+        .bind(&source_type)
+        .bind(&classification)
+        .bind(uploaded_by)
+        .bind(now)
+        .bind(&processing_status)
+        .execute(&mut *tx)
+        .await?;
+
+        let job_id = Uuid::new_v4();
+        let job_type = "EXTRACT".to_string();
+        let job_status = "QUEUED".to_string();
+
+        sqlx::query(
+            "INSERT INTO document_jobs (id, document_id, job_type, status, attempt_count, max_attempts, created_at)
+             VALUES ($1, $2, $3, $4, 0, 3, $5)"
+        )
+        .bind(job_id)
+        .bind(doc_id)
+        .bind(&job_type)
+        .bind(&job_status)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        let doc = Document {
+            id: doc_id,
+            project_id,
+            filename: input.filename.clone(),
+            mime_type,
+            size_bytes: input.size_bytes,
+            storage_bucket,
+            storage_key,
+            checksum_sha256: input.checksum_sha256.clone(),
+            source_type,
+            classification,
+            uploaded_by,
+            uploaded_at: now,
+            processing_status,
+        };
+
+        let job = DocumentJob {
+            id: job_id,
+            document_id: doc_id,
+            job_type,
+            status: job_status,
+            attempt_count: 0,
+            max_attempts: 3,
+            error_code: None,
+            error_message: None,
+            created_at: now,
+            started_at: None,
+            completed_at: None,
+        };
+
+        Ok((doc, job))
+    }
+
+    /// Fetches all documents for a project
+    pub async fn list_documents(&self, project_id: Uuid) -> Result<Vec<Document>> {
+        let rows = sqlx::query(
+            "SELECT id, project_id, filename, mime_type, size_bytes, storage_bucket, storage_key, checksum_sha256, source_type, classification, uploaded_by, uploaded_at, processing_status
+             FROM documents WHERE project_id = $1 ORDER BY uploaded_at DESC"
+        )
+        .bind(project_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(Document {
+                id: r.try_get("id")?,
+                project_id: r.try_get("project_id")?,
+                filename: r.try_get("filename")?,
+                mime_type: r.try_get("mime_type")?,
+                size_bytes: r.try_get("size_bytes")?,
+                storage_bucket: r.try_get("storage_bucket")?,
+                storage_key: r.try_get("storage_key")?,
+                checksum_sha256: r.try_get("checksum_sha256")?,
+                source_type: r.try_get("source_type")?,
+                classification: r.try_get("classification")?,
+                uploaded_by: r.try_get("uploaded_by")?,
+                uploaded_at: r.try_get("uploaded_at")?,
+                processing_status: r.try_get("processing_status")?,
+            });
+        }
+        Ok(list)
+    }
+
+    /// Fetches a document processing job by ID
+    pub async fn get_document_job(&self, job_id: Uuid) -> Result<DocumentJob> {
+        let r = sqlx::query(
+            "SELECT id, document_id, job_type, status, attempt_count, max_attempts, error_code, error_message, created_at, started_at, completed_at
+             FROM document_jobs WHERE id = $1"
+        )
+        .bind(job_id)
+        .fetch_optional(&*self.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Job not found"))?;
+
+        Ok(DocumentJob {
+            id: r.try_get("id")?,
+            document_id: r.try_get("document_id")?,
+            job_type: r.try_get("job_type")?,
+            status: r.try_get("status")?,
+            attempt_count: r.try_get("attempt_count")?,
+            max_attempts: r.try_get("max_attempts")?,
+            error_code: r.try_get("error_code")?,
+            error_message: r.try_get("error_message")?,
+            created_at: r.try_get("created_at")?,
+            started_at: r.try_get("started_at")?,
+            completed_at: r.try_get("completed_at")?,
+        })
+    }
 }

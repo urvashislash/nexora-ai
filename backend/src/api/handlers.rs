@@ -13,8 +13,11 @@
 // --- Application state ---
 pub use super::state::AppState;
 
-// --- Health ---
-pub use super::health::health_check;
+// --- Health & Readiness ---
+pub use super::health::{health_check, liveness, readiness};
+
+// --- Documents & Durable Jobs ---
+pub use super::documents::{create_document, get_job, list_documents};
 
 // --- Dashboard ---
 pub use super::dashboard::get_dashboard;
