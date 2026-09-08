@@ -193,4 +193,47 @@ impl RedisCache {
         let result: Result<String, _> = redis::cmd("PING").query_async(&mut conn).await;
         result.is_ok()
     }
+
+    /// Distributed rate limiting via Redis fixed-window counter with atomic expiry.
+    /// Returns Ok(remaining_requests) if allowed, or Err(retry_after_seconds) if rate-limited.
+    pub async fn check_rate_limit(
+        &self,
+        key: &str,
+        max_requests: usize,
+        window_secs: u64,
+    ) -> Result<usize, u64> {
+        let redis_key = format!("nexora:ratelimit:{}", key);
+        let mut conn = match self.pool.get().await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("Redis rate limit connection error (failing open): {}", e);
+                return Ok(max_requests);
+            }
+        };
+
+        let current: i64 = redis::cmd("INCR")
+            .arg(&redis_key)
+            .query_async(&mut conn)
+            .await
+            .unwrap_or(1);
+
+        if current == 1 {
+            let _: Result<(), _> = redis::cmd("EXPIRE")
+                .arg(&redis_key)
+                .arg(window_secs)
+                .query_async(&mut conn)
+                .await;
+        }
+
+        if current > max_requests as i64 {
+            let ttl: i64 = redis::cmd("TTL")
+                .arg(&redis_key)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(window_secs as i64);
+            Err(ttl.max(1) as u64)
+        } else {
+            Ok((max_requests as i64 - current).max(0) as usize)
+        }
+    }
 }

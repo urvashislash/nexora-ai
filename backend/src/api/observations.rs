@@ -126,14 +126,42 @@ pub async fn get_observations(
     Path(project_id): Path<Uuid>,
     Query(pagination): Query<PaginationParams>,
 ) -> impl IntoResponse {
+    let limit = pagination.limit.unwrap_or(50) as i64;
+    let page = pagination.page.unwrap_or(1).max(1) as i64;
+    let offset = (page - 1) * limit;
+
     if let Some(ref db) = state.database {
-        let limit = pagination.limit.unwrap_or(50) as i64;
-        let page = pagination.page.unwrap_or(1).max(1) as i64;
-        let offset = (page - 1) * limit;
-        if let Ok(db_obs) = db.list_observations(project_id, limit, offset).await {
-            let paginated = pagination.apply(&db_obs);
-            return Json(paginated);
+        match db.list_observations(project_id, limit, offset).await {
+            Ok(db_obs) => {
+                let paginated = pagination.apply(&db_obs);
+                return (StatusCode::OK, Json(paginated)).into_response();
+            }
+            Err(e) => {
+                tracing::error!("Failed to list observations from database: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "Failed to list observations from database",
+                        "details": e.to_string()
+                    })),
+                )
+                    .into_response();
+            }
         }
+    }
+
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": "PostgreSQL persistence is mandatory in production environment"
+            })),
+        )
+            .into_response();
     }
 
     let obs = state.observations.read().await;
@@ -143,7 +171,7 @@ pub async fn get_observations(
         .cloned()
         .collect();
     let paginated = pagination.apply(&filtered);
-    Json(paginated)
+    (StatusCode::OK, Json(paginated)).into_response()
 }
 
 // =============================================================================

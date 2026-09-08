@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     response::IntoResponse,
     Json,
 };
@@ -93,10 +94,37 @@ pub async fn get_events(
     let offset = (page - 1) * limit;
 
     if let Some(ref db) = state.database {
-        if let Ok(events) = db.list_actual_events(project_id, limit, offset).await {
-            let paginated = pagination.apply(&events);
-            return Json(paginated).into_response();
+        match db.list_actual_events(project_id, limit, offset).await {
+            Ok(events) => {
+                let paginated = pagination.apply(&events);
+                return (StatusCode::OK, Json(paginated)).into_response();
+            }
+            Err(e) => {
+                tracing::error!("Failed to list actual events from database: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "Failed to list actual events from database",
+                        "details": e.to_string()
+                    })),
+                )
+                    .into_response();
+            }
         }
+    }
+
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": "PostgreSQL persistence is mandatory in production environment"
+            })),
+        )
+            .into_response();
     }
 
     let events = state.events.read().await;
@@ -106,5 +134,5 @@ pub async fn get_events(
         .cloned()
         .collect();
     let paginated = pagination.apply(&filtered);
-    Json(paginated).into_response()
+    (StatusCode::OK, Json(paginated)).into_response()
 }
