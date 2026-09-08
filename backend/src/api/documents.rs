@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
@@ -8,6 +8,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::api::error::ApiError;
+use crate::api::middleware::extract_auth_context;
 use crate::api::state::AppState;
 use crate::domain::models::*;
 use crate::messaging::publisher::ProcessDocumentJob;
@@ -145,13 +146,39 @@ pub async fn list_documents(
 /// Fetches the status and metadata of a durable document processing job.
 pub async fn get_job(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(job_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let auth = extract_auth_context(&headers).ok_or_else(|| {
+        ApiError::unauthorized(
+            "Missing, expired, or cryptographically invalid authentication token",
+        )
+    })?;
+
     if let Some(db) = &state.database {
-        match db.get_document_job(job_id).await {
-            Ok(job) => return Ok(Json(serde_json::json!({ "job": job }))),
-            Err(_) => return Err(ApiError::not_found("Job not found")),
+        let (job, project_id) = db
+            .get_document_job_with_project(job_id)
+            .await
+            .map_err(|_| ApiError::not_found("Job not found"))?;
+
+        if auth.role != UserRole::Admin {
+            match db.verify_project_membership(project_id, auth.user_id).await {
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    return Err(ApiError::forbidden(
+                        "User is not an active member of the project owning this job",
+                    ));
+                }
+                Err(e) => {
+                    return Err(ApiError::internal(format!(
+                        "Membership verification failed: {}",
+                        e
+                    )));
+                }
+            }
         }
+
+        return Ok(Json(serde_json::json!({ "job": job })));
     }
 
     // Default mock response if running without PostgreSQL

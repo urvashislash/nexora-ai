@@ -146,8 +146,10 @@ pub async fn approve_proposal(
     let target_activity_id = payload.selected_activity_id.unwrap_or(original_act_id);
     let act = acts
         .iter()
-        .find(|a| a.id == target_activity_id)
-        .ok_or(ApiError::not_found("Target activity not found"))?;
+        .find(|a| a.id == target_activity_id && a.project_id == project_id)
+        .ok_or(ApiError::not_found(
+            "Target activity not found in this project",
+        ))?;
 
     // --- Validation gates ---
     let actual_date = Utc::now().date_naive();

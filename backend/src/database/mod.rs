@@ -988,14 +988,15 @@ impl Database {
         let orig_act_id: Uuid = prop_row.try_get("activity_id")?;
         let target_act_id = override_activity_id.unwrap_or(orig_act_id);
 
-        // 2. Lock target activity current state
+        // 2. Lock target activity current state (enforcing strict project boundary)
         let act_state_row = sqlx::query(
-            "SELECT current_progress_pct, execution_status, actual_start_date FROM activity_current_state WHERE activity_id = $1 FOR UPDATE"
+            "SELECT current_progress_pct, execution_status, actual_start_date FROM activity_current_state WHERE activity_id = $1 AND project_id = $2 FOR UPDATE"
         )
         .bind(target_act_id)
+        .bind(project_id)
         .fetch_optional(&mut *tx)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("Activity state not found"))?;
+        .ok_or_else(|| anyhow::anyhow!("Activity not found in this project"))?;
 
         let current_progress: f64 = act_state_row.try_get("current_progress_pct")?;
         let existing_start: Option<chrono::NaiveDate> =
@@ -1840,6 +1841,37 @@ impl Database {
             started_at: r.try_get("started_at")?,
             completed_at: r.try_get("completed_at")?,
         })
+    }
+
+    /// Fetches a document processing job along with its parent project_id for tenant authorization
+    pub async fn get_document_job_with_project(&self, job_id: Uuid) -> Result<(DocumentJob, Uuid)> {
+        let r = sqlx::query(
+            "SELECT j.id, j.document_id, j.job_type, j.status, j.attempt_count, j.max_attempts, j.error_code, j.error_message, j.created_at, j.started_at, j.completed_at, d.project_id
+             FROM document_jobs j
+             JOIN documents d ON j.document_id = d.id
+             WHERE j.id = $1"
+        )
+        .bind(job_id)
+        .fetch_optional(&*self.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Job not found"))?;
+
+        let project_id: Uuid = r.try_get("project_id")?;
+        let job = DocumentJob {
+            id: r.try_get("id")?,
+            document_id: r.try_get("document_id")?,
+            job_type: r.try_get("job_type")?,
+            status: r.try_get("status")?,
+            attempt_count: r.try_get("attempt_count")?,
+            max_attempts: r.try_get("max_attempts")?,
+            error_code: r.try_get("error_code")?,
+            error_message: r.try_get("error_message")?,
+            created_at: r.try_get("created_at")?,
+            started_at: r.try_get("started_at")?,
+            completed_at: r.try_get("completed_at")?,
+        };
+
+        Ok((job, project_id))
     }
 
     /// Fetches all active project memberships for a specific user
