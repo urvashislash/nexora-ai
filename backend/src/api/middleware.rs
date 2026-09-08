@@ -246,6 +246,21 @@ struct SecurityErrorResponse {
     code: String,
 }
 
+use super::state::AppState;
+
+/// Extracts a project UUID from path segments matching /api/v1/projects/:id...
+pub fn extract_project_id_from_path(path: &str) -> Option<Uuid> {
+    let mut parts = path.split('/').filter(|s| !s.is_empty());
+    while let Some(part) = parts.next() {
+        if part == "projects" {
+            if let Some(id_part) = parts.next() {
+                return Uuid::parse_str(id_part).ok();
+            }
+        }
+    }
+    None
+}
+
 /// Middleware that enforces a minimum required permission.
 pub async fn require_permission(
     request: Request<Body>,
@@ -278,6 +293,82 @@ pub async fn require_permission(
             next.run(request).await
         }
     }
+}
+
+/// Middleware that enforces authentication, project membership, and project-specific role permissions.
+/// For project-scoped endpoints (/api/v1/projects/:id/...), derives the effective role directly from
+/// the project_members table, ensuring project-level tenant isolation.
+pub async fn require_project_permission(
+    state: AppState,
+    request: Request<Body>,
+    next: Next,
+    required: Permission,
+) -> Response {
+    let headers = request.headers().clone();
+
+    let auth = match extract_auth_context(&headers) {
+        None => {
+            let body = SecurityErrorResponse {
+                error: "Missing, expired, or cryptographically invalid authentication token (Authorization: Bearer <jwt>)".to_string(),
+                code: "AUTH_REQUIRED".to_string(),
+            };
+            return (StatusCode::UNAUTHORIZED, Json(body)).into_response();
+        }
+        Some(a) => a,
+    };
+
+    let project_id_opt = extract_project_id_from_path(request.uri().path());
+
+    let effective_role = if let Some(project_id) = project_id_opt {
+        if let Some(ref db) = state.database {
+            match db.verify_project_membership(project_id, auth.user_id).await {
+                Ok(Some(member_role)) => member_role,
+                Ok(None) => {
+                    // Global superadmin can access any project with Admin role
+                    if auth.role == UserRole::Admin {
+                        UserRole::Admin
+                    } else {
+                        let body = SecurityErrorResponse {
+                            error: format!(
+                                "User is not an active member of project {}",
+                                project_id
+                            ),
+                            code: "PROJECT_MEMBERSHIP_REQUIRED".to_string(),
+                        };
+                        return (StatusCode::FORBIDDEN, Json(body)).into_response();
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to verify project membership: {}", e);
+                    let body = SecurityErrorResponse {
+                        error: "Internal database error verifying project membership".to_string(),
+                        code: "DATABASE_ERROR".to_string(),
+                    };
+                    return (StatusCode::INTERNAL_SERVER_ERROR, Json(body)).into_response();
+                }
+            }
+        } else {
+            // In-memory / test mode without PostgreSQL
+            auth.role
+        }
+    } else {
+        // Non-project-scoped route (uses global JWT role)
+        auth.role
+    };
+
+    let perms = role_permissions(&effective_role);
+    if !perms.contains(&required) {
+        let body = SecurityErrorResponse {
+            error: format!(
+                "Role {:?} does not have {:?} permission for this project",
+                effective_role, required
+            ),
+            code: "FORBIDDEN".to_string(),
+        };
+        return (StatusCode::FORBIDDEN, Json(body)).into_response();
+    }
+
+    next.run(request).await
 }
 
 // =============================================================================
@@ -383,19 +474,42 @@ pub fn extract_client_key(headers: &HeaderMap) -> String {
 #[derive(Clone)]
 pub struct RateLimitMiddleware {
     limiter: Arc<InMemoryRateLimiter>,
+    redis_cache: Option<Arc<crate::cache::RedisCache>>,
+    max_requests: usize,
+    window_duration: Duration,
 }
 
 impl RateLimitMiddleware {
     pub fn new(max_requests: usize, window_duration: Duration) -> Self {
         Self {
             limiter: Arc::new(InMemoryRateLimiter::new(max_requests, window_duration)),
+            redis_cache: None,
+            max_requests,
+            window_duration,
         }
+    }
+
+    pub fn with_redis(mut self, redis: Option<Arc<crate::cache::RedisCache>>) -> Self {
+        self.redis_cache = redis;
+        self
     }
 
     pub async fn handle_rate_limit(self, request: Request<Body>, next: Next) -> Response {
         let client_key = extract_client_key(request.headers());
 
-        match self.limiter.check(&client_key).await {
+        let check_res = if let Some(ref redis) = self.redis_cache {
+            redis
+                .check_rate_limit(
+                    &client_key,
+                    self.max_requests,
+                    self.window_duration.as_secs().max(1),
+                )
+                .await
+        } else {
+            self.limiter.check(&client_key).await
+        };
+
+        match check_res {
             Ok(_remaining) => next.run(request).await,
             Err(retry_after) => {
                 let error_response = Json(RateLimitError {

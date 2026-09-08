@@ -16,7 +16,8 @@ use super::handlers::{
     AppState,
 };
 use super::middleware::{
-    require_permission, security_headers_middleware, Permission, RateLimitMiddleware,
+    require_permission, require_project_permission, security_headers_middleware, Permission,
+    RateLimitMiddleware,
 };
 
 pub fn create_router(state: AppState) -> Router {
@@ -26,7 +27,8 @@ pub fn create_router(state: AppState) -> Router {
             .and_then(|v| v.parse().ok())
             .unwrap_or(200),
         std::time::Duration::from_secs(60),
-    );
+    )
+    .with_redis(state.redis_cache.clone());
     // Restrictive CORS configuration
     let allowed_origins: Vec<HeaderValue> = env::var("ALLOWED_ORIGINS")
         .ok()
@@ -49,16 +51,16 @@ pub fn create_router(state: AppState) -> Router {
         .unwrap_or_else(|| {
             vec![
                 HeaderValue::from_static("http://localhost:5173"),
-                HeaderValue::from_static("http://localhost:3000"),
+                HeaderValue::from_static("http://127.0.0.1:5173"),
+                HeaderValue::from_static("http://localhost:8080"),
+                HeaderValue::from_static("http://127.0.0.1:8080"),
             ]
         });
 
-    let mut cors = CorsLayer::new();
-    for origin in allowed_origins {
-        cors = cors.allow_origin(AllowOrigin::exact(origin));
-    }
-
-    cors = cors
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::predicate(move |origin: &HeaderValue, _| {
+            allowed_origins.contains(origin)
+        }))
         .allow_methods([
             axum::http::Method::GET,
             axum::http::Method::POST,
@@ -84,7 +86,8 @@ pub fn create_router(state: AppState) -> Router {
     // --- Authentication & Profile routes ---
     let auth_routes = Router::new().route("/api/v1/auth/me", get(super::auth::get_me));
 
-    // --- Read-only project routes (ViewProject permission) ---
+    // --- Read-only project routes (ViewProject permission with project membership) ---
+    let st = state.clone();
     let view_project_routes = Router::new()
         .route("/api/v1/projects/:id/dashboard", get(get_dashboard))
         .route("/api/v1/projects/:id/activities", get(get_activities))
@@ -100,10 +103,11 @@ pub fn create_router(state: AppState) -> Router {
             post(super::import::preview_schedule_import),
         )
         .layer(middleware::from_fn(move |req, next| {
-            require_permission(req, next, Permission::ViewProject)
+            require_project_permission(st.clone(), req, next, Permission::ViewProject)
         }));
 
-    // --- Project Administration routes (Admin permission) ---
+    // --- Project Administration routes (Admin permission with project membership) ---
+    let st = state.clone();
     let project_admin_routes = Router::new()
         .route(
             "/api/v1/projects/:id/members",
@@ -114,20 +118,22 @@ pub fn create_router(state: AppState) -> Router {
             axum::routing::delete(super::members::remove_project_member),
         )
         .layer(middleware::from_fn(move |req, next| {
-            require_permission(req, next, Permission::Admin)
+            require_project_permission(st.clone(), req, next, Permission::Admin)
         }));
 
-    // --- Schedule Planning & Import commit routes (Planner permission) ---
+    // --- Schedule Planning & Import commit routes (Planner permission with project membership) ---
+    let st = state.clone();
     let schedule_planner_routes = Router::new()
         .route(
             "/api/v1/projects/:id/import/commit",
             post(super::import::commit_schedule_import),
         )
         .layer(middleware::from_fn(move |req, next| {
-            require_permission(req, next, Permission::ApproveProposal)
+            require_project_permission(st.clone(), req, next, Permission::ApproveProposal)
         }));
 
-    // --- Document and Durable Job routes (CreateObservation permission) ---
+    // --- Document and Durable Job routes (CreateObservation permission with project membership) ---
+    let st = state.clone();
     let document_routes = Router::new()
         .route(
             "/api/v1/projects/:id/documents",
@@ -135,10 +141,11 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/jobs/:id", get(super::documents::get_job))
         .layer(middleware::from_fn(move |req, next| {
-            require_permission(req, next, Permission::CreateObservation)
+            require_project_permission(st.clone(), req, next, Permission::CreateObservation)
         }));
 
-    // --- Observation creation routes (CreateObservation permission) ---
+    // --- Observation creation routes (CreateObservation permission with project membership) ---
+    let st = state.clone();
     let observation_routes = Router::new()
         .route(
             "/api/v1/projects/:id/observations",
@@ -146,7 +153,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/projects/:id/ingest", post(ingest_observations))
         .layer(middleware::from_fn(move |req, next| {
-            require_permission(req, next, Permission::CreateObservation)
+            require_project_permission(st.clone(), req, next, Permission::CreateObservation)
         }));
 
     // --- Approval routes (ApproveProposal permission) ---
@@ -169,7 +176,8 @@ pub fn create_router(state: AppState) -> Router {
             require_permission(req, next, Permission::OverrideProposal)
         }));
 
-    // --- Audit routes (ViewAudit permission) ---
+    // --- Audit routes (ViewAudit permission with project membership) ---
+    let st = state.clone();
     let audit_routes = Router::new()
         .route("/api/v1/projects/:id/audit-trail", get(get_audit_trail))
         .route(
@@ -181,10 +189,11 @@ pub fn create_router(state: AppState) -> Router {
             get(get_audit_retention_policy),
         )
         .layer(middleware::from_fn(move |req, next| {
-            require_permission(req, next, Permission::ViewAudit)
+            require_project_permission(st.clone(), req, next, Permission::ViewAudit)
         }));
 
-    // --- Retention & Legal Hold Governance routes (ManageRetention permission) ---
+    // --- Retention & Legal Hold Governance routes (ManageRetention permission with project membership) ---
+    let st = state.clone();
     let governance_routes = Router::new()
         .route(
             "/api/v1/projects/:id/audit-trail/legal-hold",
@@ -195,23 +204,28 @@ pub fn create_router(state: AppState) -> Router {
             post(archive_audit_trail),
         )
         .layer(middleware::from_fn(move |req, next| {
-            require_permission(req, next, Permission::ManageRetention)
+            require_project_permission(st.clone(), req, next, Permission::ManageRetention)
         }));
 
-    // --- Export routes (ExportSchedule permission) ---
+    // --- Export routes (ExportSchedule permission with project membership) ---
+    let st = state.clone();
     let export_routes = Router::new()
         .route("/api/v1/projects/:id/export/p6", get(export_schedule_p6))
         .layer(middleware::from_fn(move |req, next| {
-            require_permission(req, next, Permission::ExportSchedule)
+            require_project_permission(st.clone(), req, next, Permission::ExportSchedule)
         }));
 
-    // --- Project management routes ---
+    // --- Project management routes (authenticated and tenant-isolated) ---
+    let st = state.clone();
     let project_routes = Router::new()
         .route(
             "/api/v1/projects",
             get(super::projects::list_projects).post(super::projects::create_project),
         )
-        .route("/api/v1/projects/:id", get(super::projects::get_project));
+        .route("/api/v1/projects/:id", get(super::projects::get_project))
+        .layer(middleware::from_fn(move |req, next| {
+            require_project_permission(st.clone(), req, next, Permission::ViewProject)
+        }));
 
     // Merge all route groups and apply global security middlewares
     Router::new()

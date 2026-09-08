@@ -86,14 +86,34 @@ pub async fn create_project(
     Ok(Json(project))
 }
 
-/// GET /api/v1/projects - Lists all active projects
-pub async fn list_projects(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
+/// GET /api/v1/projects - Lists tenant-isolated active projects for authenticated caller
+pub async fn list_projects(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, ApiError> {
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
+
     if let Some(ref db) = state.database {
-        let projects = db.load_projects().await.map_err(|e| {
-            tracing::error!("Failed to load projects from PostgreSQL: {}", e);
-            ApiError::internal(format!("Database error: {}", e))
-        })?;
+        let is_admin = auth.role == UserRole::Admin || auth.role == UserRole::Auditor;
+        let projects = db
+            .load_user_projects(auth.user_id, is_admin)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to load projects from PostgreSQL: {}", e);
+                ApiError::internal(format!("Database error: {}", e))
+            })?;
         return Ok(Json(projects));
+    }
+
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return Err(ApiError::internal(
+            "PostgreSQL persistence is mandatory in production environment",
+        ));
     }
 
     let projects = state.projects.read().await;
@@ -103,9 +123,29 @@ pub async fn list_projects(State(state): State<AppState>) -> Result<impl IntoRes
 /// GET /api/v1/projects/:id - Gets a project by ID
 pub async fn get_project(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
+
     if let Some(ref db) = state.database {
+        let is_admin = auth.role == UserRole::Admin || auth.role == UserRole::Auditor;
+        if !is_admin {
+            let membership = db
+                .verify_project_membership(project_id, auth.user_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to verify project membership: {}", e);
+                    ApiError::internal(format!("Database error: {}", e))
+                })?;
+            if membership.is_none() {
+                return Err(ApiError::forbidden(
+                    "User is not an active member of this project",
+                ));
+            }
+        }
+
         let project = db.get_project(project_id).await.map_err(|e| {
             tracing::error!("Failed to get project {}: {}", project_id, e);
             ApiError::internal(format!("Database error: {}", e))
@@ -113,6 +153,16 @@ pub async fn get_project(
 
         let project = project.ok_or_else(|| ApiError::not_found("Project not found"))?;
         return Ok(Json(project));
+    }
+
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return Err(ApiError::internal(
+            "PostgreSQL persistence is mandatory in production environment",
+        ));
     }
 
     let projects = state.projects.read().await;

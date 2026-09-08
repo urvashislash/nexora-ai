@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::domain::ledger::EventLedger;
 use crate::domain::models::*;
+use sha2::Digest;
 
 /// Database connection pool wrapper providing transactional database access
 #[derive(Clone)]
@@ -100,6 +101,73 @@ impl Database {
         }
 
         Ok(projects)
+    }
+
+    /// Loads tenant-isolated projects for an authenticated user:
+    /// - If is_admin: loads all active projects
+    /// - Otherwise: loads only projects where user is an active member in project_members
+    pub async fn load_user_projects(&self, user_id: Uuid, is_admin: bool) -> Result<Vec<Project>> {
+        let rows = if is_admin {
+            sqlx::query(
+                "SELECT id, code, name, description, timezone, currency, created_at, updated_at FROM projects ORDER BY created_at DESC",
+            )
+            .fetch_all(&*self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                r#"
+                SELECT p.id, p.code, p.name, p.description, p.timezone, p.currency, p.created_at, p.updated_at
+                FROM projects p
+                INNER JOIN project_members pm ON pm.project_id = p.id
+                WHERE pm.user_id = $1 AND pm.is_active = true
+                ORDER BY p.created_at DESC
+                "#,
+            )
+            .bind(user_id)
+            .fetch_all(&*self.pool)
+            .await?
+        };
+
+        let mut projects = Vec::new();
+        for r in rows {
+            projects.push(Project {
+                id: r.try_get("id")?,
+                code: r.try_get("code")?,
+                name: r.try_get("name")?,
+                description: r.try_get("description")?,
+                timezone: r.try_get("timezone")?,
+                currency: r.try_get("currency")?,
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
+            });
+        }
+
+        Ok(projects)
+    }
+
+    /// Verifies whether a user has active membership in a project, returning their project-specific role
+    pub async fn verify_project_membership(
+        &self,
+        project_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<UserRole>> {
+        let row = sqlx::query_scalar::<_, String>(
+            "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1"
+        )
+        .bind(project_id)
+        .bind(user_id)
+        .fetch_optional(&*self.pool)
+        .await?;
+
+        Ok(row.and_then(|r| match r.to_uppercase().as_str() {
+            "ADMIN" => Some(UserRole::Admin),
+            "PLANNER" => Some(UserRole::Planner),
+            "FIELD_ENGINEER" | "FIELDENGINEER" | "ENGINEER" => Some(UserRole::Engineer),
+            "SUPERVISOR" => Some(UserRole::Supervisor),
+            "AUDITOR" => Some(UserRole::Auditor),
+            "VIEWER" => Some(UserRole::Viewer),
+            _ => None,
+        }))
     }
 
     /// Fetches a single project by ID
@@ -883,6 +951,39 @@ impl Database {
         }
 
         let project_id: Uuid = prop_row.try_get("project_id")?;
+
+        // Verify reviewer is an active member with PLANNER or ADMIN role in this project
+        let member_role = sqlx::query_scalar::<_, String>(
+            "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1",
+        )
+        .bind(project_id)
+        .bind(reviewer_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(ref r) = member_role {
+            if !["PLANNER", "ADMIN"].contains(&r.to_uppercase().as_str()) {
+                return Err(anyhow::anyhow!(
+                    "Reviewer role {} does not have permission to approve proposals in this project",
+                    r
+                ));
+            }
+        } else {
+            let is_global_admin = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM project_members WHERE user_id = $1 AND role = 'ADMIN' AND is_active = true)",
+            )
+            .bind(reviewer_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap_or(false);
+
+            if !is_global_admin {
+                return Err(anyhow::anyhow!(
+                    "Reviewer is not an active member of this project"
+                ));
+            }
+        }
+
         let obs_id: Uuid = prop_row.try_get("observation_id")?;
         let orig_act_id: Uuid = prop_row.try_get("activity_id")?;
         let target_act_id = override_activity_id.unwrap_or(orig_act_id);
@@ -1080,6 +1181,193 @@ impl Database {
             Ok(()) => Ok((true, count, None)),
             Err(broken_idx) => Ok((false, count, Some(broken_idx))),
         }
+    }
+
+    /// Transactionally updates the legal hold status for a project and records a governance audit event
+    pub async fn set_project_legal_hold_tx(
+        &self,
+        project_id: Uuid,
+        enabled: bool,
+        actor_id: Option<Uuid>,
+        reason: Option<String>,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        // 1. Update is_legal_hold flag on audit_events
+        sqlx::query("UPDATE audit_events SET is_legal_hold = $1 WHERE project_id = $2")
+            .bind(enabled)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
+
+        // 2. Fetch latest previous hash for project audit continuity
+        let prev_hash: Option<String> = sqlx::query_scalar(
+            "SELECT payload_hash FROM audit_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(project_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let action_str = if enabled {
+            "ENABLE_LEGAL_HOLD"
+        } else {
+            "RELEASE_LEGAL_HOLD"
+        };
+
+        let audit = EventLedger::create_audit_event(
+            project_id,
+            "PROJECT_GOVERNANCE",
+            project_id,
+            action_str,
+            actor_id,
+            Some("COMPLIANCE_OFFICER"),
+            None,
+            Some(serde_json::json!({
+                "legal_hold": enabled,
+                "reason": reason.unwrap_or_else(|| "Compliance governance request".to_string())
+            })),
+            prev_hash.as_deref(),
+        );
+
+        sqlx::query(
+            "INSERT INTO audit_events (id, project_id, entity_type, entity_id, action, actor_id, actor_role, payload_hash, previous_hash, is_legal_hold, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+        )
+        .bind(audit.id)
+        .bind(audit.project_id)
+        .bind(&audit.entity_type)
+        .bind(audit.entity_id)
+        .bind(&audit.action)
+        .bind(audit.actor_id)
+        .bind(&audit.actor_role)
+        .bind(&audit.payload_hash)
+        .bind(&audit.previous_hash)
+        .bind(enabled)
+        .bind(audit.created_at)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Transactionally prepares and persists cold audit archive batch
+    pub async fn archive_audit_trail_tx(
+        &self,
+        project_id: Uuid,
+        actor_id: Option<Uuid>,
+        storage_uri: Option<String>,
+    ) -> Result<Option<Uuid>> {
+        let mut tx = self.pool.begin().await?;
+
+        // Check if legal hold is active on project
+        let is_hold: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM audit_events WHERE project_id = $1 AND is_legal_hold = true LIMIT 1)",
+        )
+        .bind(project_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if is_hold {
+            return Err(anyhow::anyhow!(
+                "Cannot archive audit trail: Active legal hold is enforced for this project"
+            ));
+        }
+
+        // Fetch unarchived records
+        let rows = sqlx::query(
+            "SELECT id, payload_hash, created_at FROM audit_events WHERE project_id = $1 AND archived_at IS NULL ORDER BY created_at ASC FOR UPDATE",
+        )
+        .bind(project_id)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        if rows.is_empty() {
+            return Ok(None);
+        }
+
+        let record_count = rows.len() as i32;
+        let oldest_at: chrono::DateTime<Utc> = rows.first().unwrap().try_get("created_at")?;
+        let newest_at: chrono::DateTime<Utc> = rows.last().unwrap().try_get("created_at")?;
+        let batch_id = Uuid::new_v4();
+
+        // Calculate root hash over batch payload hashes
+        let mut hasher = sha2::Sha256::new();
+        for r in &rows {
+            let ph: String = r.try_get("payload_hash")?;
+            hasher.update(ph.as_bytes());
+        }
+        let root_hash = format!("{:x}", hasher.finalize());
+
+        // Insert into audit_archives
+        sqlx::query(
+            "INSERT INTO audit_archives (id, project_id, record_count, root_hash, oldest_record_at, newest_record_at, storage_uri, created_by, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        )
+        .bind(batch_id)
+        .bind(project_id)
+        .bind(record_count)
+        .bind(&root_hash)
+        .bind(oldest_at)
+        .bind(newest_at)
+        .bind(storage_uri)
+        .bind(actor_id)
+        .bind(Utc::now())
+        .execute(&mut *tx)
+        .await?;
+
+        // Mark events as archived
+        sqlx::query(
+            "UPDATE audit_events SET archived_at = $1, archive_batch_id = $2 WHERE project_id = $3 AND archived_at IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(batch_id)
+        .bind(project_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(Some(batch_id))
+    }
+
+    /// Fetches audit retention governance metrics from PostgreSQL
+    pub async fn get_audit_retention_metrics(
+        &self,
+        project_id: Uuid,
+    ) -> Result<(usize, usize, usize, bool)> {
+        let hot_count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE project_id = $1 AND archived_at IS NULL",
+        )
+        .bind(project_id)
+        .fetch_one(&*self.pool)
+        .await?;
+
+        let archived_count: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(record_count), 0)::bigint FROM audit_archives WHERE project_id = $1",
+        )
+        .bind(project_id)
+        .fetch_one(&*self.pool)
+        .await?;
+
+        let batches_count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM audit_archives WHERE project_id = $1")
+                .bind(project_id)
+                .fetch_one(&*self.pool)
+                .await?;
+
+        let is_legal_hold: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM audit_events WHERE project_id = $1 AND is_legal_hold = true LIMIT 1)",
+        )
+        .bind(project_id)
+        .fetch_one(&*self.pool)
+        .await?;
+
+        Ok((
+            hot_count.max(0) as usize,
+            archived_count.max(0) as usize,
+            batches_count.max(0) as usize,
+            is_legal_hold,
+        ))
     }
 
     /// Computes dashboard KPIs directly from PostgreSQL projections
@@ -1292,6 +1580,39 @@ impl Database {
                 .ok_or_else(|| anyhow::anyhow!("Proposal not found"))?;
 
         let project_id: Uuid = prop_row.try_get("project_id")?;
+
+        // Verify reviewer is an active member with PLANNER or ADMIN role in this project
+        let member_role = sqlx::query_scalar::<_, String>(
+            "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1",
+        )
+        .bind(project_id)
+        .bind(reviewer_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(ref r) = member_role {
+            if !["PLANNER", "ADMIN"].contains(&r.to_uppercase().as_str()) {
+                return Err(anyhow::anyhow!(
+                    "Reviewer role {} does not have permission to reject proposals in this project",
+                    r
+                ));
+            }
+        } else {
+            let is_global_admin = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM project_members WHERE user_id = $1 AND role = 'ADMIN' AND is_active = true)",
+            )
+            .bind(reviewer_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap_or(false);
+
+            if !is_global_admin {
+                return Err(anyhow::anyhow!(
+                    "Reviewer is not an active member of this project"
+                ));
+            }
+        }
+
         let status: String = prop_row.try_get("status")?;
         if status == "REJECTED" {
             return Ok(());

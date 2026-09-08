@@ -60,6 +60,14 @@ impl ApiError {
         }
     }
 
+    pub fn forbidden(msg: impl Into<String>) -> Self {
+        Self {
+            error: msg.into(),
+            code: "FORBIDDEN".to_string(),
+            details: None,
+        }
+    }
+
     pub fn unauthorized(msg: impl Into<String>) -> Self {
         Self {
             error: msg.into(),
