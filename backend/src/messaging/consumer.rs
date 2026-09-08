@@ -127,7 +127,16 @@ impl ResultConsumer {
     }
 
     async fn handle_delivery(&self, data: &[u8]) -> Result<(), anyhow::Error> {
-        let message: AIResultMessage = serde_json::from_slice(data)?;
+        let message: AIResultMessage = match serde_json::from_slice(data) {
+            Ok(msg) => msg,
+            Err(e) => {
+                tracing::warn!(
+                    "Discarding unparseable message on ai_result_queue to prevent poison pill loop: {}",
+                    e
+                );
+                return Ok(());
+            }
+        };
 
         let job_id = message.job_id.as_deref().unwrap_or("unknown");
 

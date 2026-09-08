@@ -11,9 +11,16 @@ use uuid::Uuid;
 
 use crate::domain::models::OutboxEvent;
 
-const EXCHANGE: &str = "nexora.jobs";
-const QUEUE_PROCESSING: &str = "ai_processing_queue";
-const QUEUE_RESULT: &str = "ai_result_queue";
+pub const EXCHANGE: &str = "nexora.jobs";
+pub const QUEUE_PROCESSING: &str = "ai_processing_queue";
+pub const QUEUE_RESULT: &str = "ai_result_queue";
+pub const QUEUE_EVENTS: &str = "nexora_events_queue";
+
+pub const ROUTING_KEY_DOCUMENT_PROCESS: &str = "document.process";
+pub const ROUTING_KEY_DOCUMENT_RESULT: &str = "document.result";
+pub const ROUTING_KEY_ACTIVITY_COMMITTED: &str = "event.activity_committed";
+pub const ROUTING_KEY_PROPOSAL_CREATED: &str = "event.proposal_created";
+pub const ROUTING_KEY_PROJECT_CHANGED: &str = "event.project_changed";
 
 /// Payload published to `document.process` for the AI worker to consume.
 #[derive(Debug, Serialize)]
@@ -54,7 +61,7 @@ impl RabbitPublisher {
         channel
             .exchange_declare(
                 EXCHANGE,
-                ExchangeKind::Direct,
+                ExchangeKind::Topic,
                 ExchangeDeclareOptions {
                     durable: true,
                     ..Default::default()
@@ -78,7 +85,7 @@ impl RabbitPublisher {
             .queue_bind(
                 QUEUE_PROCESSING,
                 EXCHANGE,
-                "document.process",
+                ROUTING_KEY_DOCUMENT_PROCESS,
                 QueueBindOptions::default(),
                 FieldTable::default(),
             )
@@ -99,17 +106,39 @@ impl RabbitPublisher {
             .queue_bind(
                 QUEUE_RESULT,
                 EXCHANGE,
-                "document.result",
+                ROUTING_KEY_DOCUMENT_RESULT,
+                QueueBindOptions::default(),
+                FieldTable::default(),
+            )
+            .await?;
+
+        // Events queue
+        channel
+            .queue_declare(
+                QUEUE_EVENTS,
+                QueueDeclareOptions {
+                    durable: true,
+                    ..Default::default()
+                },
+                FieldTable::default(),
+            )
+            .await?;
+        channel
+            .queue_bind(
+                QUEUE_EVENTS,
+                EXCHANGE,
+                "event.#",
                 QueueBindOptions::default(),
                 FieldTable::default(),
             )
             .await?;
 
         tracing::info!(
-            "RabbitMQ topology declared: exchange={}, queues=[{}, {}]",
+            "RabbitMQ topology declared: exchange={}, queues=[{}, {}, {}]",
             EXCHANGE,
             QUEUE_PROCESSING,
-            QUEUE_RESULT
+            QUEUE_RESULT,
+            QUEUE_EVENTS
         );
         Ok(())
     }
@@ -158,10 +187,12 @@ impl RabbitPublisher {
             .await?;
 
         let routing_key = match event.event_type.as_str() {
-            "PROPOSAL_APPROVED" | "BATCH_PROPOSAL_APPROVED" => "document.result",
-            "PROPOSAL_OVERRIDDEN" => "document.result",
-            "AUTO_LINKED_EVENT" => "document.result",
-            _ => "document.result",
+            "PROPOSAL_APPROVED" | "BATCH_PROPOSAL_APPROVED" => ROUTING_KEY_ACTIVITY_COMMITTED,
+            "PROPOSAL_OVERRIDDEN" => ROUTING_KEY_ACTIVITY_COMMITTED,
+            "AUTO_LINKED_EVENT" => ROUTING_KEY_ACTIVITY_COMMITTED,
+            "PROPOSAL_CREATED" => ROUTING_KEY_PROPOSAL_CREATED,
+            "PROJECT_CREATED" | "PROJECT_CHANGED" => ROUTING_KEY_PROJECT_CHANGED,
+            _ => ROUTING_KEY_ACTIVITY_COMMITTED,
         };
 
         let payload = serde_json::to_vec(&event.payload)?;
