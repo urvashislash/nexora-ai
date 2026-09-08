@@ -8,6 +8,7 @@ pub mod health;
 pub mod helpers;
 pub mod middleware;
 pub mod observations;
+pub mod projects;
 pub mod proposals;
 pub mod review;
 pub mod routes;

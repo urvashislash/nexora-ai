@@ -22,6 +22,18 @@ pub async fn get_audit_trail(
     Path(project_id): Path<Uuid>,
     Query(pagination): Query<PaginationParams>,
 ) -> impl IntoResponse {
+    if let Some(ref db) = state.database {
+        let limit = pagination.limit.unwrap_or(50) as i64;
+        let page = pagination.page.unwrap_or(1).max(1) as i64;
+        let offset = (page - 1) * limit;
+        if let Ok(db_trail) = db.list_audit_trail(project_id, limit, offset).await {
+            if !db_trail.is_empty() {
+                let paginated = pagination.apply(&db_trail);
+                return Json(paginated);
+            }
+        }
+    }
+
     let trail = state.audit_trail.read().await;
     let filtered: Vec<AuditEvent> = trail
         .iter()
@@ -36,6 +48,22 @@ pub async fn verify_audit_chain(
     State(state): State<AppState>,
     Path(project_id): Path<Uuid>,
 ) -> impl IntoResponse {
+    if let Some(ref db) = state.database {
+        if let Ok(result) = db.verify_audit_chain(project_id).await {
+            match result {
+                Ok(()) => return Json(serde_json::json!({
+                    "valid": true,
+                    "message": "Audit chain integrity fully verified against PostgreSQL"
+                })),
+                Err(broken_idx) => return Json(serde_json::json!({
+                    "valid": false,
+                    "broken_at_index": broken_idx,
+                    "message": format!("Audit chain verification failed at event index {}", broken_idx)
+                })),
+            }
+        }
+    }
+
     let trail = state.audit_trail.read().await;
     let filtered: Vec<AuditEvent> = trail
         .iter()

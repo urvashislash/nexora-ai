@@ -33,26 +33,52 @@ pub async fn get_activities(
         }
     }
 
-    let acts = state.activities.read().await;
-    let states = state.activity_states.read().await;
-
-    #[derive(Serialize, Clone)]
-    struct ActivityWithState {
-        activity: Activity,
-        state: Option<ActivityCurrentState>,
-    }
-
-    let combined: Vec<ActivityWithState> = acts
-        .iter()
-        .filter(|a| a.project_id == project_id)
-        .map(|a| {
-            let s = states.iter().find(|st| st.activity_id == a.id).cloned();
-            ActivityWithState {
-                activity: a.clone(),
-                state: s,
+    let combined: Vec<ActivityWithState> = if let Some(ref db) = state.database {
+        if let Ok(acts) = db.list_activities_with_state(project_id).await {
+            if !acts.is_empty() {
+                acts
+            } else {
+                let acts = state.activities.read().await;
+                let states = state.activity_states.read().await;
+                acts.iter()
+                    .filter(|a| a.project_id == project_id)
+                    .map(|a| {
+                        let s = states.iter().find(|st| st.activity_id == a.id).cloned();
+                        ActivityWithState {
+                            activity: a.clone(),
+                            state: s,
+                        }
+                    })
+                    .collect()
             }
-        })
-        .collect();
+        } else {
+            let acts = state.activities.read().await;
+            let states = state.activity_states.read().await;
+            acts.iter()
+                .filter(|a| a.project_id == project_id)
+                .map(|a| {
+                    let s = states.iter().find(|st| st.activity_id == a.id).cloned();
+                    ActivityWithState {
+                        activity: a.clone(),
+                        state: s,
+                    }
+                })
+                .collect()
+        }
+    } else {
+        let acts = state.activities.read().await;
+        let states = state.activity_states.read().await;
+        acts.iter()
+            .filter(|a| a.project_id == project_id)
+            .map(|a| {
+                let s = states.iter().find(|st| st.activity_id == a.id).cloned();
+                ActivityWithState {
+                    activity: a.clone(),
+                    state: s,
+                }
+            })
+            .collect()
+    };
 
     let paginated = pagination.apply(&combined);
     let value = serde_json::to_value(&paginated).unwrap_or(serde_json::json!([]));

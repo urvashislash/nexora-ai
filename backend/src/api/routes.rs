@@ -158,9 +158,18 @@ pub fn create_router(state: AppState) -> Router {
             require_permission(req, next, Permission::ExportSchedule)
         }));
 
+    // --- Project management routes ---
+    let project_routes = Router::new()
+        .route(
+            "/api/v1/projects",
+            get(super::projects::list_projects).post(super::projects::create_project),
+        )
+        .route("/api/v1/projects/:id", get(super::projects::get_project));
+
     // Merge all route groups and apply global security middlewares
     Router::new()
         .merge(public_routes)
+        .merge(project_routes)
         .merge(view_project_routes)
         .merge(observation_routes)
         .merge(approval_routes)

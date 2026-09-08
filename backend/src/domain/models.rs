@@ -245,3 +245,39 @@ pub struct OutboxEvent {
     pub created_at: DateTime<Utc>,
     pub processed_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BaselineActivityInput {
+    pub code: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub discipline: Discipline,
+    pub planned_start_date: NaiveDate,
+    pub planned_finish_date: NaiveDate,
+    pub planned_duration_days: i32,
+    pub planned_quantity: Option<f64>,
+    pub unit_of_measure: Option<String>,
+    pub location: Option<String>,
+    pub zone: Option<String>,
+    pub equipment_tag: Option<String>,
+    pub weightage: Option<f64>,
+    pub critical_path: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectCreateInput {
+    pub code: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub timezone: Option<String>,
+    pub currency: Option<String>,
+    pub baseline_activities: Option<Vec<BaselineActivityInput>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivityWithState {
+    pub activity: Activity,
+    pub state: Option<ActivityCurrentState>,
+}
+
+

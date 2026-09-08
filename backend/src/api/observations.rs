@@ -91,6 +91,13 @@ pub async fn create_observation(
     obs_list.push(obs.clone());
     audit_trail.push(audit);
 
+    // Persist to PostgreSQL if connected
+    if let Some(ref db) = state.database {
+        if let Err(e) = db.insert_observation(&obs).await {
+            tracing::warn!("Database observation insert failed: {}", e);
+        }
+    }
+
     Ok((StatusCode::CREATED, Json(obs)))
 }
 
@@ -100,6 +107,18 @@ pub async fn get_observations(
     Path(project_id): Path<Uuid>,
     Query(pagination): Query<PaginationParams>,
 ) -> impl IntoResponse {
+    if let Some(ref db) = state.database {
+        let limit = pagination.limit.unwrap_or(50) as i64;
+        let page = pagination.page.unwrap_or(1).max(1) as i64;
+        let offset = (page - 1) * limit;
+        if let Ok(db_obs) = db.list_observations(project_id, limit, offset).await {
+            if !db_obs.is_empty() {
+                let paginated = pagination.apply(&db_obs);
+                return Json(paginated);
+            }
+        }
+    }
+
     let obs = state.observations.read().await;
     let filtered: Vec<WorkObservation> = obs
         .iter()

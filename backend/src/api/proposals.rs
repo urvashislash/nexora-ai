@@ -55,6 +55,23 @@ pub async fn approve_proposal(
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
     let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
+
+    // If database is available, execute PostgreSQL transaction
+    if let Some(ref db) = state.database {
+        if let Ok(event_id) = db.approve_proposal_tx(
+            proposal_id,
+            payload.reviewer_id,
+            payload.selected_activity_id,
+            payload.comments.clone(),
+        ).await {
+            return Ok(Json(serde_json::json!({
+                "status": "APPROVED",
+                "event_id": event_id,
+                "proposal_id": proposal_id,
+            })));
+        }
+    }
+
     let mut proposals = state.proposals.write().await;
     let mut events = state.events.write().await;
     let mut act_states = state.activity_states.write().await;
