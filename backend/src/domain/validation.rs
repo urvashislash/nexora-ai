@@ -4,7 +4,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use super::models::{
-    Activity, ActivityCurrentState, ActivityDependency, DependencyType, Discipline, ExecutionStatus,
+    Activity, ActivityCurrentState, ActivityDependency, DependencyType, ExecutionStatus,
 };
 
 #[allow(dead_code)]
@@ -324,6 +324,7 @@ impl ValidationEngine {
 
 #[cfg(test)]
 mod tests {
+    use super::super::models::Discipline;
     use super::*;
 
     #[test]

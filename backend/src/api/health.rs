@@ -32,7 +32,11 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
                 "unreachable"
             }
         },
-        None => "not_configured",
+        None => {
+            tracing::warn!("Readiness probe: PostgreSQL database is not configured");
+            is_ready = false;
+            "not_configured"
+        }
     };
 
     let redis_status = match &state.redis_cache {
