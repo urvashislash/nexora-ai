@@ -349,5 +349,63 @@ export const api = {
   async getP6Export(projectId: string): Promise<string | null> {
     const { data } = await request<{ xml: string }>(`/api/v1/projects/${projectId}/export/p6`);
     return data?.xml || null;
+  },
+
+  /**
+   * Fetch Authenticated User Identity & Memberships
+   */
+  async getMe(): Promise<{ user_id: string; sub: string; global_role: string; full_name?: string; projects: any[] } | null> {
+    const { data } = await request<any>('/api/v1/auth/me');
+    return data || null;
+  },
+
+  /**
+   * List Project Members
+   */
+  async getProjectMembers(projectId: string): Promise<any[] | null> {
+    const { data } = await request<any[]>(`/api/v1/projects/${projectId}/members`);
+    return data || null;
+  },
+
+  /**
+   * Add / Assign Project Member
+   */
+  async addProjectMember(projectId: string, member: { email: string; full_name: string; role: string; user_id?: string }): Promise<any> {
+    const { data } = await request<any>(`/api/v1/projects/${projectId}/members`, {
+      method: 'POST',
+      body: JSON.stringify(member),
+    });
+    return data;
+  },
+
+  /**
+   * Remove / Deactivate Project Member
+   */
+  async removeProjectMember(projectId: string, userId: string): Promise<void> {
+    await request<void>(`/api/v1/projects/${projectId}/members/${userId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Preview Schedule Import
+   */
+  async previewScheduleImport(projectId: string, input: any): Promise<any> {
+    const { data } = await request<any>(`/api/v1/projects/${projectId}/import/preview`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return data;
+  },
+
+  /**
+   * Commit Schedule Import
+   */
+  async commitScheduleImport(projectId: string, input: any): Promise<any> {
+    const { data } = await request<any>(`/api/v1/projects/${projectId}/import/commit`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return data;
   }
 };

@@ -83,7 +83,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/liveness", get(super::health::liveness))
         .route("/readiness", get(super::health::readiness))
         .route("/api/v1/health/liveness", get(super::health::liveness))
-        .route("/api/v1/health/readiness", get(super::health::readiness));
+        .route("/api/v1/health/readiness", get(super::health::readiness))
+        .route("/metrics", get(super::metrics::get_metrics))
+        .route("/api/v1/metrics", get(super::metrics::get_metrics));
+
+    // --- Authentication & Profile routes ---
+    let auth_routes = Router::new()
+        .route("/api/v1/auth/me", get(super::auth::get_me));
 
     // --- Read-only project routes (ViewProject permission) ---
     let view_project_routes = Router::new()
@@ -92,8 +98,25 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/projects/:id/observations", get(get_observations))
         .route("/api/v1/projects/:id/events", get(get_events))
         .route("/api/v1/projects/:id/review-queue", get(get_review_queue))
+        .route("/api/v1/projects/:id/members", get(super::members::list_project_members))
+        .route("/api/v1/projects/:id/import/preview", post(super::import::preview_schedule_import))
         .layer(middleware::from_fn(move |req, next| {
             require_permission(req, next, Permission::ViewProject)
+        }));
+
+    // --- Project Administration routes (Admin permission) ---
+    let project_admin_routes = Router::new()
+        .route("/api/v1/projects/:id/members", post(super::members::add_project_member))
+        .route("/api/v1/projects/:id/members/:user_id", axum::routing::delete(super::members::remove_project_member))
+        .layer(middleware::from_fn(move |req, next| {
+            require_permission(req, next, Permission::Admin)
+        }));
+
+    // --- Schedule Planning & Import commit routes (Planner permission) ---
+    let schedule_planner_routes = Router::new()
+        .route("/api/v1/projects/:id/import/commit", post(super::import::commit_schedule_import))
+        .layer(middleware::from_fn(move |req, next| {
+            require_permission(req, next, Permission::ApproveProposal)
         }));
 
     // --- Document and Durable Job routes (CreateObservation permission) ---
@@ -185,7 +208,10 @@ pub fn create_router(state: AppState) -> Router {
     // Merge all route groups and apply global security middlewares
     Router::new()
         .merge(public_routes)
+        .merge(auth_routes)
         .merge(project_routes)
+        .merge(project_admin_routes)
+        .merge(schedule_planner_routes)
         .merge(view_project_routes)
         .merge(document_routes)
         .merge(observation_routes)

@@ -1063,4 +1063,361 @@ impl Database {
             completed_at: r.try_get("completed_at")?,
         })
     }
+
+    /// Fetches all active project memberships for a specific user
+    pub async fn list_user_project_memberships(&self, user_id: Uuid) -> Result<Vec<UserProjectMembership>> {
+        let rows = sqlx::query(
+            "SELECT pm.project_id, p.code as project_code, p.name as project_name, pm.role
+             FROM project_members pm
+             JOIN projects p ON p.id = pm.project_id
+             WHERE pm.user_id = $1 AND pm.is_active = true
+             ORDER BY p.name ASC"
+        )
+        .bind(user_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(UserProjectMembership {
+                project_id: r.try_get("project_id")?,
+                project_code: r.try_get("project_code")?,
+                project_name: r.try_get("project_name")?,
+                role: r.try_get("role")?,
+            });
+        }
+        Ok(list)
+    }
+
+    /// Fetches all members of a project
+    pub async fn list_project_members(&self, project_id: Uuid) -> Result<Vec<ProjectMember>> {
+        let rows = sqlx::query(
+            "SELECT id, project_id, user_id, email, full_name, role, is_active, created_at
+             FROM project_members
+             WHERE project_id = $1
+             ORDER BY full_name ASC"
+        )
+        .bind(project_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(ProjectMember {
+                id: r.try_get("id")?,
+                project_id: r.try_get("project_id")?,
+                user_id: r.try_get("user_id")?,
+                email: r.try_get("email")?,
+                full_name: r.try_get("full_name")?,
+                role: r.try_get("role")?,
+                is_active: r.try_get("is_active")?,
+                created_at: r.try_get("created_at")?,
+            });
+        }
+        Ok(list)
+    }
+
+    /// Adds or updates a project member with audit logging
+    pub async fn add_or_update_project_member(
+        &self,
+        project_id: Uuid,
+        user_id: Uuid,
+        email: &str,
+        full_name: &str,
+        role: &str,
+        actor_id: Option<Uuid>,
+        actor_role: Option<&str>,
+    ) -> Result<ProjectMember> {
+        let mut tx = self.pool.begin().await?;
+
+        let row = sqlx::query(
+            "INSERT INTO project_members (project_id, user_id, email, full_name, role, is_active)
+             VALUES ($1, $2, $3, $4, $5, true)
+             ON CONFLICT (project_id, user_id)
+             DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name, email = EXCLUDED.email, is_active = true
+             RETURNING id, project_id, user_id, email, full_name, role, is_active, created_at"
+        )
+        .bind(project_id)
+        .bind(user_id)
+        .bind(email)
+        .bind(full_name)
+        .bind(role)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let member = ProjectMember {
+            id: row.try_get("id")?,
+            project_id: row.try_get("project_id")?,
+            user_id: row.try_get("user_id")?,
+            email: row.try_get("email")?,
+            full_name: row.try_get("full_name")?,
+            role: row.try_get("role")?,
+            is_active: row.try_get("is_active")?,
+            created_at: row.try_get("created_at")?,
+        };
+
+        let now = Utc::now();
+        let prev_hash: Option<String> = sqlx::query_scalar(
+            "SELECT payload_hash FROM audit_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind(project_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let audit_id = Uuid::new_v4();
+        let payload_hash = EventLedger::compute_hash(
+            &member.id,
+            "MEMBER_ASSIGNED",
+            &serde_json::json!({
+                "project_id": project_id,
+                "user_id": user_id,
+                "email": email,
+                "role": role,
+            }),
+            prev_hash.as_deref(),
+            &now,
+        );
+
+        sqlx::query(
+            "INSERT INTO audit_events (id, project_id, entity_type, entity_id, action, actor_id, actor_role, payload_hash, previous_hash, created_at)
+             VALUES ($1, $2, 'PROJECT_MEMBER', $3, 'MEMBER_ASSIGNED', $4, $5, $6, $7, $8)"
+        )
+        .bind(audit_id)
+        .bind(project_id)
+        .bind(member.id)
+        .bind(actor_id)
+        .bind(actor_role)
+        .bind(&payload_hash)
+        .bind(prev_hash)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(member)
+    }
+
+    /// Deactivates a project member with audit logging
+    pub async fn deactivate_project_member(
+        &self,
+        project_id: Uuid,
+        user_id: Uuid,
+        actor_id: Option<Uuid>,
+        actor_role: Option<&str>,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        let updated = sqlx::query(
+            "UPDATE project_members SET is_active = false WHERE project_id = $1 AND user_id = $2 RETURNING id"
+        )
+        .bind(project_id)
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(row) = updated {
+            let member_id: Uuid = row.try_get("id")?;
+            let now = Utc::now();
+            let prev_hash: Option<String> = sqlx::query_scalar(
+                "SELECT payload_hash FROM audit_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1"
+            )
+            .bind(project_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+            let audit_id = Uuid::new_v4();
+            let payload_hash = EventLedger::compute_hash(
+                &member_id,
+                "MEMBER_DEACTIVATED",
+                &serde_json::json!({
+                    "project_id": project_id,
+                    "user_id": user_id,
+                    "is_active": false,
+                }),
+                prev_hash.as_deref(),
+                &now,
+            );
+
+            sqlx::query(
+                "INSERT INTO audit_events (id, project_id, entity_type, entity_id, action, actor_id, actor_role, payload_hash, previous_hash, created_at)
+                 VALUES ($1, $2, 'PROJECT_MEMBER', $3, 'MEMBER_DEACTIVATED', $4, $5, $6, $7, $8)"
+            )
+            .bind(audit_id)
+            .bind(project_id)
+            .bind(member_id)
+            .bind(actor_id)
+            .bind(actor_role)
+            .bind(&payload_hash)
+            .bind(prev_hash)
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Atomically commits an imported schedule version, WBS, activities, and initial state
+    pub async fn commit_schedule_version_tx(
+        &self,
+        project_id: Uuid,
+        input: ScheduleImportInput,
+        actor_id: Option<Uuid>,
+        actor_role: Option<&str>,
+    ) -> Result<(Uuid, usize)> {
+        let mut tx = self.pool.begin().await?;
+
+        // Determine next version number
+        let next_v: i32 = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(version_number), 0) + 1 FROM schedule_versions WHERE project_id = $1"
+        )
+        .bind(project_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let version_type = input.version_type.unwrap_or_else(|| "REVISED".to_string());
+        let version_id: Uuid = sqlx::query_scalar(
+            "INSERT INTO schedule_versions (project_id, version_number, version_label, version_type, is_active, approved_by, approved_at)
+             VALUES ($1, $2, $3, $4, true, $5, now())
+             RETURNING id"
+        )
+        .bind(project_id)
+        .bind(next_v)
+        .bind(&input.version_label)
+        .bind(&version_type)
+        .bind(actor_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // Mark previous schedule versions as inactive
+        sqlx::query(
+            "UPDATE schedule_versions SET is_active = false WHERE project_id = $1 AND id != $2"
+        )
+        .bind(project_id)
+        .bind(version_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Create Root WBS Node
+        let root_wbs_id: Uuid = sqlx::query_scalar(
+            "INSERT INTO wbs_nodes (project_id, schedule_version_id, wbs_code, name, level, path)
+             VALUES ($1, $2, 'WBS-IMP-0', 'Imported Schedule Root', 1, '1')
+             RETURNING id"
+        )
+        .bind(project_id)
+        .bind(version_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let mut inserted_count = 0;
+        let now = Utc::now();
+        for act in &input.activities {
+            let act_id = Uuid::new_v4();
+            let planned_duration = (act.planned_finish_date - act.planned_start_date).num_days().max(1) as i32;
+            let discipline_str = serde_json::to_string(&act.discipline)?.trim_matches('"').to_string();
+
+            sqlx::query(
+                "INSERT INTO activities (
+                    id, project_id, schedule_version_id, wbs_id, code, name, description, discipline,
+                    planned_start_date, planned_finish_date, planned_duration_days, planned_quantity,
+                    unit_of_measure, location, zone, weightage, critical_path, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)"
+            )
+            .bind(act_id)
+            .bind(project_id)
+            .bind(version_id)
+            .bind(root_wbs_id)
+            .bind(&act.code)
+            .bind(&act.name)
+            .bind(&act.description)
+            .bind(&discipline_str)
+            .bind(act.planned_start_date)
+            .bind(act.planned_finish_date)
+            .bind(planned_duration)
+            .bind(act.planned_quantity)
+            .bind(&act.unit_of_measure)
+            .bind(&act.location)
+            .bind(&act.zone)
+            .bind(act.weightage.unwrap_or(1.0))
+            .bind(act.critical_path.unwrap_or(false))
+            .bind(now)
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
+
+            sqlx::query(
+                "INSERT INTO activity_current_state (
+                    activity_id, project_id, execution_status, current_progress_pct, cumulative_quantity, is_critical_path_delayed, variance_days, updated_at
+                ) VALUES ($1, $2, 'NOT_STARTED', 0.0, 0.0, false, 0, $3)
+                ON CONFLICT (activity_id) DO NOTHING"
+            )
+            .bind(act_id)
+            .bind(project_id)
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
+
+            inserted_count += 1;
+        }
+
+        // Audit the schedule import
+        let prev_hash: Option<String> = sqlx::query_scalar(
+            "SELECT payload_hash FROM audit_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind(project_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let audit_id = Uuid::new_v4();
+        let payload_hash = EventLedger::compute_hash(
+            &version_id,
+            "SCHEDULE_IMPORTED",
+            &serde_json::json!({
+                "project_id": project_id,
+                "version_id": version_id,
+                "version_number": next_v,
+                "version_label": input.version_label,
+                "activities_count": inserted_count,
+            }),
+            prev_hash.as_deref(),
+            &now,
+        );
+
+        sqlx::query(
+            "INSERT INTO audit_events (id, project_id, entity_type, entity_id, action, actor_id, actor_role, payload_hash, previous_hash, created_at)
+             VALUES ($1, $2, 'SCHEDULE_VERSION', $3, 'SCHEDULE_IMPORTED', $4, $5, $6, $7, $8)"
+        )
+        .bind(audit_id)
+        .bind(project_id)
+        .bind(version_id)
+        .bind(actor_id)
+        .bind(actor_role.unwrap_or("PLANNER"))
+        .bind(&payload_hash)
+        .bind(prev_hash)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        // Create Outbox Event
+        let outbox_payload = serde_json::json!({
+            "event_type": "SCHEDULE_REVISED",
+            "project_id": project_id,
+            "version_id": version_id,
+            "activities_count": inserted_count,
+            "timestamp": Utc::now()
+        });
+        sqlx::query(
+            "INSERT INTO outbox_events (project_id, event_type, payload, status)
+             VALUES ($1, 'event.project_changed', $2, 'PENDING')"
+        )
+        .bind(project_id)
+        .bind(outbox_payload)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok((version_id, inserted_count))
+    }
 }
+

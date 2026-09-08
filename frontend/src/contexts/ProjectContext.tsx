@@ -62,36 +62,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
 
-  // Entities state
-  const [activities, setActivities] = useState<ActivityWithState[]>(() =>
-    safeReadStorage<ActivityWithState[]>(
-      `${STORAGE_KEY}:${activeProject.id}:activities`,
-      initialActivities
-    )
-  );
+  // Entities state - initialized in memory without polluting localStorage with business state
+  const [activities, setActivities] = useState<ActivityWithState[]>(initialActivities);
+  const [observations, setObservations] = useState<WorkObservation[]>(() => getDefaultObservations(activeProject.id));
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>(() => getDefaultReviewQueue(activeProject.id, initialActivities));
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() => getDefaultAuditEvents(activeProject.id, user?.id));
+  const [backendKpis, setBackendKpis] = useState<DashboardKPIs | null>(null);
 
-  const [observations, setObservations] = useState<WorkObservation[]>(() =>
-    safeReadStorage<WorkObservation[]>(
-      `${STORAGE_KEY}:${activeProject.id}:observations`,
-      getDefaultObservations(activeProject.id)
-    )
-  );
-
-  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>(() =>
-    safeReadStorage<ReviewQueueItem[]>(
-      `${STORAGE_KEY}:${activeProject.id}:reviewQueue`,
-      getDefaultReviewQueue(activeProject.id, initialActivities)
-    )
-  );
-
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() =>
-    safeReadStorage<AuditEvent[]>(
-      `${STORAGE_KEY}:${activeProject.id}:auditEvents`,
-      getDefaultAuditEvents(activeProject.id, user?.id)
-    )
-  );
-
-  // Load live data for the active project
   // Load live data for the active project
   const loadData = useCallback(async (projectId?: string) => {
     const targetId = projectId || activeProject.id;
@@ -120,11 +97,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 3. Fetch Data for Active Project via Trust Plane API
-      const [liveActs, liveObs, liveQueue, liveAudits] = await Promise.all([
+      const [liveActs, liveObs, liveQueue, liveAudits, liveKpis] = await Promise.all([
         api.getActivities(targetId),
         api.getObservations(targetId),
         api.getReviewQueue(targetId),
         api.getAuditTrail(targetId),
+        api.getDashboard(targetId),
       ]);
 
       if (liveActs && liveActs.length > 0) {
@@ -138,6 +116,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       }
       if (liveAudits && liveAudits.length > 0) {
         setAuditEvents(liveAudits);
+      }
+      if (liveKpis) {
+        setBackendKpis(liveKpis);
       }
     } catch (err) {
       console.warn('[NEXORA] Live fetch error, using local fallback:', err);
@@ -199,7 +180,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, 0);
   const overallProgressPct = totalWeight > 0 ? Math.round(weightedProgress / totalWeight) : 0;
 
-  const kpis: DashboardKPIs = {
+  const fallbackKpis: DashboardKPIs = {
     total_observations: observations.length,
     extracted_events: observations.length,
     auto_linked_events: activities.filter((a) => (a.state?.current_progress_pct || 0) > 0).length,
@@ -209,6 +190,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     in_progress_activities: inProgressCount,
     overall_progress_pct: overallProgressPct,
   };
+
+  const kpis: DashboardKPIs = backendKpis || fallbackKpis;
 
   // Add observation handler: updates local list and reloads authoritative state
   const handleAddObservations = useCallback(

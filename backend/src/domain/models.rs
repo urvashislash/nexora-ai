@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Discipline {
     Civil,
@@ -331,5 +331,64 @@ pub struct ReviewQueueItem {
     pub observation: Option<WorkObservation>,
     pub activity: Option<Activity>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectMember {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub user_id: Uuid,
+    pub email: String,
+    pub full_name: String,
+    pub role: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserProjectMembership {
+    pub project_id: Uuid,
+    pub project_code: String,
+    pub project_name: String,
+    pub role: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectMemberCreateInput {
+    pub user_id: Option<Uuid>,
+    pub email: String,
+    pub full_name: String,
+    pub role: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DependencyInput {
+    pub predecessor_code: String,
+    pub successor_code: String,
+    pub dependency_type: Option<String>,
+    pub lag_days: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduleImportInput {
+    pub version_label: String,
+    pub version_type: Option<String>,
+    pub activities: Vec<BaselineActivityInput>,
+    pub dependencies: Option<Vec<DependencyInput>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduleImportPreview {
+    pub version_label: String,
+    pub total_activities: usize,
+    pub total_dependencies: usize,
+    pub earliest_start_date: Option<NaiveDate>,
+    pub latest_finish_date: Option<NaiveDate>,
+    pub critical_path_count: usize,
+    pub disciplines: Vec<String>,
+    pub sample_activities: Vec<BaselineActivityInput>,
+    pub validation_errors: Vec<String>,
+    pub validation_warnings: Vec<String>,
+}
+
 
 

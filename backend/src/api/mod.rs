@@ -1,5 +1,6 @@
 pub mod activities;
 pub mod audit;
+pub mod auth;
 pub mod dashboard;
 pub mod documents;
 pub mod error;
@@ -7,6 +8,9 @@ pub mod export;
 pub mod handlers;
 pub mod health;
 pub mod helpers;
+pub mod import;
+pub mod members;
+pub mod metrics;
 pub mod middleware;
 pub mod observations;
 pub mod projects;

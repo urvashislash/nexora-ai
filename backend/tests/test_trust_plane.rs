@@ -1156,3 +1156,134 @@ fn test_outbox_lifecycle() {
     assert_eq!(outbox.status, "PROCESSED");
     assert!(outbox.processed_at.is_some());
 }
+
+#[test]
+fn test_schedule_import_preview_validation_success() {
+    let a1 = BaselineActivityInput {
+        code: "ACT-01".to_string(),
+        name: "Excavation".to_string(),
+        description: None,
+        discipline: Discipline::Civil,
+        planned_start_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 1).unwrap(),
+        planned_finish_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+        planned_duration_days: 9,
+        planned_quantity: Some(500.0),
+        unit_of_measure: Some("M3".to_string()),
+        location: None,
+        zone: None,
+        equipment_tag: None,
+        weightage: Some(1.0),
+        critical_path: Some(true),
+    };
+
+    let a2 = BaselineActivityInput {
+        code: "ACT-02".to_string(),
+        name: "PCC Pour".to_string(),
+        description: None,
+        discipline: Discipline::Civil,
+        planned_start_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 11).unwrap(),
+        planned_finish_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 15).unwrap(),
+        planned_duration_days: 4,
+        planned_quantity: Some(200.0),
+        unit_of_measure: Some("M3".to_string()),
+        location: None,
+        zone: None,
+        equipment_tag: None,
+        weightage: Some(1.0),
+        critical_path: Some(true),
+    };
+
+    let activities = [
+        Activity {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            schedule_version_id: Uuid::nil(),
+            wbs_id: Uuid::nil(),
+            code: a1.code,
+            name: a1.name,
+            description: a1.description,
+            discipline: a1.discipline,
+            planned_start_date: a1.planned_start_date,
+            planned_finish_date: a1.planned_finish_date,
+            planned_duration_days: a1.planned_duration_days,
+            planned_quantity: a1.planned_quantity,
+            unit_of_measure: a1.unit_of_measure,
+            location: a1.location,
+            zone: a1.zone,
+            equipment_tag: None,
+            weightage: 1.0,
+            critical_path: true,
+        },
+        Activity {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            schedule_version_id: Uuid::nil(),
+            wbs_id: Uuid::nil(),
+            code: a2.code,
+            name: a2.name,
+            description: a2.description,
+            discipline: a2.discipline,
+            planned_start_date: a2.planned_start_date,
+            planned_finish_date: a2.planned_finish_date,
+            planned_duration_days: a2.planned_duration_days,
+            planned_quantity: a2.planned_quantity,
+            unit_of_measure: a2.unit_of_measure,
+            location: a2.location,
+            zone: a2.zone,
+            equipment_tag: None,
+            weightage: 1.0,
+            critical_path: true,
+        },
+    ];
+
+    assert!(ValidationEngine::validate_p6_baseline_activities(&activities).is_ok());
+}
+
+#[test]
+fn test_schedule_import_preview_detects_duplicate_activity_codes() {
+    let activities = [
+        Activity {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            schedule_version_id: Uuid::nil(),
+            wbs_id: Uuid::nil(),
+            code: "DUP-01".to_string(),
+            name: "First".to_string(),
+            description: None,
+            discipline: Discipline::Civil,
+            planned_start_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 1).unwrap(),
+            planned_finish_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 5).unwrap(),
+            planned_duration_days: 4,
+            planned_quantity: None,
+            unit_of_measure: None,
+            location: None,
+            zone: None,
+            equipment_tag: None,
+            weightage: 1.0,
+            critical_path: false,
+        },
+        Activity {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            schedule_version_id: Uuid::nil(),
+            wbs_id: Uuid::nil(),
+            code: "DUP-01".to_string(), // Duplicate!
+            name: "Second".to_string(),
+            description: None,
+            discipline: Discipline::Civil,
+            planned_start_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 6).unwrap(),
+            planned_finish_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+            planned_duration_days: 4,
+            planned_quantity: None,
+            unit_of_measure: None,
+            location: None,
+            zone: None,
+            equipment_tag: None,
+            weightage: 1.0,
+            critical_path: false,
+        },
+    ];
+
+    assert!(ValidationEngine::validate_p6_baseline_activities(&activities).is_err());
+}
+

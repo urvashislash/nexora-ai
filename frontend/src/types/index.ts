@@ -274,3 +274,28 @@ export interface DashboardKPIs {
   in_progress_activities: number;
   overall_progress_pct: number;
 }
+
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ScheduleImportPreview {
+  version_label: string;
+  total_activities: number;
+  total_dependencies: number;
+  earliest_start_date?: string;
+  latest_finish_date?: string;
+  critical_path_count: number;
+  disciplines: string[];
+  sample_activities: any[];
+  validation_errors: string[];
+  validation_warnings: string[];
+}
+

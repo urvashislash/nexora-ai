@@ -3,7 +3,6 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use serde::Serialize;
 use uuid::Uuid;
 
 use crate::domain::models::*;
