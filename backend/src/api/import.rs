@@ -44,7 +44,9 @@ pub async fn preview_schedule_import(
         code_to_id.insert(a.code.clone(), act_id);
         disciplines_set.insert(format!("{:?}", a.discipline).to_uppercase());
 
-        let duration = (a.planned_finish_date - a.planned_start_date).num_days().max(0) as i32;
+        let duration = (a.planned_finish_date - a.planned_start_date)
+            .num_days()
+            .max(0) as i32;
 
         dummy_activities.push(Activity {
             id: act_id,
@@ -113,14 +115,8 @@ pub async fn preview_schedule_import(
         }
     }
 
-    let earliest_start_date = dummy_activities
-        .iter()
-        .map(|a| a.planned_start_date)
-        .min();
-    let latest_finish_date = dummy_activities
-        .iter()
-        .map(|a| a.planned_finish_date)
-        .max();
+    let earliest_start_date = dummy_activities.iter().map(|a| a.planned_start_date).min();
+    let latest_finish_date = dummy_activities.iter().map(|a| a.planned_finish_date).max();
     let critical_path_count = dummy_activities.iter().filter(|a| a.critical_path).count();
 
     let sample_activities = payload.activities.iter().take(5).cloned().collect();

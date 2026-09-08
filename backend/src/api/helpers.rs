@@ -100,5 +100,3 @@ mod tests {
         assert_eq!(p4.apply(&items), Vec::<i32>::new());
     }
 }
-
-

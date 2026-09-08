@@ -13,7 +13,9 @@ use crate::domain::state_machine::StateMachine;
 use crate::domain::validation::ValidationEngine;
 
 use super::error::ApiError;
-use super::helpers::{default_reviewer_id, deserialize_string_or_uuid_vec, empty_string_is_none, parse_uuid_or_derive};
+use super::helpers::{
+    default_reviewer_id, deserialize_string_or_uuid_vec, empty_string_is_none, parse_uuid_or_derive,
+};
 use super::state::AppState;
 
 // =============================================================================
@@ -58,12 +60,15 @@ pub async fn approve_proposal(
 
     // If database is available, execute PostgreSQL transaction
     if let Some(ref db) = state.database {
-        if let Ok(event_id) = db.approve_proposal_tx(
-            proposal_id,
-            payload.reviewer_id,
-            payload.selected_activity_id,
-            payload.comments.clone(),
-        ).await {
+        if let Ok(event_id) = db
+            .approve_proposal_tx(
+                proposal_id,
+                payload.reviewer_id,
+                payload.selected_activity_id,
+                payload.comments.clone(),
+            )
+            .await
+        {
             return Ok(Json(serde_json::json!({
                 "status": "APPROVED",
                 "event_id": event_id,
@@ -93,10 +98,9 @@ pub async fn approve_proposal(
                 .ok_or_else(|| ApiError::not_found("No projects found in application state"))?;
             let default_act = match payload.selected_activity_id {
                 Some(id) => id,
-                None => acts
-                    .first()
-                    .map(|a| a.id)
-                    .ok_or_else(|| ApiError::not_found("No activities found in application state"))?,
+                None => acts.first().map(|a| a.id).ok_or_else(|| {
+                    ApiError::not_found("No activities found in application state")
+                })?,
             };
             let dynamic_obs_id = Uuid::new_v4();
             let new_prop = MatchProposal {
@@ -227,7 +231,10 @@ pub async fn reject_proposal(
     let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
 
     if let Some(db) = &state.database {
-        match db.reject_proposal_tx(proposal_id, payload.reviewer_id, payload.comments.clone()).await {
+        match db
+            .reject_proposal_tx(proposal_id, payload.reviewer_id, payload.comments.clone())
+            .await
+        {
             Ok(()) => {
                 if let Some(cache) = &state.redis_cache {
                     let proposals = state.proposals.read().await;
@@ -337,7 +344,15 @@ pub async fn override_proposal(
     ))?;
 
     if let Some(db) = &state.database {
-        match db.approve_proposal_tx(proposal_id, payload.reviewer_id, Some(selected_activity_id), payload.comments.clone()).await {
+        match db
+            .approve_proposal_tx(
+                proposal_id,
+                payload.reviewer_id,
+                Some(selected_activity_id),
+                payload.comments.clone(),
+            )
+            .await
+        {
             Ok(event_id) => {
                 if let Some(cache) = &state.redis_cache {
                     let proposals = state.proposals.read().await;
@@ -354,7 +369,10 @@ pub async fn override_proposal(
                 })));
             }
             Err(e) => {
-                tracing::warn!("approve_proposal_tx (override) error: {}, falling back to in-memory", e);
+                tracing::warn!(
+                    "approve_proposal_tx (override) error: {}, falling back to in-memory",
+                    e
+                );
             }
         }
     }

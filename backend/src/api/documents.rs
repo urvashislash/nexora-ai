@@ -33,9 +33,22 @@ pub async fn create_document(
         let doc_id = Uuid::new_v4();
         let job_id = Uuid::new_v4();
         let now = Utc::now();
-        let mime = input.mime_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
-        let storage_key = input.storage_key.clone().unwrap_or_else(|| format!("{}/reports/{}_{}", project_id, now.timestamp(), input.filename));
-        let storage_bucket = input.storage_bucket.clone().unwrap_or_else(|| "evidence-documents".to_string());
+        let mime = input
+            .mime_type
+            .clone()
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+        let storage_key = input.storage_key.clone().unwrap_or_else(|| {
+            format!(
+                "{}/reports/{}_{}",
+                project_id,
+                now.timestamp(),
+                input.filename
+            )
+        });
+        let storage_bucket = input
+            .storage_bucket
+            .clone()
+            .unwrap_or_else(|| "evidence-documents".to_string());
 
         let doc = Document {
             id: doc_id,
@@ -46,7 +59,10 @@ pub async fn create_document(
             storage_bucket,
             storage_key,
             checksum_sha256: input.checksum_sha256.clone(),
-            source_type: input.source_type.clone().unwrap_or_else(|| "DAILY_REPORT".to_string()),
+            source_type: input
+                .source_type
+                .clone()
+                .unwrap_or_else(|| "DAILY_REPORT".to_string()),
             classification: "INTERNAL".to_string(),
             uploaded_by: None,
             uploaded_at: now,
@@ -73,7 +89,8 @@ pub async fn create_document(
     // If RabbitMQ is online, dispatch job payload
     if let Some(publisher) = &state.rabbit_publisher {
         let acts_guard = state.activities.read().await;
-        let activities_val = serde_json::to_value(&*acts_guard).unwrap_or_else(|_| serde_json::json!([]));
+        let activities_val =
+            serde_json::to_value(&*acts_guard).unwrap_or_else(|_| serde_json::json!([]));
 
         let process_job = ProcessDocumentJob {
             job_id: job.id,

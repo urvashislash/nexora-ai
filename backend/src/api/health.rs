@@ -1,9 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use chrono::Utc;
 
 use super::state::AppState;
@@ -29,16 +24,14 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
     let mut is_ready = true;
 
     let db_status = match &state.database {
-        Some(db) => {
-            match sqlx::query("SELECT 1").execute(db.pool()).await {
-                Ok(_) => "ready",
-                Err(e) => {
-                    tracing::error!("Readiness check failed on PostgreSQL: {}", e);
-                    is_ready = false;
-                    "unreachable"
-                }
+        Some(db) => match sqlx::query("SELECT 1").execute(db.pool()).await {
+            Ok(_) => "ready",
+            Err(e) => {
+                tracing::error!("Readiness check failed on PostgreSQL: {}", e);
+                is_ready = false;
+                "unreachable"
             }
-        }
+        },
         None => "not_configured",
     };
 

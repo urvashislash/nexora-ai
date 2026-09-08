@@ -59,7 +59,10 @@ pub async fn get_dashboard(
                 return Json(kpis);
             }
             Err(e) => {
-                tracing::warn!("Failed to query DB dashboard KPIs: {}, falling back to in-memory", e);
+                tracing::warn!(
+                    "Failed to query DB dashboard KPIs: {}, falling back to in-memory",
+                    e
+                );
             }
         }
     }

@@ -118,7 +118,9 @@ pub async fn remove_project_member(
     if let Some(ref db) = state.database {
         db.deactivate_project_member(project_id, user_id, actor_id, actor_role.as_deref())
             .await
-            .map_err(|e| ApiError::internal(format!("Failed to deactivate project member: {}", e)))?;
+            .map_err(|e| {
+                ApiError::internal(format!("Failed to deactivate project member: {}", e))
+            })?;
     }
 
     Ok(StatusCode::NO_CONTENT)

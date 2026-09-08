@@ -1286,4 +1286,3 @@ fn test_schedule_import_preview_detects_duplicate_activity_codes() {
 
     assert!(ValidationEngine::validate_p6_baseline_activities(&activities).is_err());
 }
-

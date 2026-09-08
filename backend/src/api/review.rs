@@ -53,7 +53,10 @@ pub async fn get_review_queue(
                 return Json(value);
             }
             Err(e) => {
-                tracing::warn!("Failed to query DB review queue: {}, falling back to in-memory", e);
+                tracing::warn!(
+                    "Failed to query DB review queue: {}, falling back to in-memory",
+                    e
+                );
             }
         }
     }

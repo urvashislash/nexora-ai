@@ -51,15 +51,19 @@ pub async fn verify_audit_chain(
     if let Some(ref db) = state.database {
         if let Ok(result) = db.verify_audit_chain(project_id).await {
             match result {
-                Ok(()) => return Json(serde_json::json!({
-                    "valid": true,
-                    "message": "Audit chain integrity fully verified against PostgreSQL"
-                })),
-                Err(broken_idx) => return Json(serde_json::json!({
-                    "valid": false,
-                    "broken_at_index": broken_idx,
-                    "message": format!("Audit chain verification failed at event index {}", broken_idx)
-                })),
+                Ok(()) => {
+                    return Json(serde_json::json!({
+                        "valid": true,
+                        "message": "Audit chain integrity fully verified against PostgreSQL"
+                    }))
+                }
+                Err(broken_idx) => {
+                    return Json(serde_json::json!({
+                        "valid": false,
+                        "broken_at_index": broken_idx,
+                        "message": format!("Audit chain verification failed at event index {}", broken_idx)
+                    }))
+                }
             }
         }
     }

@@ -14,7 +14,8 @@ pub fn get_seed_demo_data() -> (Vec<Project>, Vec<Activity>, Vec<ActivityCurrent
         code: "PRD-HYD-PKG04".to_string(),
         name: "Paradip-Hyderabad Refinery Expansion - Package 04".to_string(),
         description: Some(
-            "EPC Package for Crude Distillation Unit (CDU), Pipe Rack B, and Compressor Station".to_string(),
+            "EPC Package for Crude Distillation Unit (CDU), Pipe Rack B, and Compressor Station"
+                .to_string(),
         ),
         timezone: "Asia/Kolkata".to_string(),
         currency: "INR".to_string(),
@@ -124,9 +125,7 @@ pub fn get_seed_demo_data() -> (Vec<Project>, Vec<Activity>, Vec<ActivityCurrent
             wbs_id,
             code: "CIV-1101".to_string(),
             name: "Concrete Pour - Column Footings Area 100".to_string(),
-            description: Some(
-                "Ready-mix concrete pouring for heavy column footings".to_string(),
-            ),
+            description: Some("Ready-mix concrete pouring for heavy column footings".to_string()),
             discipline: Discipline::Civil,
             planned_start_date: NaiveDate::from_ymd_opt(2026, 8, 25).unwrap(),
             planned_finish_date: NaiveDate::from_ymd_opt(2026, 8, 29).unwrap(),

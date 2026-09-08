@@ -2,12 +2,7 @@
 // Auth Module — Current Authenticated User & Membership Metadata
 // =============================================================================
 
-use axum::{
-    extract::State,
-    http::HeaderMap,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::HeaderMap, response::IntoResponse, Json};
 use serde::Serialize;
 use sha2::Digest;
 use uuid::Uuid;
@@ -34,10 +29,7 @@ pub struct AuthErrorResponse {
 
 /// GET /api/v1/auth/me
 /// Returns authenticated user profile and authoritative active project memberships
-pub async fn get_me(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+pub async fn get_me(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
     let auth_header = match headers.get("authorization").and_then(|v| v.to_str().ok()) {
         Some(h) => h,
         None => {

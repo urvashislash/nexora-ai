@@ -182,7 +182,8 @@ impl ResultConsumer {
         let mut review_required_count = 0;
 
         // 1. Ingest raw observations if present (parse completely before acquiring any lock)
-        let mut obs_id_map: std::collections::HashMap<String, Uuid> = std::collections::HashMap::new();
+        let mut obs_id_map: std::collections::HashMap<String, Uuid> =
+            std::collections::HashMap::new();
         let mut parsed_observations: Vec<WorkObservation> = Vec::new();
 
         if let Some(raw_obs_list) = &message.observations {
@@ -207,14 +208,21 @@ impl ResultConsumer {
                 let discipline: Option<Discipline> = val
                     .get("discipline")
                     .and_then(|v| v.as_str())
-                    .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok());
+                    .and_then(|s| {
+                        serde_json::from_value(serde_json::Value::String(s.to_string())).ok()
+                    });
 
                 let event_type: Option<EventType> = val
                     .get("event_type")
                     .and_then(|v| v.as_str())
-                    .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok());
+                    .and_then(|s| {
+                        serde_json::from_value(serde_json::Value::String(s.to_string())).ok()
+                    });
 
-                let location = val.get("location").and_then(|v| v.as_str()).map(String::from);
+                let location = val
+                    .get("location")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
                 let zone = val.get("zone").and_then(|v| v.as_str()).map(String::from);
                 let equipment_tag = val
                     .get("equipment_tag")
@@ -305,28 +313,50 @@ impl ResultConsumer {
                 });
 
                 if let Some(top) = top_match {
-                    let activity_id_str = top.get("activity_id").and_then(|v| v.as_str()).unwrap_or_default();
-                    let act_id = activity_id_str
-                        .parse::<Uuid>()
-                        .unwrap_or_else(|_| crate::api::helpers::parse_uuid_or_derive(activity_id_str));
+                    let activity_id_str = top
+                        .get("activity_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default();
+                    let act_id = activity_id_str.parse::<Uuid>().unwrap_or_else(|_| {
+                        crate::api::helpers::parse_uuid_or_derive(activity_id_str)
+                    });
 
                     let act_opt = acts.iter().find(|a| a.id == act_id);
-                    let confidence_score = top.get("confidence_score").and_then(|v| v.as_f64()).unwrap_or(0.85);
-                    let lexical_score = top.get("lexical_score").and_then(|v| v.as_f64()).unwrap_or(0.80);
-                    let semantic_score = top.get("semantic_score").and_then(|v| v.as_f64()).unwrap_or(0.80);
-                    let context_boost = top.get("context_boost").and_then(|v| v.as_f64()).unwrap_or(0.10);
-                    let explanation = top.get("explanation").and_then(|v| v.as_str()).map(String::from);
-                    let evidence_snippet = top.get("evidence_snippet").and_then(|v| v.as_str()).map(String::from);
+                    let confidence_score = top
+                        .get("confidence_score")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.85);
+                    let lexical_score = top
+                        .get("lexical_score")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.80);
+                    let semantic_score = top
+                        .get("semantic_score")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.80);
+                    let context_boost = top
+                        .get("context_boost")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.10);
+                    let explanation = top
+                        .get("explanation")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+                    let evidence_snippet = top
+                        .get("evidence_snippet")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
                     let match_tier: MatchTier = top
                         .get("match_tier")
                         .and_then(|v| v.as_str())
-                        .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok())
+                        .and_then(|s| {
+                            serde_json::from_value(serde_json::Value::String(s.to_string())).ok()
+                        })
                         .unwrap_or(MatchTier::Medium);
 
                     let prop_id = Uuid::new_v4();
 
-                    if auto_link_eligible && act_opt.is_some() {
-                        let act = act_opt.unwrap();
+                    if let (true, Some(act)) = (auto_link_eligible, act_opt) {
                         let actual_date = Utc::now().date_naive();
                         let progress = obs_data
                             .and_then(|o| o.get("reported_progress"))
@@ -351,12 +381,19 @@ impl ResultConsumer {
                             delay_days: None,
                             lifecycle_status: LifecycleStatus::Committed,
                             verification_status: VerificationStatus::SystemVerified,
-                            idempotency_key: Some(format!("async-autolink-{}-{}", act.id, actual_date)),
+                            idempotency_key: Some(format!(
+                                "async-autolink-{}-{}",
+                                act.id, actual_date
+                            )),
                             created_by: None,
                             created_at: Utc::now(),
                         };
 
-                        events_to_project.push((act.id, new_event.clone(), act.planned_finish_date));
+                        events_to_project.push((
+                            act.id,
+                            new_event.clone(),
+                            act.planned_finish_date,
+                        ));
 
                         let proposal = MatchProposal {
                             id: prop_id,
@@ -416,12 +453,9 @@ impl ResultConsumer {
             let mut outbox_store = self.state.outbox_events.write().await;
 
             for (act_id, event, planned_finish) in &events_to_project {
-                if let Some(state_entry) = act_states.iter_mut().find(|s| s.activity_id == *act_id) {
-                    let _ = StateMachine::project_event(
-                        state_entry,
-                        event,
-                        *planned_finish,
-                    );
+                if let Some(state_entry) = act_states.iter_mut().find(|s| s.activity_id == *act_id)
+                {
+                    let _ = StateMachine::project_event(state_entry, event, *planned_finish);
                 }
             }
 
@@ -463,4 +497,3 @@ impl ResultConsumer {
         Ok(())
     }
 }
-

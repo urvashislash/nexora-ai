@@ -128,7 +128,11 @@ impl Database {
     }
 
     /// Fetches the user role in a project from project_members table
-    pub async fn get_project_member_role(&self, project_id: Uuid, user_id: Uuid) -> Result<Option<UserRole>> {
+    pub async fn get_project_member_role(
+        &self,
+        project_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<UserRole>> {
         let role_str: Option<String> = sqlx::query_scalar(
             "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1",
         )
@@ -151,7 +155,10 @@ impl Database {
         let project_id = Uuid::new_v4();
         let code = input.code.trim().to_uppercase();
         let name = input.name.trim().to_string();
-        let timezone = input.timezone.clone().unwrap_or_else(|| "Asia/Kolkata".to_string());
+        let timezone = input
+            .timezone
+            .clone()
+            .unwrap_or_else(|| "Asia/Kolkata".to_string());
         let currency = input.currency.clone().unwrap_or_else(|| "INR".to_string());
         let now = Utc::now();
 
@@ -214,7 +221,9 @@ impl Database {
         if let Some(activities) = &input.baseline_activities {
             for act in activities {
                 let activity_id = Uuid::new_v4();
-                let discipline_str = serde_json::to_string(&act.discipline)?.trim_matches('"').to_string();
+                let discipline_str = serde_json::to_string(&act.discipline)?
+                    .trim_matches('"')
+                    .to_string();
 
                 sqlx::query(
                     "INSERT INTO activities (id, project_id, schedule_version_id, wbs_id, code, name, description, discipline, planned_start_date, planned_finish_date, planned_duration_days, planned_quantity, unit_of_measure, location, zone, equipment_tag, weightage, critical_path, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)"
@@ -294,7 +303,10 @@ impl Database {
     }
 
     /// Fetches all activities joined with current state for a project
-    pub async fn list_activities_with_state(&self, project_id: Uuid) -> Result<Vec<ActivityWithState>> {
+    pub async fn list_activities_with_state(
+        &self,
+        project_id: Uuid,
+    ) -> Result<Vec<ActivityWithState>> {
         let query = "
             SELECT 
                 a.id as a_id, a.project_id, a.schedule_version_id, a.wbs_id, a.code, a.name, a.description,
@@ -317,8 +329,9 @@ impl Database {
         let mut results = Vec::new();
         for r in rows {
             let disc_str: String = r.try_get("discipline")?;
-            let discipline: Discipline = serde_json::from_value(serde_json::Value::String(disc_str))
-                .unwrap_or(Discipline::General);
+            let discipline: Discipline =
+                serde_json::from_value(serde_json::Value::String(disc_str))
+                    .unwrap_or(Discipline::General);
 
             let act = Activity {
                 id: r.try_get("a_id")?,
@@ -342,8 +355,9 @@ impl Database {
             };
 
             let state = if let Ok(status_str) = r.try_get::<String, _>("execution_status") {
-                let execution_status: ExecutionStatus = serde_json::from_value(serde_json::Value::String(status_str))
-                    .unwrap_or(ExecutionStatus::NotStarted);
+                let execution_status: ExecutionStatus =
+                    serde_json::from_value(serde_json::Value::String(status_str))
+                        .unwrap_or(ExecutionStatus::NotStarted);
                 Some(ActivityCurrentState {
                     activity_id: act.id,
                     project_id,
@@ -354,15 +368,22 @@ impl Database {
                     cumulative_quantity: r.try_get("cumulative_quantity").unwrap_or(0.0),
                     last_event_id: r.try_get("last_event_id").ok(),
                     last_event_date: r.try_get("last_event_date").ok(),
-                    is_critical_path_delayed: r.try_get("is_critical_path_delayed").unwrap_or(false),
+                    is_critical_path_delayed: r
+                        .try_get("is_critical_path_delayed")
+                        .unwrap_or(false),
                     variance_days: r.try_get("variance_days").unwrap_or(0),
-                    updated_at: r.try_get("s_updated_at").unwrap_or_else(|_| chrono::Utc::now()),
+                    updated_at: r
+                        .try_get("s_updated_at")
+                        .unwrap_or_else(|_| chrono::Utc::now()),
                 })
             } else {
                 None
             };
 
-            results.push(ActivityWithState { activity: act, state });
+            results.push(ActivityWithState {
+                activity: act,
+                state,
+            });
         }
 
         Ok(results)
@@ -370,8 +391,18 @@ impl Database {
 
     /// Persists a work observation into PostgreSQL
     pub async fn insert_observation(&self, obs: &WorkObservation) -> Result<()> {
-        let disc_str = obs.discipline.map(|d| serde_json::to_string(&d).unwrap_or_default().trim_matches('"').to_string());
-        let event_type_str = obs.event_type.map(|e| serde_json::to_string(&e).unwrap_or_default().trim_matches('"').to_string());
+        let disc_str = obs.discipline.map(|d| {
+            serde_json::to_string(&d)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string()
+        });
+        let event_type_str = obs.event_type.map(|e| {
+            serde_json::to_string(&e)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string()
+        });
 
         sqlx::query(
             "INSERT INTO work_observations (id, project_id, document_id, reported_by, observed_at, recorded_at, discipline, location, zone, equipment_tag, raw_text, normalized_text, event_type, reported_progress, reported_quantity, unit_of_measure, metadata)
@@ -402,7 +433,12 @@ impl Database {
     }
 
     /// Fetches observations for a project
-    pub async fn list_observations(&self, project_id: Uuid, limit: i64, offset: i64) -> Result<Vec<WorkObservation>> {
+    pub async fn list_observations(
+        &self,
+        project_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<WorkObservation>> {
         let rows = sqlx::query(
             "SELECT id, project_id, document_id, reported_by, observed_at, recorded_at, discipline, location, zone, equipment_tag, raw_text, normalized_text, event_type, reported_progress, reported_quantity, unit_of_measure, metadata
              FROM work_observations WHERE project_id = $1 ORDER BY recorded_at DESC LIMIT $2 OFFSET $3"
@@ -415,9 +451,11 @@ impl Database {
 
         let mut list = Vec::new();
         for r in rows {
-            let disc: Option<Discipline> = r.try_get::<Option<String>, _>("discipline")?
+            let disc: Option<Discipline> = r
+                .try_get::<Option<String>, _>("discipline")?
                 .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok());
-            let event_type: Option<EventType> = r.try_get::<Option<String>, _>("event_type")?
+            let event_type: Option<EventType> = r
+                .try_get::<Option<String>, _>("event_type")?
                 .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok());
 
             list.push(WorkObservation {
@@ -437,7 +475,9 @@ impl Database {
                 reported_progress: r.try_get("reported_progress")?,
                 reported_quantity: r.try_get("reported_quantity")?,
                 unit_of_measure: r.try_get("unit_of_measure")?,
-                metadata: r.try_get("metadata").unwrap_or_else(|_| serde_json::json!({})),
+                metadata: r
+                    .try_get("metadata")
+                    .unwrap_or_else(|_| serde_json::json!({})),
             });
         }
 
@@ -483,7 +523,8 @@ impl Database {
         .ok_or_else(|| anyhow::anyhow!("Activity state not found"))?;
 
         let current_progress: f64 = act_state_row.try_get("current_progress_pct")?;
-        let existing_start: Option<chrono::NaiveDate> = act_state_row.try_get("actual_start_date")?;
+        let existing_start: Option<chrono::NaiveDate> =
+            act_state_row.try_get("actual_start_date")?;
 
         let now = Utc::now();
         let actual_date = now.date_naive();
@@ -529,7 +570,11 @@ impl Database {
 
         // 5. Insert approval
         let approval_id = Uuid::new_v4();
-        let action = if override_activity_id.is_some() { "OVERRIDE" } else { "APPROVE" };
+        let action = if override_activity_id.is_some() {
+            "OVERRIDE"
+        } else {
+            "APPROVE"
+        };
         sqlx::query(
             "INSERT INTO approvals (id, project_id, event_id, proposal_id, action, reviewed_by, reviewed_at, selected_activity_id, comments)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
@@ -613,7 +658,12 @@ impl Database {
     }
 
     /// Fetches audit trail from PostgreSQL
-    pub async fn list_audit_trail(&self, project_id: Uuid, limit: i64, offset: i64) -> Result<Vec<AuditEvent>> {
+    pub async fn list_audit_trail(
+        &self,
+        project_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<AuditEvent>> {
         let rows = sqlx::query(
             "SELECT id, project_id, entity_type, entity_id, action, actor_id, actor_role, before_state, after_state, payload_hash, previous_hash, created_at
              FROM audit_events WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3"
@@ -652,23 +702,28 @@ impl Database {
     }
 
     /// Computes dashboard KPIs directly from PostgreSQL projections
-    pub async fn get_dashboard_kpis(&self, project_id: Uuid) -> Result<crate::api::dashboard::DashboardKPIs> {
-        let obs_count: i64 = sqlx::query_scalar("SELECT count(*) FROM work_observations WHERE project_id = $1")
-            .bind(project_id)
-            .fetch_one(&*self.pool)
-            .await?;
+    pub async fn get_dashboard_kpis(
+        &self,
+        project_id: Uuid,
+    ) -> Result<crate::api::dashboard::DashboardKPIs> {
+        let obs_count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM work_observations WHERE project_id = $1")
+                .bind(project_id)
+                .fetch_one(&*self.pool)
+                .await?;
 
-        let events_count: i64 = sqlx::query_scalar("SELECT count(*) FROM actual_events WHERE project_id = $1")
-            .bind(project_id)
-            .fetch_one(&*self.pool)
-            .await?;
+        let events_count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM actual_events WHERE project_id = $1")
+                .bind(project_id)
+                .fetch_one(&*self.pool)
+                .await?;
 
         let prop_row = sqlx::query(
             "SELECT 
                 count(*) FILTER (WHERE status = 'AUTO_LINKED') as auto_linked,
                 count(*) FILTER (WHERE status = 'PENDING_REVIEW') as review_queue,
                 count(*) FILTER (WHERE match_tier = 'UNMATCHED') as unmatched
-             FROM match_proposals WHERE project_id = $1"
+             FROM match_proposals WHERE project_id = $1",
         )
         .bind(project_id)
         .fetch_one(&*self.pool)
@@ -684,7 +739,7 @@ impl Database {
                 count(*) FILTER (WHERE execution_status = 'IN_PROGRESS') as in_progress,
                 coalesce(sum(current_progress_pct), 0.0) as total_progress,
                 count(*) as total_count
-             FROM activity_current_state WHERE project_id = $1"
+             FROM activity_current_state WHERE project_id = $1",
         )
         .bind(project_id)
         .fetch_one(&*self.pool)
@@ -768,9 +823,11 @@ impl Database {
             };
 
             let observation = if let Ok(raw_text) = r.try_get::<String, _>("obs_raw_text") {
-                let disc: Option<Discipline> = r.try_get::<Option<String>, _>("obs_discipline")?
+                let disc: Option<Discipline> = r
+                    .try_get::<Option<String>, _>("obs_discipline")?
                     .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok());
-                let evt: Option<EventType> = r.try_get::<Option<String>, _>("obs_event_type")?
+                let evt: Option<EventType> = r
+                    .try_get::<Option<String>, _>("obs_event_type")?
                     .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok());
 
                 Some(WorkObservation {
@@ -790,7 +847,9 @@ impl Database {
                     reported_progress: r.try_get("obs_reported_progress").ok().flatten(),
                     reported_quantity: r.try_get("obs_reported_quantity").ok().flatten(),
                     unit_of_measure: r.try_get("obs_unit_of_measure").ok().flatten(),
-                    metadata: r.try_get("obs_metadata").unwrap_or_else(|_| serde_json::json!({})),
+                    metadata: r
+                        .try_get("obs_metadata")
+                        .unwrap_or_else(|_| serde_json::json!({})),
                 })
             } else {
                 None
@@ -844,11 +903,12 @@ impl Database {
     ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
 
-        let prop_row = sqlx::query("SELECT project_id, status FROM match_proposals WHERE id = $1 FOR UPDATE")
-            .bind(proposal_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Proposal not found"))?;
+        let prop_row =
+            sqlx::query("SELECT project_id, status FROM match_proposals WHERE id = $1 FOR UPDATE")
+                .bind(proposal_id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Proposal not found"))?;
 
         let project_id: Uuid = prop_row.try_get("project_id")?;
         let status: String = prop_row.try_get("status")?;
@@ -929,10 +989,26 @@ impl Database {
 
         let doc_id = Uuid::new_v4();
         let now = Utc::now();
-        let mime_type = input.mime_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
-        let storage_bucket = input.storage_bucket.clone().unwrap_or_else(|| "evidence-documents".to_string());
-        let storage_key = input.storage_key.clone().unwrap_or_else(|| format!("{}/reports/{}_{}", project_id, now.timestamp(), input.filename));
-        let source_type = input.source_type.clone().unwrap_or_else(|| "DAILY_REPORT".to_string());
+        let mime_type = input
+            .mime_type
+            .clone()
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+        let storage_bucket = input
+            .storage_bucket
+            .clone()
+            .unwrap_or_else(|| "evidence-documents".to_string());
+        let storage_key = input.storage_key.clone().unwrap_or_else(|| {
+            format!(
+                "{}/reports/{}_{}",
+                project_id,
+                now.timestamp(),
+                input.filename
+            )
+        });
+        let source_type = input
+            .source_type
+            .clone()
+            .unwrap_or_else(|| "DAILY_REPORT".to_string());
         let classification = "INTERNAL".to_string();
         let processing_status = "QUEUED".to_string();
 
@@ -1065,13 +1141,16 @@ impl Database {
     }
 
     /// Fetches all active project memberships for a specific user
-    pub async fn list_user_project_memberships(&self, user_id: Uuid) -> Result<Vec<UserProjectMembership>> {
+    pub async fn list_user_project_memberships(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<UserProjectMembership>> {
         let rows = sqlx::query(
             "SELECT pm.project_id, p.code as project_code, p.name as project_name, pm.role
              FROM project_members pm
              JOIN projects p ON p.id = pm.project_id
              WHERE pm.user_id = $1 AND pm.is_active = true
-             ORDER BY p.name ASC"
+             ORDER BY p.name ASC",
         )
         .bind(user_id)
         .fetch_all(&*self.pool)
@@ -1095,7 +1174,7 @@ impl Database {
             "SELECT id, project_id, user_id, email, full_name, role, is_active, created_at
              FROM project_members
              WHERE project_id = $1
-             ORDER BY full_name ASC"
+             ORDER BY full_name ASC",
         )
         .bind(project_id)
         .fetch_all(&*self.pool)
@@ -1118,6 +1197,7 @@ impl Database {
     }
 
     /// Adds or updates a project member with audit logging
+    #[allow(clippy::too_many_arguments)]
     pub async fn add_or_update_project_member(
         &self,
         project_id: Uuid,
@@ -1292,7 +1372,7 @@ impl Database {
 
         // Mark previous schedule versions as inactive
         sqlx::query(
-            "UPDATE schedule_versions SET is_active = false WHERE project_id = $1 AND id != $2"
+            "UPDATE schedule_versions SET is_active = false WHERE project_id = $1 AND id != $2",
         )
         .bind(project_id)
         .bind(version_id)
@@ -1303,7 +1383,7 @@ impl Database {
         let root_wbs_id: Uuid = sqlx::query_scalar(
             "INSERT INTO wbs_nodes (project_id, schedule_version_id, wbs_code, name, level, path)
              VALUES ($1, $2, 'WBS-IMP-0', 'Imported Schedule Root', 1, '1')
-             RETURNING id"
+             RETURNING id",
         )
         .bind(project_id)
         .bind(version_id)
@@ -1314,8 +1394,12 @@ impl Database {
         let now = Utc::now();
         for act in &input.activities {
             let act_id = Uuid::new_v4();
-            let planned_duration = (act.planned_finish_date - act.planned_start_date).num_days().max(1) as i32;
-            let discipline_str = serde_json::to_string(&act.discipline)?.trim_matches('"').to_string();
+            let planned_duration = (act.planned_finish_date - act.planned_start_date)
+                .num_days()
+                .max(1) as i32;
+            let discipline_str = serde_json::to_string(&act.discipline)?
+                .trim_matches('"')
+                .to_string();
 
             sqlx::query(
                 "INSERT INTO activities (
@@ -1409,7 +1493,7 @@ impl Database {
         });
         sqlx::query(
             "INSERT INTO outbox_events (project_id, event_type, payload, status)
-             VALUES ($1, 'event.project_changed', $2, 'PENDING')"
+             VALUES ($1, 'event.project_changed', $2, 'PENDING')",
         )
         .bind(project_id)
         .bind(outbox_payload)
@@ -1420,4 +1504,3 @@ impl Database {
         Ok((version_id, inserted_count))
     }
 }
-

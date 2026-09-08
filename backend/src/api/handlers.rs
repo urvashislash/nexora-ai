@@ -11,7 +11,6 @@
 //
 // New code should import directly from the specific sub-module.
 
-
 // --- Application state ---
 pub use super::state::AppState;
 

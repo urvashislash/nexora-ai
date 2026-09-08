@@ -6,10 +6,10 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::domain::models::*;
 use super::error::ApiError;
 use super::middleware::extract_auth_context;
 use super::state::AppState;
+use crate::domain::models::*;
 
 /// POST /api/v1/projects - Transactionally creates a new project
 pub async fn create_project(
@@ -39,7 +39,10 @@ pub async fn create_project(
             }
             Err(e) => {
                 tracing::error!("Database project creation failed: {}", e);
-                return Err(ApiError::internal(format!("Failed to create project: {}", e)));
+                return Err(ApiError::internal(format!(
+                    "Failed to create project: {}",
+                    e
+                )));
             }
         }
     }
@@ -52,7 +55,9 @@ pub async fn create_project(
         code: payload.code.trim().to_uppercase(),
         name: payload.name.trim().to_string(),
         description: payload.description,
-        timezone: payload.timezone.unwrap_or_else(|| "Asia/Kolkata".to_string()),
+        timezone: payload
+            .timezone
+            .unwrap_or_else(|| "Asia/Kolkata".to_string()),
         currency: payload.currency.unwrap_or_else(|| "INR".to_string()),
         created_at: now,
         updated_at: now,
@@ -65,9 +70,7 @@ pub async fn create_project(
 }
 
 /// GET /api/v1/projects - Lists all active projects
-pub async fn list_projects(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, ApiError> {
+pub async fn list_projects(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
     if let Some(ref db) = state.database {
         if let Ok(projects) = db.load_projects().await {
             if !projects.is_empty() {

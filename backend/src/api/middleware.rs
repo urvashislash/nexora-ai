@@ -165,7 +165,11 @@ pub fn verify_jwt(token: &str) -> Option<JwtClaims> {
 }
 
 /// Generates a valid signed JWT for testing or service authentication
-pub fn generate_signed_jwt(user_id: Uuid, role: &str, valid_for_seconds: i64) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn generate_signed_jwt(
+    user_id: Uuid,
+    role: &str,
+    valid_for_seconds: i64,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let secret = get_jwt_secret();
     let now = chrono::Utc::now().timestamp();
     let exp = (now + valid_for_seconds).max(0) as usize;
@@ -381,11 +385,7 @@ impl RateLimitMiddleware {
         }
     }
 
-    pub async fn handle_rate_limit(
-        self,
-        request: Request<Body>,
-        next: Next,
-    ) -> Response {
+    pub async fn handle_rate_limit(self, request: Request<Body>, next: Next) -> Response {
         let client_key = extract_client_key(request.headers());
 
         match self.limiter.check(&client_key).await {

@@ -309,7 +309,10 @@ impl OutboxRelay {
             return;
         }
 
-        tracing::info!("Outbox relay: processing {} eligible pending events", pending_indices.len());
+        tracing::info!(
+            "Outbox relay: processing {} eligible pending events",
+            pending_indices.len()
+        );
 
         for idx in pending_indices {
             let event = &outbox[idx];
