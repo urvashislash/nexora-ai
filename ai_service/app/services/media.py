@@ -37,7 +37,7 @@ def ocr_image_bytes(content: bytes, *, language: str | None = None) -> Extracted
         from pytesseract import Output
     except ImportError as exc:
         raise MediaBackendUnavailableError(
-            "OCR requires Pillow, pytesseract, and the Tesseract system package"
+            "OCR processing requires 'Pillow' and 'pytesseract'. Install with `pip install Pillow pytesseract`."
         ) from exc
 
     try:
@@ -51,7 +51,10 @@ def ocr_image_bytes(content: bytes, *, language: str | None = None) -> Extracted
                 output_type=Output.DICT,
             )
     except pytesseract.TesseractNotFoundError as exc:
-        raise MediaBackendUnavailableError("The Tesseract OCR executable is not available") from exc
+        raise MediaBackendUnavailableError(
+            "The Tesseract OCR binary was not found on the system PATH. "
+            "Install Tesseract using `brew install tesseract` (macOS) or `apt-get install tesseract-ocr` (Linux)."
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         raise MediaProcessingError(f"OCR failed: {exc}") from exc
 
@@ -99,7 +102,10 @@ def _get_asr_model() -> Any:
     try:
         from faster_whisper import WhisperModel
     except ImportError as exc:
-        raise MediaBackendUnavailableError("ASR requires the faster-whisper package") from exc
+        raise MediaBackendUnavailableError(
+            "ASR processing requires 'faster-whisper' and 'ffmpeg'. "
+            "Install with `pip install faster-whisper` and ensure `ffmpeg` is available on the system PATH."
+        ) from exc
 
     try:
         model = WhisperModel(
