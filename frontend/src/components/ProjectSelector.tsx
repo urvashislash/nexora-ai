@@ -18,7 +18,7 @@ import {
 
 interface ProjectSelectorProps {
   projects: Project[];
-  activeProject: Project;
+  activeProject?: Project | null;
   onSelectProject: (project: Project) => void;
   onOpenCreateProject: () => void;
 }
@@ -42,16 +42,22 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Switch project: ${activeProject.code}`}
+          aria-label={activeProject ? `Switch project: ${activeProject.code}` : 'Select project'}
           className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200/90 bg-white px-2 py-1.5 text-xs font-sans text-slate-800 shadow-2xs transition-all duration-150 hover:bg-slate-50/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 sm:px-3"
         >
           <Building2 className="h-3.5 w-3.5 text-amber-800" aria-hidden="true" />
           <div className="flex min-w-0 items-center gap-1.5 text-left">
-            <span className="shrink-0 font-semibold text-slate-900">{activeProject.code}</span>
-            <span className="hidden text-slate-400 font-normal sm:inline">·</span>
-            <span className="hidden max-w-[200px] truncate text-slate-600 font-normal sm:inline">
-              {activeProject.name}
+            <span className="shrink-0 font-semibold text-slate-900">
+              {activeProject ? activeProject.code : 'Select Project'}
             </span>
+            {activeProject && (
+              <>
+                <span className="hidden text-slate-400 font-normal sm:inline">·</span>
+                <span className="hidden max-w-[200px] truncate text-slate-600 font-normal sm:inline">
+                  {activeProject.name}
+                </span>
+              </>
+            )}
           </div>
           <ChevronDown className="h-3 w-3 text-slate-500 group-hover:text-slate-800 transition duration-150" aria-hidden="true" />
         </button>
@@ -65,45 +71,52 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
           <Search className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
           <input
             type="text"
-            aria-label="Filter projects list"
+            placeholder="Search projects..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter projects..."
-            className="w-full rounded-xl border border-slate-200/80 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs font-sans text-slate-900 placeholder:text-slate-400 focus:border-[#C38B4B] focus:outline-hidden"
-            autoFocus
+            className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
           />
         </div>
 
+        {/* Project List */}
         <div className="max-h-56 overflow-y-auto space-y-0.5">
-          {filteredProjects.map((p) => {
-            const isSelected = p.id === activeProject.id;
-            return (
-              <DropdownMenuItem
-                key={p.id}
-                onSelect={() => onSelectProject(p)}
-                className={`flex items-center justify-between rounded-xl p-2.5 text-left cursor-pointer ${
-                  isSelected ? 'bg-slate-100 font-medium text-slate-900' : 'text-slate-700'
-                }`}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-900 font-sans">
-                      {p.code}
-                    </span>
-                    {isSelected && (
-                      <span className="rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200/80 px-1.5 py-0.2 text-[9px] font-sans font-semibold">
-                        ACTIVE
+          {filteredProjects.length === 0 ? (
+            <div className="py-4 text-center text-xs text-slate-500">
+              No projects found
+            </div>
+          ) : (
+            filteredProjects.map((p) => {
+              const isSelected = activeProject ? p.id === activeProject.id : false;
+              return (
+                <DropdownMenuItem
+                  key={p.id}
+                  onSelect={() => onSelectProject(p)}
+                  className={`flex items-center justify-between rounded-xl p-2.5 text-left cursor-pointer ${
+                    isSelected ? 'bg-slate-100 font-medium text-slate-900' : 'text-slate-700'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-900 font-sans">
+                        {p.code}
                       </span>
-                    )}
+                      {isSelected && (
+                        <span className="rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200/80 px-1.5 py-0.2 text-[9px] font-sans font-semibold">
+                          ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 truncate font-sans mt-0.5 font-normal">
+                      {p.name}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-600 truncate font-sans mt-0.5 font-normal">
-                    {p.name}
-                  </p>
-                </div>
-                {isSelected && <Check className="h-4 w-4 text-emerald-800 shrink-0 ml-2" aria-hidden="true" />}
-              </DropdownMenuItem>
-            );
-          })}
+                  {isSelected && <Check className="h-4 w-4 text-emerald-800 shrink-0 ml-2" aria-hidden="true" />}
+                </DropdownMenuItem>
+              );
+            })
+          )}
         </div>
 
         <DropdownMenuSeparator className="my-1.5" />

@@ -94,7 +94,7 @@ export function AppLayout({
           setIsMobileNavOpen(false);
         }}
         pendingReviewCount={reviewQueue.length}
-        activeProject={activeProject}
+        activeProject={activeProject || undefined}
         user={user}
         isMobileOpen={isMobileNavOpen}
         onCloseMobile={() => setIsMobileNavOpen(false)}

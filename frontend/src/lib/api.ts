@@ -7,12 +7,7 @@ import type {
   ReviewQueueItem, 
   WorkObservation
 } from '../types';
-import { 
-  supabase, 
-  fetchObservationsFromDB, 
-  fetchActivitiesWithState, 
-  fetchAuditEventsFromDB 
-} from './supabase';
+import { supabase } from './supabase';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -130,20 +125,9 @@ export const api = {
   async getActivities(projectId: string): Promise<ActivityWithState[] | null> {
     const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/activities`);
     if (isLive && data) {
-      if (Array.isArray(data) && data.length > 0) return data;
-      if (Array.isArray(data.activities) && data.activities.length > 0) return data.activities;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.activities)) return data.activities;
     }
-
-    // Direct Supabase DB query
-    try {
-      const dbActivities = await fetchActivitiesWithState(projectId);
-      if (dbActivities && dbActivities.length > 0) {
-        return dbActivities;
-      }
-    } catch (e) {
-      console.warn('[NEXORA] Supabase fetchActivitiesWithState fallback error:', e);
-    }
-
     return null;
   },
 
@@ -153,19 +137,9 @@ export const api = {
   async getObservations(projectId: string): Promise<WorkObservation[] | null> {
     const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/observations`);
     if (isLive && data) {
-      if (Array.isArray(data) && data.length > 0) return data;
-      if (Array.isArray(data.observations) && data.observations.length > 0) return data.observations;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.observations)) return data.observations;
     }
-
-    try {
-      const dbObs = await fetchObservationsFromDB(projectId);
-      if (dbObs && dbObs.length > 0) {
-        return dbObs;
-      }
-    } catch (e) {
-      console.warn('[NEXORA] Supabase fetchObservationsFromDB fallback error:', e);
-    }
-
     return null;
   },
 
@@ -178,10 +152,10 @@ export const api = {
       body: JSON.stringify(obs),
     });
     if (error) {
-      console.warn('[NEXORA] Error creating observation via Trust Plane API:', error);
-      return obs as WorkObservation;
+      console.error('[NEXORA] Error creating observation via Trust Plane API:', error);
+      return null;
     }
-    return data || (obs as WorkObservation);
+    return data;
   },
 
   /**
@@ -193,39 +167,16 @@ export const api = {
       if (Array.isArray(data)) return data;
       if (Array.isArray(data.items)) return data.items;
     }
-
-    try {
-      const { data: proposals, error } = await supabase
-        .from('match_proposals')
-        .select('*, work_observations(*), activities(*)')
-        .eq('project_id', projectId)
-        .eq('status', 'PENDING_REVIEW');
-
-      if (!error && proposals && proposals.length > 0) {
-        return proposals.map((p: any) => ({
-          proposal: p,
-          observation: p.work_observations,
-          activity: p.activities,
-        }));
-      }
-    } catch {
-      // ignore
-    }
-
     return null;
   },
 
   /**
-   * Approve a proposal via Trust Plane API
+   * Approve a proposal via Trust Plane API (actor identity derived from verified JWT)
    */
-  async approveProposal(proposalId: string, payload: { selected_activity_id?: string; comments?: string; reviewed_by?: string } = {}): Promise<{ success: boolean; event_id?: string; error?: string }> {
+  async approveProposal(proposalId: string, payload: { selected_activity_id?: string; comments?: string } = {}): Promise<{ success: boolean; event_id?: string; error?: string }> {
     const body: Record<string, any> = {
-      comments: payload.comments || 'Approved by Lead Planner via Field Ledger console',
+      comments: payload.comments || 'Approved via Field Ledger console',
     };
-    if (payload.reviewed_by) {
-      body.reviewer_id = payload.reviewed_by;
-      body.reviewed_by = payload.reviewed_by;
-    }
     if (payload.selected_activity_id && payload.selected_activity_id.trim().length > 0) {
       body.selected_activity_id = payload.selected_activity_id.trim();
     }
@@ -242,17 +193,13 @@ export const api = {
   },
 
   /**
-   * Reject a proposal via Trust Plane API
+   * Reject a proposal via Trust Plane API (actor identity derived from verified JWT)
    */
-  async rejectProposal(proposalId: string, payload: { reason: string; reviewed_by?: string }): Promise<{ success: boolean; error?: string }> {
+  async rejectProposal(proposalId: string, payload: { reason: string }): Promise<{ success: boolean; error?: string }> {
     const body: Record<string, any> = {
       comments: payload.reason,
       reason: payload.reason,
     };
-    if (payload.reviewed_by) {
-      body.reviewer_id = payload.reviewed_by;
-      body.reviewed_by = payload.reviewed_by;
-    }
     const { error } = await request<{ success: boolean }>(`/api/v1/proposals/${proposalId}/reject`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -265,16 +212,12 @@ export const api = {
   },
 
   /**
-   * Override a proposal with another activity via Trust Plane API
+   * Override a proposal with another activity via Trust Plane API (actor identity derived from verified JWT)
    */
-  async overrideProposal(proposalId: string, payload: { new_activity_id: string; reason: string; reviewed_by?: string }): Promise<{ success: boolean; event_id?: string; error?: string }> {
+  async overrideProposal(proposalId: string, payload: { new_activity_id: string; reason: string }): Promise<{ success: boolean; event_id?: string; error?: string }> {
     const body: Record<string, any> = {
       comments: payload.reason,
     };
-    if (payload.reviewed_by) {
-      body.reviewer_id = payload.reviewed_by;
-      body.reviewed_by = payload.reviewed_by;
-    }
     if (payload.new_activity_id && payload.new_activity_id.trim().length > 0) {
       body.selected_activity_id = payload.new_activity_id.trim();
     }
@@ -311,19 +254,9 @@ export const api = {
   async getAuditTrail(projectId: string): Promise<AuditEvent[] | null> {
     const { data, isLive } = await request<any>(`/api/v1/projects/${projectId}/audit-trail`);
     if (isLive && data) {
-      if (Array.isArray(data) && data.length > 0) return data;
-      if (Array.isArray(data.events) && data.events.length > 0) return data.events;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.events)) return data.events;
     }
-
-    try {
-      const dbAudit = await fetchAuditEventsFromDB(projectId);
-      if (dbAudit && dbAudit.length > 0) {
-        return dbAudit as unknown as AuditEvent[];
-      }
-    } catch (e) {
-      console.warn('[NEXORA] Supabase fetchAuditEventsFromDB error:', e);
-    }
-
     return null;
   },
 
@@ -331,15 +264,15 @@ export const api = {
    * Verify SHA-256 Audit Chain Integrity
    */
   async verifyAuditChain(projectId: string): Promise<{ valid: boolean; verified_count: number; message: string }> {
-    const { data, isLive } = await request<{ valid: boolean; verified_count: number; message: string }>(`/api/v1/projects/${projectId}/audit-trail/verify`);
+    const { data, isLive, error } = await request<{ valid: boolean; verified_count: number; message: string }>(`/api/v1/projects/${projectId}/audit-trail/verify`);
     if (isLive && data) {
       return data;
     }
 
     return {
-      valid: true,
-      verified_count: 5,
-      message: 'Cryptographic SHA-256 ledger integrity verified locally. All sequential block hashes match.',
+      valid: false,
+      verified_count: 0,
+      message: error ? `Audit chain verification failed: ${error}` : 'Trust Plane unreachable. Cryptographic audit chain integrity cannot be verified.',
     };
   },
 

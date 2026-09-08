@@ -53,14 +53,36 @@ function AppRoutes({
     activeProject,
     isLoading,
     loadData,
+    openCreateProjectModal,
     handleAddObservations,
     handleApproveProposal,
     handleRejectProposal,
     handleOverrideProposal,
   } = useProject();
 
-  if (isLoading && activities.length === 0) {
+  if (isLoading && (!activeProject || activities.length === 0)) {
     return <DashboardSkeleton />;
+  }
+
+  if (!isLoading && !activeProject) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+        <div className="w-16 h-16 bg-amber-50 text-amber-700 rounded-2xl border border-amber-200/80 flex items-center justify-center mb-4 text-2xl font-bold shadow-2xs">
+          +
+        </div>
+        <h2 className="text-lg font-bold text-slate-900 mb-1 font-sans">No Projects Configured</h2>
+        <p className="text-xs text-slate-500 max-w-sm mb-6 font-sans">
+          The Trust Plane currently has no registered projects. Provision a project with schedule WBS to begin recording field observations.
+        </p>
+        <button
+          type="button"
+          onClick={openCreateProjectModal}
+          className="px-4 py-2 bg-[#C38B4B] hover:bg-[#b07b3e] text-white text-xs font-semibold rounded-xl shadow-xs transition duration-150"
+        >
+          Provision Project
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -72,7 +94,7 @@ function AppRoutes({
         <ProjectGraph
           activities={activities}
           observations={observations}
-          project={activeProject}
+          project={activeProject!}
         />
       )}
       {activeTab === 'upload' && (
@@ -80,7 +102,7 @@ function AppRoutes({
           observations={observations}
           onAddObservations={handleAddObservations}
           onNavigateTab={setActiveTab}
-          projectId={activeProject.id}
+          projectId={activeProject?.id || ''}
         />
       )}
       {activeTab === 'review' && (
@@ -99,8 +121,12 @@ function AppRoutes({
         <ScheduleExport
           activities={activities}
           observations={observations}
-          onRefreshData={() => loadData(activeProject.id)}
-          activeProject={activeProject}
+          onRefreshData={async () => {
+            if (activeProject) {
+              await loadData(activeProject.id);
+            }
+          }}
+          activeProject={activeProject || undefined}
         />
       )}
       {activeTab === 'thank-you' && <ThankYou onNavigateTab={setActiveTab as any} />}

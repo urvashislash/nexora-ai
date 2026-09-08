@@ -26,7 +26,7 @@ import { useAuth } from './AuthContext';
 
 interface ProjectContextType {
   projectsList: Project[];
-  activeProject: Project;
+  activeProject: Project | null;
   isCreateProjectModalOpen: boolean;
   openCreateProjectModal: () => void;
   closeCreateProjectModal: () => void;
@@ -48,30 +48,37 @@ interface ProjectContextType {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
+const isDemoMode = import.meta.env.VITE_ENABLE_DEMO_DATA === 'true';
+
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
 
   const [projectsList, setProjectsList] = useState<Project[]>(() =>
-    safeReadStorage<Project[]>(`${STORAGE_KEY}:projects`, DEFAULT_PROJECTS)
+    safeReadStorage<Project[]>(`${STORAGE_KEY}:projects`, isDemoMode ? DEFAULT_PROJECTS : [])
   );
-  const [activeProject, setActiveProject] = useState<Project>(() =>
-    safeReadStorage<Project>(`${STORAGE_KEY}:activeProject`, DEFAULT_PROJECTS[0])
+  const [activeProject, setActiveProject] = useState<Project | null>(() =>
+    safeReadStorage<Project | null>(`${STORAGE_KEY}:activeProject`, isDemoMode ? DEFAULT_PROJECTS[0] : null)
   );
 
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
 
-  // Entities state - initialized in memory without polluting localStorage with business state
-  const [activities, setActivities] = useState<ActivityWithState[]>(initialActivities);
-  const [observations, setObservations] = useState<WorkObservation[]>(() => getDefaultObservations(activeProject.id));
-  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>(() => getDefaultReviewQueue(activeProject.id, initialActivities));
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() => getDefaultAuditEvents(activeProject.id, user?.id));
+  // Entities state - initialized cleanly without polluting production runtime with demo entities
+  const [activities, setActivities] = useState<ActivityWithState[]>(() => (isDemoMode ? initialActivities : []));
+  const [observations, setObservations] = useState<WorkObservation[]>(() =>
+    isDemoMode && activeProject ? getDefaultObservations(activeProject.id) : []
+  );
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>(() =>
+    isDemoMode && activeProject ? getDefaultReviewQueue(activeProject.id, initialActivities) : []
+  );
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() =>
+    isDemoMode && activeProject ? getDefaultAuditEvents(activeProject.id, user?.id) : []
+  );
   const [backendKpis, setBackendKpis] = useState<DashboardKPIs | null>(null);
 
   // Load live data for the active project
   const loadData = useCallback(async (projectId?: string) => {
-    const targetId = projectId || activeProject.id;
     try {
       // 1. Check Supabase connection
       const { error } = await supabase.auth.getSession();
@@ -79,20 +86,43 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Fetch Projects via Trust Plane API, fallback to DB
       const apiProjects = await api.getProjects();
+      let currentProjects = projectsList;
       if (apiProjects && apiProjects.length > 0) {
         setProjectsList(apiProjects);
+        currentProjects = apiProjects;
       } else {
         const dbProjects = await fetchProjects();
         if (dbProjects && dbProjects.length > 0) {
-          setProjectsList(() => {
-            const combined = [...dbProjects];
-            DEFAULT_PROJECTS.forEach((dp) => {
-              if (!combined.some((p) => p.id === dp.id || p.code === dp.code)) {
-                combined.push(dp);
-              }
-            });
-            return combined;
-          });
+          const combined = isDemoMode
+            ? (() => {
+                const list = [...dbProjects];
+                DEFAULT_PROJECTS.forEach((dp) => {
+                  if (!list.some((p) => p.id === dp.id || p.code === dp.code)) {
+                    list.push(dp);
+                  }
+                });
+                return list;
+              })()
+            : dbProjects;
+          setProjectsList(combined);
+          currentProjects = combined;
+        }
+      }
+
+      const targetId = projectId || activeProject?.id || (currentProjects.length > 0 ? currentProjects[0].id : null);
+      if (!targetId) {
+        setActivities([]);
+        setObservations([]);
+        setReviewQueue([]);
+        setAuditEvents([]);
+        setBackendKpis(null);
+        return;
+      }
+
+      if (!activeProject || activeProject.id !== targetId) {
+        const found = currentProjects.find((p) => p.id === targetId);
+        if (found) {
+          setActiveProject(found);
         }
       }
 
@@ -105,37 +135,31 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         api.getDashboard(targetId),
       ]);
 
-      if (liveActs && liveActs.length > 0) {
-        setActivities(liveActs);
-      }
-      if (liveObs && liveObs.length > 0) {
-        setObservations(liveObs);
-      }
-      if (liveQueue && liveQueue.length > 0) {
-        setReviewQueue(liveQueue);
-      }
-      if (liveAudits && liveAudits.length > 0) {
-        setAuditEvents(liveAudits);
-      }
+      setActivities(liveActs || []);
+      setObservations(liveObs || []);
+      setReviewQueue(liveQueue || []);
+      setAuditEvents(liveAudits || []);
       if (liveKpis) {
         setBackendKpis(liveKpis);
       }
     } catch (err) {
-      console.warn('[NEXORA] Live fetch error, using local fallback:', err);
+      console.warn('[NEXORA] Live fetch error:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [activeProject.id]);
+  }, [activeProject, projectsList]);
 
   // Initial mount & project change effect
   useEffect(() => {
     let isMounted = true;
     const fetchInitialData = async () => {
       if (isMounted) {
-        await loadData(activeProject.id);
+        await loadData(activeProject?.id);
       }
     };
     void fetchInitialData();
+
+    if (!activeProject?.id) return;
 
     // Subscribe to live Postgres change events
     const unsubscribe = subscribeToProjectRealtime(activeProject.id, {
@@ -149,14 +173,21 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       isMounted = false;
       unsubscribe();
     };
-  }, [activeProject.id, loadData]);
+  }, [activeProject?.id, loadData]);
 
-  // Sync only client UI preferences (active project selection) to local storage
+  // Save active project to local storage
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}:activeProject`, JSON.stringify(activeProject));
+    if (activeProject) {
+      localStorage.setItem(`${STORAGE_KEY}:activeProject`, JSON.stringify(activeProject));
+    }
   }, [activeProject]);
 
-  // Handle Project Selection
+  // Save projects list to local storage
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}:projects`, JSON.stringify(projectsList));
+  }, [projectsList]);
+
+  // Project Switcher Handler
   const selectProject = (project: Project) => {
     setActiveProject(project);
     setIsLoading(true);
@@ -199,40 +230,47 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       if (newObs && newObs.length > 0) {
         setObservations((prev) => [newObs[0], ...prev]);
       }
-      await loadData(activeProject.id);
+      if (activeProject?.id) {
+        await loadData(activeProject.id);
+      }
     },
-    [activeProject.id, loadData]
+    [activeProject?.id, loadData]
   );
 
-  // Authoritative proposal approval via Rust Trust Plane API
+  // Authoritative proposal approval via Rust Trust Plane API (actor identity strictly from verified JWT)
   const handleApproveProposal = useCallback(
     async (proposalId: string, comment?: string) => {
-      await api.approveProposal(proposalId, { comments: comment, reviewed_by: user?.id });
-      await loadData(activeProject.id);
+      await api.approveProposal(proposalId, { comments: comment });
+      if (activeProject?.id) {
+        await loadData(activeProject.id);
+      }
     },
-    [activeProject.id, loadData, user?.id]
+    [activeProject?.id, loadData]
   );
 
-  // Authoritative proposal rejection via Rust Trust Plane API
+  // Authoritative proposal rejection via Rust Trust Plane API (actor identity strictly from verified JWT)
   const handleRejectProposal = useCallback(
     async (proposalId: string, reason?: string) => {
-      await api.rejectProposal(proposalId, { reason: reason || 'Rejected by Lead Planner', reviewed_by: user?.id });
-      await loadData(activeProject.id);
+      await api.rejectProposal(proposalId, { reason: reason || 'Rejected by Lead Planner' });
+      if (activeProject?.id) {
+        await loadData(activeProject.id);
+      }
     },
-    [activeProject.id, loadData, user?.id]
+    [activeProject?.id, loadData]
   );
 
-  // Authoritative proposal override via Rust Trust Plane API
+  // Authoritative proposal override via Rust Trust Plane API (actor identity strictly from verified JWT)
   const handleOverrideProposal = useCallback(
     async (proposalId: string, newActivityId: string, comment?: string) => {
       await api.overrideProposal(proposalId, {
         new_activity_id: newActivityId,
         reason: comment || 'Target overridden by Lead Planner',
-        reviewed_by: user?.id,
       });
-      await loadData(activeProject.id);
+      if (activeProject?.id) {
+        await loadData(activeProject.id);
+      }
     },
-    [activeProject.id, loadData, user?.id]
+    [activeProject?.id, loadData]
   );
 
   return (
