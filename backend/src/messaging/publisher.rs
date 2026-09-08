@@ -246,6 +246,7 @@ impl RabbitPublisher {
 pub struct OutboxRelay {
     publisher: Arc<RabbitPublisher>,
     outbox: Arc<RwLock<Vec<OutboxEvent>>>,
+    database: Option<Arc<crate::database::Database>>,
     poll_interval: std::time::Duration,
     max_retries: i32,
 }
@@ -259,9 +260,16 @@ impl OutboxRelay {
         Self {
             publisher,
             outbox,
+            database: None,
             poll_interval,
             max_retries: 5,
         }
+    }
+
+    /// Sets PostgreSQL database instance for durable outbox draining
+    pub fn with_database(mut self, database: Option<Arc<crate::database::Database>>) -> Self {
+        self.database = database;
+        self
     }
 
     /// Sets custom maximum retries before marking an outbox event as DEAD_LETTER
@@ -284,6 +292,51 @@ impl OutboxRelay {
     }
 
     async fn relay_pending(&self) {
+        // 1. Drain pending outbox events from PostgreSQL if available
+        if let Some(db) = &self.database {
+            match db.fetch_pending_outbox_events(50).await {
+                Ok(pg_events) => {
+                    for event in pg_events {
+                        match self.publisher.publish_outbox_event(&event).await {
+                            Ok(()) => {
+                                if let Err(e) = db.mark_outbox_event_processed(event.id).await {
+                                    tracing::warn!(
+                                        "Failed to mark PostgreSQL outbox event {} as processed: {}",
+                                        event.id,
+                                        e
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Outbox relay failed to publish PostgreSQL event {}: {}",
+                                    event.id,
+                                    e
+                                );
+                                if let Err(err) = db
+                                    .mark_outbox_event_failed(event.id, self.max_retries)
+                                    .await
+                                {
+                                    tracing::warn!(
+                                        "Failed to mark PostgreSQL outbox event {} as failed: {}",
+                                        event.id,
+                                        err
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to fetch pending outbox events from PostgreSQL: {}",
+                        e
+                    );
+                }
+            }
+        }
+
+        // 2. Drain pending in-memory outbox events
         let mut outbox = self.outbox.write().await;
         let now = chrono::Utc::now();
 

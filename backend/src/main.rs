@@ -139,7 +139,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 pub_ref,
                 state.outbox_events.clone(),
                 std::time::Duration::from_secs(5),
-            );
+            )
+            .with_database(state.database.clone());
             tokio::spawn(async move {
                 relay.run().await;
             });

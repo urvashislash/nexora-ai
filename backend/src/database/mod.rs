@@ -2321,4 +2321,58 @@ impl Database {
         tx.commit().await?;
         Ok((version_id, inserted_count))
     }
+
+    /// Fetches pending outbox events using FOR UPDATE SKIP LOCKED
+    pub async fn fetch_pending_outbox_events(&self, limit: i64) -> Result<Vec<OutboxEvent>> {
+        let rows = sqlx::query(
+            "SELECT id, project_id, event_type, payload, status, retry_count, created_at, processed_at
+             FROM outbox_events
+             WHERE status = 'PENDING'
+             ORDER BY created_at ASC
+             LIMIT $1
+             FOR UPDATE SKIP LOCKED"
+        )
+        .bind(limit)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut events = Vec::new();
+        for r in rows {
+            events.push(OutboxEvent {
+                id: r.try_get("id")?,
+                project_id: r.try_get("project_id")?,
+                event_type: r.try_get("event_type")?,
+                payload: r.try_get("payload")?,
+                status: r.try_get("status")?,
+                retry_count: r.try_get("retry_count")?,
+                created_at: r.try_get("created_at")?,
+                processed_at: r.try_get("processed_at")?,
+            });
+        }
+        Ok(events)
+    }
+
+    /// Marks an outbox event as SENT / processed
+    pub async fn mark_outbox_event_processed(&self, event_id: Uuid) -> Result<()> {
+        sqlx::query("UPDATE outbox_events SET status = 'SENT', processed_at = now() WHERE id = $1")
+            .bind(event_id)
+            .execute(&*self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Marks an outbox event as FAILED and increments retry count
+    pub async fn mark_outbox_event_failed(&self, event_id: Uuid, max_retries: i32) -> Result<()> {
+        sqlx::query(
+            "UPDATE outbox_events
+             SET status = CASE WHEN retry_count + 1 >= $2 THEN 'FAILED' ELSE 'PENDING' END,
+                 retry_count = retry_count + 1
+             WHERE id = $1",
+        )
+        .bind(event_id)
+        .bind(max_retries)
+        .execute(&*self.pool)
+        .await?;
+        Ok(())
+    }
 }
