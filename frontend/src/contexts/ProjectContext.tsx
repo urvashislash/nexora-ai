@@ -20,12 +20,8 @@ import {
   supabase,
   subscribeToProjectRealtime,
   fetchProjects,
-  fetchProjectActivities,
-  fetchProjectObservations,
-  fetchProjectProposals,
-  fetchProjectAuditEvents,
 } from '../lib/supabase';
-import { generateUUIDv7, generateAuditPayloadHash } from '../lib/idGenerator';
+import { api } from '../lib/api';
 import { useAuth } from './AuthContext';
 
 interface ProjectContextType {
@@ -96,6 +92,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   );
 
   // Load live data for the active project
+  // Load live data for the active project
   const loadData = useCallback(async (projectId?: string) => {
     const targetId = projectId || activeProject.id;
     try {
@@ -103,26 +100,31 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.getSession();
       setSupabaseConnected(!error);
 
-      // 2. Fetch Projects from DB if available
-      const dbProjects = await fetchProjects();
-      if (dbProjects && dbProjects.length > 0) {
-        setProjectsList(() => {
-          const combined = [...dbProjects];
-          DEFAULT_PROJECTS.forEach((dp) => {
-            if (!combined.some((p) => p.id === dp.id || p.code === dp.code)) {
-              combined.push(dp);
-            }
+      // 2. Fetch Projects via Trust Plane API, fallback to DB
+      const apiProjects = await api.getProjects();
+      if (apiProjects && apiProjects.length > 0) {
+        setProjectsList(apiProjects);
+      } else {
+        const dbProjects = await fetchProjects();
+        if (dbProjects && dbProjects.length > 0) {
+          setProjectsList(() => {
+            const combined = [...dbProjects];
+            DEFAULT_PROJECTS.forEach((dp) => {
+              if (!combined.some((p) => p.id === dp.id || p.code === dp.code)) {
+                combined.push(dp);
+              }
+            });
+            return combined;
           });
-          return combined;
-        });
+        }
       }
 
-      // 3. Fetch Data for Active Project
-      const [liveActs, liveObs, liveProposals, liveAudits] = await Promise.all([
-        fetchProjectActivities(targetId),
-        fetchProjectObservations(targetId),
-        fetchProjectProposals(targetId),
-        fetchProjectAuditEvents(targetId),
+      // 3. Fetch Data for Active Project via Trust Plane API
+      const [liveActs, liveObs, liveQueue, liveAudits] = await Promise.all([
+        api.getActivities(targetId),
+        api.getObservations(targetId),
+        api.getReviewQueue(targetId),
+        api.getAuditTrail(targetId),
       ]);
 
       if (liveActs && liveActs.length > 0) {
@@ -131,13 +133,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       if (liveObs && liveObs.length > 0) {
         setObservations(liveObs);
       }
-      if (liveProposals && liveProposals.length > 0) {
-        const queueItems: ReviewQueueItem[] = liveProposals.map((p) => ({
-          proposal: p,
-          observation: liveObs?.find((o) => o.id === p.observation_id),
-          activity: liveActs?.find((a) => a.activity.id === p.activity_id)?.activity,
-        }));
-        setReviewQueue(queueItems);
+      if (liveQueue && liveQueue.length > 0) {
+        setReviewQueue(liveQueue);
       }
       if (liveAudits && liveAudits.length > 0) {
         setAuditEvents(liveAudits);
@@ -173,15 +170,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     };
   }, [activeProject.id, loadData]);
 
-  // Sync state to local storage
+  // Sync only client UI preferences (active project selection) to local storage
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}:activeProject`, JSON.stringify(activeProject));
-    localStorage.setItem(`${STORAGE_KEY}:projects`, JSON.stringify(projectsList));
-    localStorage.setItem(`${STORAGE_KEY}:${activeProject.id}:activities`, JSON.stringify(activities));
-    localStorage.setItem(`${STORAGE_KEY}:${activeProject.id}:observations`, JSON.stringify(observations));
-    localStorage.setItem(`${STORAGE_KEY}:${activeProject.id}:reviewQueue`, JSON.stringify(reviewQueue));
-    localStorage.setItem(`${STORAGE_KEY}:${activeProject.id}:auditEvents`, JSON.stringify(auditEvents));
-  }, [activeProject, projectsList, activities, observations, reviewQueue, auditEvents]);
+  }, [activeProject]);
 
   // Handle Project Selection
   const selectProject = (project: Project) => {
@@ -218,258 +210,46 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     overall_progress_pct: overallProgressPct,
   };
 
-  // Add observation handler
+  // Add observation handler: updates local list and reloads authoritative state
   const handleAddObservations = useCallback(
-    (newObs: WorkObservation[], rawText: string) => {
-      setObservations((prev) => [newObs[0], ...prev]);
-
-      // Fast-path auto matching
-      const matchingAct = activities.find(
-        (a) =>
-          rawText.toLowerCase().includes(a.activity.code.toLowerCase()) ||
-          (a.activity.equipment_tag && rawText.includes(a.activity.equipment_tag))
-      );
-
-      if (matchingAct) {
-        const nowStr = new Date().toISOString();
-        const newProgress = Math.min(
-          100,
-          (matchingAct.state?.current_progress_pct || 0) + (newObs[0].reported_progress || 100)
-        );
-        const newStatus = newProgress >= 100 ? 'COMPLETED' : 'IN_PROGRESS';
-
-        setActivities((prev) =>
-          prev.map((a) => {
-            if (a.activity.id === matchingAct.activity.id) {
-              return {
-                ...a,
-                state: {
-                  ...a.state!,
-                  execution_status: newStatus,
-                  actual_start_date: a.state?.actual_start_date || nowStr.slice(0, 10),
-                  actual_finish_date: newStatus === 'COMPLETED' ? nowStr.slice(0, 10) : undefined,
-                  current_progress_pct: newProgress,
-                  updated_at: nowStr,
-                },
-              };
-            }
-            return a;
-          })
-        );
-
-        // Record Audit
-        const audit: AuditEvent = {
-          id: generateUUIDv7(),
-          project_id: activeProject.id,
-          entity_type: 'ACTIVITY',
-          entity_id: matchingAct.activity.id,
-          action: 'AUTO_LINK_OBSERVATION',
-          actor_id: user?.id || 'SYSTEM',
-          actor_role: 'RUST_TRUST_PLANE',
-          before_state: {
-            progress_pct: matchingAct.state?.current_progress_pct,
-            status: matchingAct.state?.execution_status,
-          },
-          after_state: { progress_pct: newProgress, status: newStatus },
-          payload_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-          created_at: nowStr,
-        };
-        setAuditEvents((prev) => [audit, ...prev]);
-      } else {
-        // Add to Review Queue
-        const newProposal: ReviewQueueItem = {
-          proposal: {
-            id: generateUUIDv7(),
-            project_id: activeProject.id,
-            observation_id: newObs[0].id,
-            activity_id: activities[0]?.activity.id || 'd0000000-0000-0000-0000-000000000001',
-            candidate_rank: 1,
-            lexical_score: 0.65,
-            semantic_score: 0.72,
-            context_boost: 0.1,
-            confidence_score: 0.74,
-            match_tier: 'MEDIUM',
-            explanation: 'Extracted fact matches WBS keywords. Needs Lead Planner review.',
-            evidence_snippet: rawText.slice(0, 80),
-            status: 'PENDING_REVIEW',
-            created_at: new Date().toISOString(),
-          },
-          observation: newObs[0],
-          activity: activities[0]?.activity,
-        };
-        setReviewQueue((prev) => [newProposal, ...prev]);
+    async (newObs: WorkObservation[], _rawText: string) => {
+      if (newObs && newObs.length > 0) {
+        setObservations((prev) => [newObs[0], ...prev]);
       }
+      await loadData(activeProject.id);
     },
-    [activities, activeProject.id, user?.id]
+    [activeProject.id, loadData]
   );
 
-  // Approve proposal handler
+  // Authoritative proposal approval via Rust Trust Plane API
   const handleApproveProposal = useCallback(
     async (proposalId: string, comment?: string) => {
-      const item = reviewQueue.find((q) => q.proposal.id === proposalId);
-      const targetActivityId = item?.activity?.id || item?.proposal.activity_id;
-
-      if (targetActivityId) {
-        setActivities((prev) =>
-          prev.map((a) => {
-            if (a.activity.id === targetActivityId) {
-              return {
-                ...a,
-                state: {
-                  ...a.state!,
-                  execution_status: 'COMPLETED',
-                  actual_start_date: a.state?.actual_start_date || new Date().toISOString().slice(0, 10),
-                  actual_finish_date: new Date().toISOString().slice(0, 10),
-                  current_progress_pct: 100,
-                  updated_at: new Date().toISOString(),
-                },
-              };
-            }
-            return a;
-          })
-        );
-      }
-
-      setReviewQueue((prev) => prev.filter((q) => q.proposal.id !== proposalId));
-
-      // Record Audit
-      const nowStr = new Date().toISOString();
-      const prevAudit = auditEvents[0];
-      const prevHash =
-        prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
-      const beforeState = { status: 'PENDING_REVIEW' };
-      const afterState = { status: 'ACCEPTED', activity_id: targetActivityId, comment };
-
-      const hash = await generateAuditPayloadHash(
-        'MATCH_PROPOSAL',
-        proposalId,
-        'APPROVE_PROPOSAL',
-        user?.id || '00000000-0000-0000-0000-000000000001',
-        beforeState,
-        afterState,
-        nowStr,
-        prevHash
-      );
-
-      const audit: AuditEvent = {
-        id: generateUUIDv7(),
-        project_id: activeProject.id,
-        entity_type: 'MATCH_PROPOSAL',
-        entity_id: proposalId,
-        action: 'APPROVE_PROPOSAL',
-        actor_id: user?.id || '00000000-0000-0000-0000-000000000001',
-        actor_role: user?.role || 'LEAD_PLANNER',
-        before_state: beforeState,
-        after_state: afterState,
-        payload_hash: hash,
-        previous_hash: prevHash,
-        created_at: nowStr,
-      };
-      setAuditEvents((prev) => [audit, ...prev]);
+      await api.approveProposal(proposalId, { comments: comment, reviewed_by: user?.id });
+      await loadData(activeProject.id);
     },
-    [reviewQueue, auditEvents, activeProject.id, user]
+    [activeProject.id, loadData, user?.id]
   );
 
-  // Reject proposal handler
+  // Authoritative proposal rejection via Rust Trust Plane API
   const handleRejectProposal = useCallback(
     async (proposalId: string, reason?: string) => {
-      setReviewQueue((prev) => prev.filter((q) => q.proposal.id !== proposalId));
-
-      const nowStr = new Date().toISOString();
-      const prevAudit = auditEvents[0];
-      const prevHash =
-        prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
-      const beforeState = { status: 'PENDING_REVIEW' };
-      const afterState = { status: 'REJECTED', reason };
-
-      const hash = await generateAuditPayloadHash(
-        'MATCH_PROPOSAL',
-        proposalId,
-        'REJECT_PROPOSAL',
-        user?.id || '00000000-0000-0000-0000-000000000001',
-        beforeState,
-        afterState,
-        nowStr,
-        prevHash
-      );
-
-      const audit: AuditEvent = {
-        id: generateUUIDv7(),
-        project_id: activeProject.id,
-        entity_type: 'MATCH_PROPOSAL',
-        entity_id: proposalId,
-        action: 'REJECT_PROPOSAL',
-        actor_id: user?.id || '00000000-0000-0000-0000-000000000001',
-        actor_role: user?.role || 'LEAD_PLANNER',
-        before_state: beforeState,
-        after_state: afterState,
-        payload_hash: hash,
-        previous_hash: prevHash,
-        created_at: nowStr,
-      };
-      setAuditEvents((prev) => [audit, ...prev]);
+      await api.rejectProposal(proposalId, { reason: reason || 'Rejected by Lead Planner', reviewed_by: user?.id });
+      await loadData(activeProject.id);
     },
-    [auditEvents, activeProject.id, user]
+    [activeProject.id, loadData, user?.id]
   );
 
-  // Override proposal handler
+  // Authoritative proposal override via Rust Trust Plane API
   const handleOverrideProposal = useCallback(
     async (proposalId: string, newActivityId: string, comment?: string) => {
-      setActivities((prev) =>
-        prev.map((a) => {
-          if (a.activity.id === newActivityId) {
-            return {
-              ...a,
-              state: {
-                ...a.state!,
-                execution_status: 'IN_PROGRESS',
-                actual_start_date: new Date().toISOString().slice(0, 10),
-                current_progress_pct: Math.min(100, (a.state?.current_progress_pct || 0) + 50),
-                updated_at: new Date().toISOString(),
-              },
-            };
-          }
-          return a;
-        })
-      );
-
-      setReviewQueue((prev) => prev.filter((q) => q.proposal.id !== proposalId));
-
-      const nowStr = new Date().toISOString();
-      const prevAudit = auditEvents[0];
-      const prevHash =
-        prevAudit?.payload_hash || '0000000000000000000000000000000000000000000000000000000000000000';
-      const beforeState = { status: 'PENDING_REVIEW' };
-      const afterState = { status: 'OVERRIDDEN', new_activity_id: newActivityId, comment };
-
-      const hash = await generateAuditPayloadHash(
-        'MATCH_PROPOSAL',
-        proposalId,
-        'OVERRIDE_MATCH_TARGET',
-        user?.id || '00000000-0000-0000-0000-000000000001',
-        beforeState,
-        afterState,
-        nowStr,
-        prevHash
-      );
-
-      const audit: AuditEvent = {
-        id: generateUUIDv7(),
-        project_id: activeProject.id,
-        entity_type: 'MATCH_PROPOSAL',
-        entity_id: proposalId,
-        action: 'OVERRIDE_MATCH_TARGET',
-        actor_id: user?.id || '00000000-0000-0000-0000-000000000001',
-        actor_role: user?.role || 'LEAD_PLANNER',
-        before_state: beforeState,
-        after_state: afterState,
-        payload_hash: hash,
-        previous_hash: prevHash,
-        created_at: nowStr,
-      };
-      setAuditEvents((prev) => [audit, ...prev]);
+      await api.overrideProposal(proposalId, {
+        new_activity_id: newActivityId,
+        reason: comment || 'Target overridden by Lead Planner',
+        reviewed_by: user?.id,
+      });
+      await loadData(activeProject.id);
     },
-    [auditEvents, activeProject.id, user]
+    [activeProject.id, loadData, user?.id]
   );
 
   return (

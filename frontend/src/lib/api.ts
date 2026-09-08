@@ -2,12 +2,13 @@ import type {
   ActivityWithState, 
   AuditEvent, 
   DashboardKPIs, 
+  Project,
+  ProjectCreateInput,
   ReviewQueueItem, 
   WorkObservation
 } from '../types';
 import { 
   supabase, 
-  insertObservation, 
   fetchObservationsFromDB, 
   fetchActivitiesWithState, 
   fetchAuditEventsFromDB 
@@ -15,18 +16,10 @@ import {
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
-const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
-const DEFAULT_USER_ROLE = 'PLANNER';
-
-interface RequestOptions extends RequestInit {
-  userId?: string;
-  userRole?: string;
-}
-
-async function request<T>(path: string, options: RequestOptions = {}): Promise<{ data: T | null; error: string | null; isLive: boolean }> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<{ data: T | null; error: string | null; isLive: boolean }> {
   const url = `${API_BASE_URL}${path}`;
 
-  // Automatically attach active Supabase JWT session token if present and not overridden
+  // Automatically attach active Supabase JWT session token or stored auth token if present
   let token: string | undefined;
   try {
     const sessionRes = await supabase.auth.getSession();
@@ -35,10 +28,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<{
     // Supabase auth client not configured or session unavailable
   }
 
+  if (!token) {
+    try {
+      const stored = localStorage.getItem('nexora_field_ledger_sih:jwt');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed === 'string' && parsed.length > 0) {
+          token = parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-user-id': options.userId || DEFAULT_USER_ID,
-    'x-user-role': options.userRole || DEFAULT_USER_ROLE,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers as Record<string, string> || {}),
   };
@@ -77,6 +82,29 @@ export const api = {
   },
 
   /**
+   * Create a new project via Trust Plane
+   */
+  async createProject(input: ProjectCreateInput): Promise<Project | null> {
+    const { data, error } = await request<Project>('/api/v1/projects', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    if (error) {
+      console.error('[NEXORA] Error creating project via API:', error);
+      return null;
+    }
+    return data;
+  },
+
+  /**
+   * Fetch all projects via Trust Plane
+   */
+  async getProjects(): Promise<Project[]> {
+    const { data } = await request<Project[]>('/api/v1/projects');
+    return data || [];
+  },
+
+  /**
    * Fetch Dashboard Data & KPIs
    */
   async getDashboard(projectId: string): Promise<DashboardKPIs | null> {
@@ -93,34 +121,6 @@ export const api = {
         overall_progress_pct: data.overall_progress_pct ?? data.summary?.overall_progress_pct ?? 0,
       };
     }
-
-    // Try Supabase directly if backend is offline
-    try {
-      const { data: dbData } = await supabase
-        .from('activity_current_state')
-        .select('current_progress_pct, execution_status')
-        .eq('project_id', projectId);
-
-      if (dbData && dbData.length > 0) {
-        const completed = dbData.filter(d => d.execution_status === 'COMPLETED').length;
-        const inProgress = dbData.filter(d => d.execution_status === 'IN_PROGRESS').length;
-        const avgProgress = Math.round(dbData.reduce((acc, curr) => acc + (curr.current_progress_pct || 0), 0) / dbData.length);
-
-        return {
-          total_observations: 12,
-          extracted_events: 10,
-          auto_linked_events: 8,
-          review_queue_count: 2,
-          unmatched_count: 0,
-          completed_activities: completed,
-          in_progress_activities: inProgress,
-          overall_progress_pct: avgProgress,
-        };
-      }
-    } catch {
-      // ignore
-    }
-
     return null;
   },
 
@@ -170,36 +170,17 @@ export const api = {
   },
 
   /**
-   * Ingest a single or multiple observations with dual-write persistence
+   * Ingest an observation via Rust Trust Plane API
    */
   async createObservation(projectId: string, obs: Partial<WorkObservation>): Promise<WorkObservation | null> {
-    // 1. Persist directly to Supabase DB so it is permanently saved in Cloud DB
-    try {
-      await insertObservation({
-        id: obs.id,
-        project_id: projectId,
-        raw_text: obs.raw_text || '',
-        normalized_text: obs.normalized_text,
-        discipline: obs.discipline,
-        location: obs.location,
-        zone: obs.zone,
-        equipment_tag: obs.equipment_tag,
-        event_type: obs.event_type,
-        reported_progress: obs.reported_progress,
-        reported_quantity: obs.reported_quantity,
-        unit_of_measure: obs.unit_of_measure,
-        observed_at: obs.observed_at,
-        metadata: (obs as any).metadata || {},
-      });
-    } catch (e) {
-      console.warn('[NEXORA] Supabase direct insertObservation error:', e);
-    }
-
-    // 2. Also forward to Rust backend if online for verification & outbox queueing
-    const { data } = await request<WorkObservation>(`/api/v1/projects/${projectId}/observations`, {
+    const { data, error } = await request<WorkObservation>(`/api/v1/projects/${projectId}/observations`, {
       method: 'POST',
       body: JSON.stringify(obs),
     });
+    if (error) {
+      console.warn('[NEXORA] Error creating observation via Trust Plane API:', error);
+      return obs as WorkObservation;
+    }
     return data || (obs as WorkObservation);
   },
 
@@ -235,15 +216,16 @@ export const api = {
   },
 
   /**
-   * Approve a proposal
+   * Approve a proposal via Trust Plane API
    */
   async approveProposal(proposalId: string, payload: { selected_activity_id?: string; comments?: string; reviewed_by?: string } = {}): Promise<{ success: boolean; event_id?: string; error?: string }> {
-    const reviewerId = payload.reviewed_by || DEFAULT_USER_ID;
     const body: Record<string, any> = {
       comments: payload.comments || 'Approved by Lead Planner via Field Ledger console',
-      reviewer_id: reviewerId,
-      reviewed_by: reviewerId,
     };
+    if (payload.reviewed_by) {
+      body.reviewer_id = payload.reviewed_by;
+      body.reviewed_by = payload.reviewed_by;
+    }
     if (payload.selected_activity_id && payload.selected_activity_id.trim().length > 0) {
       body.selected_activity_id = payload.selected_activity_id.trim();
     }
@@ -260,18 +242,20 @@ export const api = {
   },
 
   /**
-   * Reject a proposal
+   * Reject a proposal via Trust Plane API
    */
   async rejectProposal(proposalId: string, payload: { reason: string; reviewed_by?: string }): Promise<{ success: boolean; error?: string }> {
-    const reviewerId = payload.reviewed_by || DEFAULT_USER_ID;
+    const body: Record<string, any> = {
+      comments: payload.reason,
+      reason: payload.reason,
+    };
+    if (payload.reviewed_by) {
+      body.reviewer_id = payload.reviewed_by;
+      body.reviewed_by = payload.reviewed_by;
+    }
     const { error } = await request<{ success: boolean }>(`/api/v1/proposals/${proposalId}/reject`, {
       method: 'POST',
-      body: JSON.stringify({
-        comments: payload.reason,
-        reason: payload.reason,
-        reviewer_id: reviewerId,
-        reviewed_by: reviewerId,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (error) {
@@ -281,15 +265,16 @@ export const api = {
   },
 
   /**
-   * Override a proposal with another activity
+   * Override a proposal with another activity via Trust Plane API
    */
   async overrideProposal(proposalId: string, payload: { new_activity_id: string; reason: string; reviewed_by?: string }): Promise<{ success: boolean; event_id?: string; error?: string }> {
-    const reviewerId = payload.reviewed_by || DEFAULT_USER_ID;
     const body: Record<string, any> = {
       comments: payload.reason,
-      reviewer_id: reviewerId,
-      reviewed_by: reviewerId,
     };
+    if (payload.reviewed_by) {
+      body.reviewer_id = payload.reviewed_by;
+      body.reviewed_by = payload.reviewed_by;
+    }
     if (payload.new_activity_id && payload.new_activity_id.trim().length > 0) {
       body.selected_activity_id = payload.new_activity_id.trim();
     }

@@ -7,6 +7,7 @@ import {
   Building2, 
   Layers 
 } from 'lucide-react';
+import { api } from '../lib/api';
 import { createProjectInDB } from '../lib/supabase';
 import type { Project, ProjectCreateInput, BaselineActivityInput, Discipline } from '../types';
 import { Button } from './ui/button';
@@ -200,12 +201,21 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     };
 
     try {
-      const created = await createProjectInDB(projectInput, userId);
+      // 1. Authoritative Trust Plane Project Creation
+      const created = await api.createProject(projectInput);
       if (created) {
         onProjectCreated(created);
         onClose();
+        return;
+      }
+
+      // 2. Direct Supabase fallback if Trust Plane backend is offline
+      const dbCreated = await createProjectInDB(projectInput, userId);
+      if (dbCreated) {
+        onProjectCreated(dbCreated);
+        onClose();
       } else {
-        // Fallback local creation
+        // 3. Fallback local creation
         const localFallback: Project = {
           id: `p-${Date.now()}`,
           code: projectInput.code,
@@ -218,7 +228,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         onClose();
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to create project in database.');
+      setErrorMsg(err.message || 'Failed to create project.');
     } finally {
       setIsLoading(false);
     }

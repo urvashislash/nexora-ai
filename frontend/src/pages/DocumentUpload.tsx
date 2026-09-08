@@ -381,18 +381,6 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
       // Step 2: Extraction & Normalization
       setActiveStep(2);
-      await new Promise((r) => setTimeout(r, 450));
-
-      // Step 3: Embeddings & Matcher
-      setActiveStep(3);
-      await new Promise((r) => setTimeout(r, 500));
-
-      // Step 4: Rust Trust Plane Policy Validation
-      setActiveStep(4);
-      await new Promise((r) => setTimeout(r, 400));
-
-      // Step 5: Ledger Commitment
-      setActiveStep(5);
 
       const resolvedDiscipline = presetObj?.discipline || (discipline ? discipline : 'PIPING');
       const resolvedProgress = presetObj?.progress ?? reportedProgress;
@@ -422,11 +410,18 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         },
       };
 
-      // Call API / Supabase to persist observation to DB
-      await api.createObservation(projectId, newObs);
+      // Step 3: Embeddings & Matcher
+      setActiveStep(3);
+
+      // Step 4: Rust Trust Plane Policy Validation & Ingestion
+      setActiveStep(4);
+      const createdObs = await api.createObservation(projectId, newObs);
+
+      // Step 5: Ledger Commitment
+      setActiveStep(5);
 
       // Trigger callback to update App state (review queue / activities / audit)
-      onAddObservations([newObs], rawText);
+      onAddObservations([createdObs || newObs], rawText);
 
       setFeedbackMessage({
         type: 'success',
