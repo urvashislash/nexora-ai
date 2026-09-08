@@ -63,4 +63,20 @@ impl ApiError {
             details: None,
         }
     }
+
+    pub fn unauthorized(msg: impl Into<String>) -> Self {
+        Self {
+            error: msg.into(),
+            code: "UNAUTHORIZED".to_string(),
+            details: None,
+        }
+    }
+
+    pub fn internal(msg: impl Into<String>) -> Self {
+        Self {
+            error: msg.into(),
+            code: "INTERNAL_ERROR".to_string(),
+            details: None,
+        }
+    }
 }

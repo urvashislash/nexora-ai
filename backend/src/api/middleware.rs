@@ -6,7 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -108,15 +108,25 @@ fn base64_url_decode(input: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// Extracts claims payload from a JWT token
-fn extract_jwt_claims(token: &str) -> Option<serde_json::Value> {
-    let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-    let payload_bytes = base64_url_decode(parts[1])?;
-    let payload_str = String::from_utf8(payload_bytes).ok()?;
-    serde_json::from_str(&payload_str).ok()
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JwtClaims {
+    pub sub: String,
+    pub role: Option<String>,
+    pub exp: usize,
+    pub user_metadata: Option<UserMetadata>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserMetadata {
+    pub role: Option<String>,
+    pub full_name: Option<String>,
+}
+
+/// Helper to get JWT secret key
+pub fn get_jwt_secret() -> String {
+    std::env::var("SUPABASE_JWT_SECRET")
+        .or_else(|_| std::env::var("JWT_SECRET"))
+        .unwrap_or_else(|_| "dev-secret-key-nexora-trust-plane-2026".to_string())
 }
 
 /// Helper to parse role enum from string
@@ -132,55 +142,95 @@ pub fn parse_role_from_str(role_str: &str) -> Option<UserRole> {
     }
 }
 
-/// Extracts authentication context from request headers (JWT Bearer Token with fallback to X-User-Id / X-User-Role).
-/// Returns `None` if headers are missing, expired, or invalid.
-#[allow(clippy::manual_is_multiple_of)]
+/// Cryptographically verifies and extracts claims from a JWT token using HS256
+pub fn verify_jwt(token: &str) -> Option<JwtClaims> {
+    let secret = get_jwt_secret();
+    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
+    validation.validate_exp = true;
+    // Set 60s leeway for clock skew
+    validation.leeway = 60;
+
+    let token_data = jsonwebtoken::decode::<JwtClaims>(
+        token,
+        &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
+        &validation,
+    )
+    .map_err(|e| {
+        tracing::debug!("JWT verification failed: {}", e);
+        e
+    })
+    .ok()?;
+
+    Some(token_data.claims)
+}
+
+/// Generates a valid signed JWT for testing or service authentication
+pub fn generate_signed_jwt(user_id: Uuid, role: &str, valid_for_seconds: i64) -> Result<String, jsonwebtoken::errors::Error> {
+    let secret = get_jwt_secret();
+    let now = chrono::Utc::now().timestamp();
+    let exp = (now + valid_for_seconds).max(0) as usize;
+
+    let claims = JwtClaims {
+        sub: user_id.to_string(),
+        role: Some(role.to_string()),
+        exp,
+        user_metadata: Some(UserMetadata {
+            role: Some(role.to_string()),
+            full_name: None,
+        }),
+    };
+
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+        &claims,
+        &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
+    )
+}
+
+/// Verifies whether a user has active membership in a project via PostgreSQL
+pub async fn verify_project_membership(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<UserRole>, sqlx::Error> {
+    let row = sqlx::query_scalar::<_, String>(
+        "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1"
+    )
+    .bind(project_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.and_then(|r| parse_role_from_str(&r)))
+}
+
+/// Extracts authentication context strictly from a verified Authorization: Bearer <jwt> header.
+/// Client-supplied X-User-Id and X-User-Role headers are deliberately rejected to prevent spoofing.
 pub fn extract_auth_context(headers: &HeaderMap) -> Option<AuthContext> {
-    // 1. Primary: Extract from Authorization: Bearer <jwt> header
-    if let Some(auth_header) = headers.get("authorization").and_then(|v| v.to_str().ok()) {
-        let token = auth_header
-            .strip_prefix("Bearer ")
-            .or_else(|| auth_header.strip_prefix("bearer "))
-            .unwrap_or(auth_header)
-            .trim();
+    let auth_header = headers.get("authorization").and_then(|v| v.to_str().ok())?;
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .or_else(|| auth_header.strip_prefix("bearer "))
+        .unwrap_or(auth_header)
+        .trim();
 
-        if let Some(claims) = extract_jwt_claims(token) {
-            // Verify expiration if exp claim is present
-            if let Some(exp) = claims.get("exp").and_then(|e| e.as_i64()) {
-                let now = chrono::Utc::now().timestamp();
-                if now > exp {
-                    return None; // Token expired
-                }
-            }
+    let claims = verify_jwt(token)?;
 
-            // Extract user ID from "sub"
-            let sub_str = claims.get("sub").and_then(|s| s.as_str())?;
-            let user_id = Uuid::parse_str(sub_str).unwrap_or_else(|_| {
-                let hash = sha2::Sha256::digest(sub_str.as_bytes());
-                Uuid::from_slice(&hash[0..16]).unwrap_or_default()
-            });
+    // Extract user ID from "sub"
+    let user_id = Uuid::parse_str(&claims.sub).unwrap_or_else(|_| {
+        let hash = sha2::Sha256::digest(claims.sub.as_bytes());
+        Uuid::from_slice(&hash[0..16]).unwrap_or_default()
+    });
 
-            // Extract role from user_metadata.role or role claim
-            let role_str = claims
-                .get("user_metadata")
-                .and_then(|m| m.get("role"))
-                .and_then(|r| r.as_str())
-                .or_else(|| claims.get("role").and_then(|r| r.as_str()))
-                .unwrap_or("PLANNER");
+    // Extract role from user_metadata.role or claims.role
+    let role_str = claims
+        .user_metadata
+        .as_ref()
+        .and_then(|m| m.role.as_deref())
+        .or(claims.role.as_deref())
+        .unwrap_or("PLANNER");
 
-            if let Some(role) = parse_role_from_str(role_str) {
-                return Some(AuthContext { user_id, role });
-            }
-        }
-    }
-
-    // 2. Fallback: Direct X-User-Id and X-User-Role headers
-    let user_id_str = headers.get("x-user-id").and_then(|v| v.to_str().ok())?;
-    let user_id = Uuid::parse_str(user_id_str).ok()?;
-
-    let role_str = headers.get("x-user-role").and_then(|v| v.to_str().ok())?;
     let role = parse_role_from_str(role_str)?;
-
     Some(AuthContext { user_id, role })
 }
 
@@ -201,7 +251,7 @@ pub async fn require_permission(
     match extract_auth_context(&headers) {
         None => {
             let body = SecurityErrorResponse {
-                error: "Missing, expired, or invalid authentication token (Authorization: Bearer <jwt> or X-User-Id / X-User-Role)".to_string(),
+                error: "Missing, expired, or cryptographically invalid authentication token (Authorization: Bearer <jwt>)".to_string(),
                 code: "AUTH_REQUIRED".to_string(),
             };
             (StatusCode::UNAUTHORIZED, Json(body)).into_response()
@@ -402,15 +452,32 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_auth_context_valid() {
+    fn test_extract_auth_context_valid_signed_jwt() {
+        let user_id = Uuid::new_v4();
+        let token = generate_signed_jwt(user_id, "PLANNER", 3600).expect("generate signed token");
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "authorization",
+            format!("Bearer {}", token).parse().unwrap(),
+        );
+
+        let ctx = extract_auth_context(&headers).expect("Should verify valid signed JWT");
+        assert_eq!(ctx.user_id, user_id);
+        assert_eq!(ctx.role, UserRole::Planner);
+    }
+
+    #[test]
+    fn test_extract_auth_context_rejects_header_spoofing() {
         let mut headers = HeaderMap::new();
         headers.insert(
             "x-user-id",
             "a0000000-0000-0000-0000-000000000001".parse().unwrap(),
         );
-        headers.insert("x-user-role", "PLANNER".parse().unwrap());
-        let ctx = extract_auth_context(&headers).unwrap();
-        assert_eq!(ctx.role, UserRole::Planner);
+        headers.insert("x-user-role", "ADMIN".parse().unwrap());
+
+        // Must reject spoofable headers without a valid signed JWT!
+        assert!(extract_auth_context(&headers).is_none());
     }
 
     #[test]
@@ -420,43 +487,30 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_auth_context_invalid_role() {
+    fn test_extract_auth_context_tampered_signature() {
+        let user_id = Uuid::new_v4();
+        let valid_token = generate_signed_jwt(user_id, "ADMIN", 3600).unwrap();
+        let tampered = format!("{}tampered", valid_token);
+
         let mut headers = HeaderMap::new();
         headers.insert(
-            "x-user-id",
-            "a0000000-0000-0000-0000-000000000001".parse().unwrap(),
+            "authorization",
+            format!("Bearer {}", tampered).parse().unwrap(),
         );
-        headers.insert("x-user-role", "INVALID_ROLE".parse().unwrap());
+
         assert!(extract_auth_context(&headers).is_none());
     }
 
     #[test]
-    fn test_extract_auth_context_jwt_bearer() {
-        // Payload: {"sub": "67c68904-8a91-4c19-9e5f-c0c83749aa61", "role": "PLANNER", "exp": 2500000000}
-        // Base64URL: eyJzdWIiOiAiNjdjNjg5MDQtOGE5MS00YzE5LTllNWYtYzBjODM3NDlhYTYxIiwgInJvbGUiOiAiUExBTk5FUiIsICJleHAiOiAyNTAwMDAwMDAwfQ
-        let valid_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiAiNjdjNjg5MDQtOGE5MS00YzE5LTllNWYtYzBjODM3NDlhYTYxIiwgInJvbGUiOiAiUExBTk5FUiIsICJleHAiOiAyNTAwMDAwMDAwfQ.signature";
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "authorization",
-            format!("Bearer {}", valid_jwt).parse().unwrap(),
-        );
-
-        let ctx = extract_auth_context(&headers).expect("Should parse valid JWT");
-        assert_eq!(
-            ctx.user_id,
-            Uuid::parse_str("67c68904-8a91-4c19-9e5f-c0c83749aa61").unwrap()
-        );
-        assert_eq!(ctx.role, UserRole::Planner);
-    }
-
-    #[test]
     fn test_extract_auth_context_jwt_expired() {
-        // Payload: {"sub": "67c68904-8a91-4c19-9e5f-c0c83749aa61", "role": "PLANNER", "exp": 1000000000}
-        let expired_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiAiNjdjNjg5MDQtOGE5MS00YzE5LTllNWYtYzBjODM3NDlhYTYxIiwgInJvbGUiOiAiUExBTk5FUiIsICJleHAiOiAxMDAwMDAwMDAwfQ.signature";
+        let user_id = Uuid::new_v4();
+        // Expired 100 seconds ago
+        let expired_token = generate_signed_jwt(user_id, "PLANNER", -100).unwrap();
+
         let mut headers = HeaderMap::new();
         headers.insert(
             "authorization",
-            format!("Bearer {}", expired_jwt).parse().unwrap(),
+            format!("Bearer {}", expired_token).parse().unwrap(),
         );
 
         assert!(extract_auth_context(&headers).is_none());
