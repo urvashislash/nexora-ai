@@ -1,3 +1,15 @@
+pub mod activities;
+pub mod audit;
+pub mod dashboard;
+pub mod error;
+pub mod export;
 pub mod handlers;
+pub mod health;
+pub mod helpers;
 pub mod middleware;
+pub mod observations;
+pub mod proposals;
+pub mod review;
 pub mod routes;
+pub mod seed;
+pub mod state;

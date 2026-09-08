@@ -331,27 +331,22 @@ impl RateLimitMiddleware {
         }
     }
 
-    #[allow(clippy::result_large_err)]
     pub async fn handle_rate_limit(
         self,
         request: Request<Body>,
         next: Next,
-    ) -> Result<Response, Response> {
+    ) -> Response {
         let client_key = extract_client_key(request.headers());
 
         match self.limiter.check(&client_key).await {
-            Ok(_remaining) => {
-                // Add rate limit headers
-                let response = next.run(request).await;
-                Ok(response)
-            }
+            Ok(_remaining) => next.run(request).await,
             Err(retry_after) => {
                 let error_response = Json(RateLimitError {
                     error: "Too many requests".to_string(),
                     code: "RATE_LIMIT_EXCEEDED".to_string(),
                     retry_after_seconds: retry_after,
                 });
-                Err((StatusCode::TOO_MANY_REQUESTS, error_response).into_response())
+                (StatusCode::TOO_MANY_REQUESTS, error_response).into_response()
             }
         }
     }

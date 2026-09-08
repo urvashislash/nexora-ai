@@ -15,9 +15,18 @@ use super::handlers::{
     ingest_observations, override_proposal, reject_proposal, set_legal_hold, verify_audit_chain,
     AppState,
 };
-use super::middleware::{require_permission, security_headers_middleware, Permission};
+use super::middleware::{
+    require_permission, security_headers_middleware, Permission, RateLimitMiddleware,
+};
 
 pub fn create_router(state: AppState) -> Router {
+    let rate_limiter = RateLimitMiddleware::new(
+        env::var("RATE_LIMIT_MAX_REQUESTS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(200),
+        std::time::Duration::from_secs(60),
+    );
     // Restrictive CORS configuration
     let allowed_origins: Vec<HeaderValue> = env::var("ALLOWED_ORIGINS")
         .ok()
@@ -162,5 +171,8 @@ pub fn create_router(state: AppState) -> Router {
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(middleware::from_fn(security_headers_middleware))
+        .layer(middleware::from_fn(move |req, next| {
+            rate_limiter.clone().handle_rate_limit(req, next)
+        }))
         .with_state(state)
 }
