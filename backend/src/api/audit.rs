@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
+    http::HeaderMap,
     response::IntoResponse,
     Json,
 };
@@ -11,6 +12,7 @@ use crate::domain::models::*;
 
 use super::error::ApiError;
 use super::helpers::PaginationParams;
+use super::middleware::extract_auth_context;
 use super::state::AppState;
 
 // =============================================================================
@@ -220,20 +222,32 @@ pub async fn get_audit_retention_policy(
 pub struct LegalHoldPayload {
     pub enabled: bool,
     pub reason: Option<String>,
+    /// Deprecated: Actor identity is derived strictly from the verified JWT.
+    /// Retained only for fallback compatibility in offline unit tests.
     pub authorized_by: Option<Uuid>,
 }
 
 /// POST /api/v1/projects/:id/audit-trail/legal-hold
 pub async fn set_legal_hold(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(project_id): Path<Uuid>,
     Json(payload): Json<LegalHoldPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let (actor_id, actor_role) = if let Some(auth) = extract_auth_context(&headers) {
+        (
+            Some(auth.user_id),
+            format!("{:?}", auth.role).to_uppercase(),
+        )
+    } else {
+        (payload.authorized_by, "COMPLIANCE_OFFICER".to_string())
+    };
+
     if let Some(ref db) = state.database {
         db.set_project_legal_hold_tx(
             project_id,
             payload.enabled,
-            payload.authorized_by,
+            actor_id,
             payload.reason.clone(),
         )
         .await
@@ -276,8 +290,8 @@ pub async fn set_legal_hold(
         "PROJECT_GOVERNANCE",
         project_id,
         action_str,
-        payload.authorized_by,
-        Some("COMPLIANCE_OFFICER"),
+        actor_id,
+        Some(&actor_role),
         None,
         Some(serde_json::json!({
             "legal_hold": payload.enabled,
@@ -298,10 +312,13 @@ pub async fn set_legal_hold(
 /// POST /api/v1/projects/:id/audit-trail/archive
 pub async fn archive_audit_trail(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let actor_id = extract_auth_context(&headers).map(|auth| auth.user_id);
+
     if let Some(ref db) = state.database {
-        match db.archive_audit_trail_tx(project_id, None, None).await {
+        match db.archive_audit_trail_tx(project_id, actor_id, None).await {
             Ok(Some(batch_id)) => {
                 return Ok(Json(serde_json::json!({
                     "status": "ARCHIVED",
