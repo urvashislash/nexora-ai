@@ -143,6 +143,51 @@ pub async fn get_audit_retention_policy(
     State(state): State<AppState>,
     Path(project_id): Path<Uuid>,
 ) -> impl IntoResponse {
+    if let Some(ref db) = state.database {
+        match db.get_audit_retention_metrics(project_id).await {
+            Ok((hot_count, archived_count, batches_count, is_legal_hold)) => {
+                let policy = crate::domain::ledger::AuditRetentionPolicy::default();
+                return (
+                    axum::http::StatusCode::OK,
+                    Json(serde_json::json!({
+                        "project_id": project_id,
+                        "policy": policy,
+                        "hot_records_count": hot_count,
+                        "archived_records_count": archived_count,
+                        "archive_batches_count": batches_count,
+                        "is_legal_hold_active": is_legal_hold
+                    })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                tracing::error!("Failed to query DB audit retention metrics: {}", e);
+                return (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "Failed to query audit retention metrics from database",
+                        "details": e.to_string()
+                    })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": "PostgreSQL persistence is mandatory in production environment"
+            })),
+        )
+            .into_response();
+    }
+
     let trail = state.audit_trail.read().await;
     let archives = state.audit_archives.read().await;
     let holds = state.legal_holds.read().await;
@@ -157,14 +202,18 @@ pub async fn get_audit_retention_policy(
 
     let policy = crate::domain::ledger::AuditRetentionPolicy::default();
 
-    Json(serde_json::json!({
-        "project_id": project_id,
-        "policy": policy,
-        "hot_records_count": hot_count,
-        "archived_records_count": archived_count,
-        "archive_batches_count": archives.iter().filter(|a| a.project_id == project_id).count(),
-        "is_legal_hold_active": is_legal_hold
-    }))
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::json!({
+            "project_id": project_id,
+            "policy": policy,
+            "hot_records_count": hot_count,
+            "archived_records_count": archived_count,
+            "archive_batches_count": archives.iter().filter(|a| a.project_id == project_id).count(),
+            "is_legal_hold_active": is_legal_hold
+        })),
+    )
+        .into_response()
 }
 
 #[derive(Deserialize)]
@@ -180,6 +229,36 @@ pub async fn set_legal_hold(
     Path(project_id): Path<Uuid>,
     Json(payload): Json<LegalHoldPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
+    if let Some(ref db) = state.database {
+        db.set_project_legal_hold_tx(
+            project_id,
+            payload.enabled,
+            payload.authorized_by,
+            payload.reason.clone(),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to persist legal hold to PostgreSQL: {}", e);
+            ApiError::internal(format!("Database error: {}", e))
+        })?;
+
+        return Ok(Json(serde_json::json!({
+            "project_id": project_id,
+            "legal_hold_active": payload.enabled,
+            "status": "UPDATED"
+        })));
+    }
+
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return Err(ApiError::internal(
+            "PostgreSQL persistence is mandatory in production environment",
+        ));
+    }
+
     let mut holds = state.legal_holds.write().await;
     holds.insert(project_id, payload.enabled);
 
@@ -221,6 +300,37 @@ pub async fn archive_audit_trail(
     State(state): State<AppState>,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
+    if let Some(ref db) = state.database {
+        match db.archive_audit_trail_tx(project_id, None, None).await {
+            Ok(Some(batch_id)) => {
+                return Ok(Json(serde_json::json!({
+                    "status": "ARCHIVED",
+                    "batch_id": batch_id
+                })));
+            }
+            Ok(None) => {
+                return Ok(Json(serde_json::json!({
+                    "status": "NO_OP",
+                    "message": "No audit records older than the hot retention window found to archive"
+                })));
+            }
+            Err(e) => {
+                tracing::error!("Failed to archive audit trail in PostgreSQL: {}", e);
+                return Err(ApiError::bad_request(format!("Archive failed: {}", e)));
+            }
+        }
+    }
+
+    let is_prod = std::env::var("APP_ENV")
+        .or_else(|_| std::env::var("ENVIRONMENT"))
+        .map(|v| v.to_lowercase() == "production")
+        .unwrap_or(false);
+    if is_prod {
+        return Err(ApiError::internal(
+            "PostgreSQL persistence is mandatory in production environment",
+        ));
+    }
+
     let holds = state.legal_holds.read().await;
     let is_legal_hold = holds.get(&project_id).copied().unwrap_or(false);
     drop(holds);
@@ -236,7 +346,6 @@ pub async fn archive_audit_trail(
 
     match EventLedger::prepare_audit_archive(project_id, &project_events, &policy, is_legal_hold) {
         Ok(Some((batch, _to_archive, to_retain_hot))) => {
-            // Keep hot records and non-project records
             trail.retain(|a| a.project_id != project_id);
             trail.extend(to_retain_hot);
 

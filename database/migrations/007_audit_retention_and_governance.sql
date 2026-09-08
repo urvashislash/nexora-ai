@@ -8,20 +8,23 @@
 -- =============================================================================
 
 -- ─────────────────────────────────────────────────
--- 1. Extend audit_trail with governance columns
+-- 1. Extend audit_events with governance columns
 -- ─────────────────────────────────────────────────
-ALTER TABLE audit_trail
+ALTER TABLE audit_events
     ADD COLUMN IF NOT EXISTS is_legal_hold BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS archive_batch_id UUID;
 
+-- Compatibility view for audit_trail
+CREATE OR REPLACE VIEW audit_trail AS SELECT * FROM audit_events;
+
 -- Indexes for retention query performance
-CREATE INDEX IF NOT EXISTS idx_audit_trail_retention 
-    ON audit_trail (project_id, created_at) 
+CREATE INDEX IF NOT EXISTS idx_audit_events_retention 
+    ON audit_events (project_id, created_at) 
     WHERE archived_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_audit_trail_legal_hold 
-    ON audit_trail (project_id, is_legal_hold) 
+CREATE INDEX IF NOT EXISTS idx_audit_events_legal_hold 
+    ON audit_events (project_id, is_legal_hold) 
     WHERE is_legal_hold = true;
 
 -- ─────────────────────────────────────────────────
@@ -74,12 +77,12 @@ CREATE OR REPLACE FUNCTION fn_set_project_legal_hold(
 )
 RETURNS VOID AS $$
 BEGIN
-    UPDATE audit_trail
+    UPDATE audit_events
     SET is_legal_hold = p_enabled
     WHERE project_id = p_project_id;
 
     -- Create governance audit record
-    INSERT INTO audit_trail (
+    INSERT INTO audit_events (
         project_id,
         entity_type,
         entity_id,
