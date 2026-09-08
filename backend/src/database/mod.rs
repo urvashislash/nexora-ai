@@ -362,6 +362,24 @@ impl Database {
         .execute(&mut *tx)
         .await?;
 
+        // 7. Insert outbox event for project creation
+        let outbox_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO outbox_events (id, project_id, event_type, payload, status, retry_count, created_at)
+             VALUES ($1, $2, 'PROJECT_CREATED', $3, 'PENDING', 0, $4)"
+        )
+        .bind(outbox_id)
+        .bind(project_id)
+        .bind(serde_json::json!({
+            "project_id": project_id,
+            "code": code,
+            "name": name,
+            "creator_id": creator_id,
+        }))
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
         tx.commit().await?;
 
         Ok(Project {
@@ -642,6 +660,24 @@ impl Database {
         .execute(&mut *tx)
         .await?;
 
+        // Insert outbox event for observation creation
+        let outbox_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO outbox_events (id, project_id, event_type, payload, status, retry_count, created_at)
+             VALUES ($1, $2, 'OBSERVATION_CREATED', $3, 'PENDING', 0, $4)"
+        )
+        .bind(outbox_id)
+        .bind(obs.project_id)
+        .bind(serde_json::json!({
+            "observation_id": obs.id,
+            "project_id": obs.project_id,
+            "raw_text": obs.raw_text,
+            "actor_id": actor_id,
+        }))
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
         tx.commit().await?;
         Ok(())
     }
@@ -848,8 +884,17 @@ impl Database {
                 .map(|pf| (evt.actual_date - pf).num_days() as i32)
                 .unwrap_or(0);
 
+            // Lock target activity current state for atomic update within project boundary
             sqlx::query(
-                "UPDATE activity_current_state SET execution_status = $1, actual_finish_date = $2, current_progress_pct = GREATEST(current_progress_pct, $3), last_event_id = $4, last_event_date = $5, variance_days = $6, updated_at = $7 WHERE activity_id = $8"
+                "SELECT current_progress_pct FROM activity_current_state WHERE activity_id = $1 AND project_id = $2 FOR UPDATE"
+            )
+            .bind(evt.activity_id)
+            .bind(project_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+            sqlx::query(
+                "UPDATE activity_current_state SET execution_status = $1, actual_finish_date = $2, current_progress_pct = GREATEST(current_progress_pct, $3), last_event_id = $4, last_event_date = $5, variance_days = $6, updated_at = $7 WHERE activity_id = $8 AND project_id = $9"
             )
             .bind(exec_status)
             .bind(evt.actual_date)
@@ -859,6 +904,7 @@ impl Database {
             .bind(variance_days)
             .bind(now)
             .bind(evt.activity_id)
+            .bind(project_id)
             .execute(&mut *tx)
             .await?;
 
@@ -1677,6 +1723,24 @@ impl Database {
         .execute(&mut *tx)
         .await?;
 
+        // Insert Outbox Event for proposal rejection
+        let outbox_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO outbox_events (id, project_id, event_type, payload, status, retry_count, created_at)
+             VALUES ($1, $2, 'PROPOSAL_REJECTED', $3, 'PENDING', 0, $4)"
+        )
+        .bind(outbox_id)
+        .bind(project_id)
+        .bind(serde_json::json!({
+            "proposal_id": proposal_id,
+            "project_id": project_id,
+            "reviewer_id": reviewer_id,
+            "comments": comments,
+        }))
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
         tx.commit().await?;
         Ok(())
     }
@@ -1747,6 +1811,26 @@ impl Database {
         .bind(doc_id)
         .bind(&job_type)
         .bind(&job_status)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        // Insert Outbox Event for durable document extraction job
+        let outbox_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO outbox_events (id, project_id, event_type, payload, status, retry_count, created_at)
+             VALUES ($1, $2, 'DOCUMENT_JOB_QUEUED', $3, 'PENDING', 0, $4)"
+        )
+        .bind(outbox_id)
+        .bind(project_id)
+        .bind(serde_json::json!({
+            "job_id": job_id,
+            "document_id": doc_id,
+            "project_id": project_id,
+            "filename": input.filename,
+            "storage_bucket": storage_bucket,
+            "storage_key": storage_key,
+        }))
         .bind(now)
         .execute(&mut *tx)
         .await?;
