@@ -105,30 +105,43 @@ impl Database {
     }
 
     /// Loads tenant-isolated projects for an authenticated user:
-    /// - If is_admin: loads all active projects
-    /// - Otherwise: loads projects where user is an active member in project_members OR team OWNER/ADMIN
-    pub async fn load_user_projects(&self, user_id: Uuid, is_admin: bool) -> Result<Vec<Project>> {
-        let rows = if is_admin {
-            sqlx::query(
-                "SELECT id, code, name, description, timezone, currency, team_id, created_at, updated_at FROM projects ORDER BY created_at DESC",
-            )
-            .fetch_all(&*self.pool)
-            .await?
-        } else {
-            sqlx::query(
-                r#"
-                SELECT DISTINCT p.id, p.code, p.name, p.description, p.timezone, p.currency, p.team_id, p.created_at, p.updated_at
-                FROM projects p
-                LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1 AND pm.is_active = true
-                LEFT JOIN team_members tm ON tm.team_id = p.team_id AND tm.user_id = $1 AND tm.is_active = true
-                WHERE (p.team_id IS NULL AND pm.id IS NOT NULL)
-                   OR (p.team_id IS NOT NULL AND tm.id IS NOT NULL AND (pm.id IS NOT NULL OR tm.role IN ('OWNER', 'ADMIN', 'AUDITOR', 'PLANNER')))
-                ORDER BY p.created_at DESC
-                "#,
-            )
-            .bind(user_id)
-            .fetch_all(&*self.pool)
-            .await?
+    /// Loads tenant-isolated projects for authenticated user:
+    /// - Strictly scoped to teams where caller is an active team member OR explicit project member
+    /// - Optionally filtered by team_id
+    pub async fn load_user_projects(&self, user_id: Uuid, team_filter: Option<Uuid>) -> Result<Vec<Project>> {
+        let rows = match team_filter {
+            Some(tid) => {
+                sqlx::query(
+                    r#"
+                    SELECT DISTINCT p.id, p.code, p.name, p.description, p.timezone, p.currency, p.team_id, p.created_at, p.updated_at
+                    FROM projects p
+                    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1 AND pm.is_active = true
+                    JOIN team_members tm ON tm.team_id = p.team_id AND tm.user_id = $1 AND tm.is_active = true
+                    WHERE p.team_id = $2
+                    ORDER BY p.created_at DESC
+                    "#,
+                )
+                .bind(user_id)
+                .bind(tid)
+                .fetch_all(&*self.pool)
+                .await?
+            }
+            None => {
+                sqlx::query(
+                    r#"
+                    SELECT DISTINCT p.id, p.code, p.name, p.description, p.timezone, p.currency, p.team_id, p.created_at, p.updated_at
+                    FROM projects p
+                    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1 AND pm.is_active = true
+                    LEFT JOIN team_members tm ON tm.team_id = p.team_id AND tm.user_id = $1 AND tm.is_active = true
+                    WHERE (p.team_id IS NULL AND pm.id IS NOT NULL)
+                       OR (p.team_id IS NOT NULL AND tm.id IS NOT NULL)
+                    ORDER BY p.created_at DESC
+                    "#,
+                )
+                .bind(user_id)
+                .fetch_all(&*self.pool)
+                .await?
+            }
         };
 
         let mut projects = Vec::new();
@@ -778,7 +791,22 @@ impl Database {
             .clone()
             .unwrap_or_else(|| "Asia/Kolkata".to_string());
         let currency = input.currency.clone().unwrap_or_else(|| "INR".to_string());
-        let now = Utc::now();
+        let now = chrono::Utc::now();
+        // Verify team authorization if team_id is provided
+        if let Some(tid) = input.team_id {
+            let is_team_member = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2 AND is_active = true AND UPPER(role) IN ('OWNER', 'ADMIN', 'PLANNER'))"
+            )
+            .bind(tid)
+            .bind(creator_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap_or(false);
+
+            if !is_team_member {
+                return Err(anyhow::anyhow!("Creator is not an active OWNER, ADMIN, or PLANNER in the specified team"));
+            }
+        }
 
         // 1. Insert into projects
         sqlx::query(
@@ -1548,36 +1576,31 @@ impl Database {
 
         let project_id: Uuid = prop_row.try_get("project_id")?;
 
-        // Verify reviewer is an active member with PLANNER or ADMIN role in this project
-        let member_role = sqlx::query_scalar::<_, String>(
-            "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1",
+        // Verify reviewer is an active member with PLANNER or ADMIN role in this project OR team OWNER/ADMIN/PLANNER
+        let is_authorized = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM project_members pm
+                WHERE pm.project_id = $1 AND pm.user_id = $2 AND pm.is_active = true
+                  AND UPPER(pm.role) IN ('PLANNER', 'ADMIN')
+                UNION
+                SELECT 1 FROM projects p
+                JOIN team_members tm ON tm.team_id = p.team_id
+                WHERE p.id = $1 AND tm.user_id = $2 AND tm.is_active = true
+                  AND UPPER(tm.role) IN ('OWNER', 'ADMIN', 'PLANNER')
+            )
+            "#,
         )
         .bind(project_id)
         .bind(reviewer_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap_or(false);
 
-        if let Some(ref r) = member_role {
-            if !["PLANNER", "ADMIN"].contains(&r.to_uppercase().as_str()) {
-                return Err(anyhow::anyhow!(
-                    "Reviewer role {} does not have permission to approve proposals in this project",
-                    r
-                ));
-            }
-        } else {
-            let is_global_admin = sqlx::query_scalar::<_, bool>(
-                "SELECT EXISTS(SELECT 1 FROM project_members WHERE user_id = $1 AND role = 'ADMIN' AND is_active = true)",
-            )
-            .bind(reviewer_id)
-            .fetch_one(&mut *tx)
-            .await
-            .unwrap_or(false);
-
-            if !is_global_admin {
-                return Err(anyhow::anyhow!(
-                    "Reviewer is not an active member of this project"
-                ));
-            }
+        if !is_authorized {
+            return Err(anyhow::anyhow!(
+                "Reviewer is not authorized to approve proposals for this project"
+            ));
         }
 
         let obs_id: Uuid = prop_row.try_get("observation_id")?;
@@ -2178,36 +2201,31 @@ impl Database {
 
         let project_id: Uuid = prop_row.try_get("project_id")?;
 
-        // Verify reviewer is an active member with PLANNER or ADMIN role in this project
-        let member_role = sqlx::query_scalar::<_, String>(
-            "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1",
+        // Verify reviewer is an active member with PLANNER or ADMIN role in this project OR team OWNER/ADMIN/PLANNER
+        let is_authorized = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM project_members pm
+                WHERE pm.project_id = $1 AND pm.user_id = $2 AND pm.is_active = true
+                  AND UPPER(pm.role) IN ('PLANNER', 'ADMIN')
+                UNION
+                SELECT 1 FROM projects p
+                JOIN team_members tm ON tm.team_id = p.team_id
+                WHERE p.id = $1 AND tm.user_id = $2 AND tm.is_active = true
+                  AND UPPER(tm.role) IN ('OWNER', 'ADMIN', 'PLANNER')
+            )
+            "#,
         )
         .bind(project_id)
         .bind(reviewer_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap_or(false);
 
-        if let Some(ref r) = member_role {
-            if !["PLANNER", "ADMIN"].contains(&r.to_uppercase().as_str()) {
-                return Err(anyhow::anyhow!(
-                    "Reviewer role {} does not have permission to reject proposals in this project",
-                    r
-                ));
-            }
-        } else {
-            let is_global_admin = sqlx::query_scalar::<_, bool>(
-                "SELECT EXISTS(SELECT 1 FROM project_members WHERE user_id = $1 AND role = 'ADMIN' AND is_active = true)",
-            )
-            .bind(reviewer_id)
-            .fetch_one(&mut *tx)
-            .await
-            .unwrap_or(false);
-
-            if !is_global_admin {
-                return Err(anyhow::anyhow!(
-                    "Reviewer is not an active member of this project"
-                ));
-            }
+        if !is_authorized {
+            return Err(anyhow::anyhow!(
+                "Reviewer is not authorized to reject proposals for this project"
+            ));
         }
 
         let status: String = prop_row.try_get("status")?;

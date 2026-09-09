@@ -18,18 +18,28 @@ use crate::messaging::publisher::ProcessDocumentJob;
 /// and enqueues it to RabbitMQ for AI worker processing.
 pub async fn create_document(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(project_id): Path<Uuid>,
     Json(input): Json<DocumentCreateInput>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let auth = extract_auth_context(&headers);
+    let uploaded_by = auth.as_ref().map(|a| a.user_id);
+
     if input.filename.trim().is_empty() {
         return Err(ApiError::bad_request("filename cannot be empty"));
     }
 
     let (doc, job) = if let Some(db) = &state.database {
-        db.create_document_and_job(project_id, &input, None)
+        db.create_document_and_job(project_id, &input, uploaded_by)
             .await
             .map_err(|e| ApiError::internal(format!("Failed to record document: {}", e)))?
     } else {
+        if state.require_database {
+            return Err(ApiError::service_unavailable(
+                "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+            ));
+        }
+
         // In-memory fallback
         let doc_id = Uuid::new_v4();
         let job_id = Uuid::new_v4();
@@ -161,24 +171,28 @@ pub async fn get_job(
             .await
             .map_err(|_| ApiError::not_found("Job not found"))?;
 
-        if auth.role != UserRole::Admin {
-            match db.verify_project_membership(project_id, auth.user_id).await {
-                Ok(Some(_)) => {}
-                Ok(None) => {
-                    return Err(ApiError::forbidden(
-                        "User is not an active member of the project owning this job",
-                    ));
-                }
-                Err(e) => {
-                    return Err(ApiError::internal(format!(
-                        "Membership verification failed: {}",
-                        e
-                    )));
-                }
+        match db.verify_project_membership(project_id, auth.user_id).await {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                return Err(ApiError::forbidden(
+                    "User is not an active member of the project owning this job",
+                ));
+            }
+            Err(e) => {
+                return Err(ApiError::internal(format!(
+                    "Membership verification failed: {}",
+                    e
+                )));
             }
         }
 
         return Ok(Json(serde_json::json!({ "job": job })));
+    }
+
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
     }
 
     // Default mock response if running without PostgreSQL

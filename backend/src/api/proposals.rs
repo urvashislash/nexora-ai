@@ -15,7 +15,7 @@ use crate::domain::validation::ValidationEngine;
 
 use super::error::ApiError;
 use super::helpers::{
-    default_reviewer_id, deserialize_string_or_uuid_vec, empty_string_is_none, parse_uuid_or_derive,
+    deserialize_string_or_uuid_vec, empty_string_is_none, parse_uuid_or_derive,
 };
 use super::middleware::extract_auth_context;
 use super::state::AppState;
@@ -67,11 +67,9 @@ pub async fn approve_proposal(
     Path(proposal_id_raw): Path<String>,
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let reviewer_id = extract_auth_context(&headers)
-        .map(|auth| auth.user_id)
-        .or(payload.reviewer_id)
-        .or(payload.reviewed_by)
-        .unwrap_or_else(default_reviewer_id);
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
+    let reviewer_id = auth.user_id;
 
     let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
 
@@ -95,6 +93,12 @@ pub async fn approve_proposal(
             "event_id": event_id,
             "proposal_id": proposal_id,
         })));
+    }
+
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
     }
 
     let mut proposals = state.proposals.write().await;
@@ -251,11 +255,9 @@ pub async fn reject_proposal(
     Path(proposal_id_raw): Path<String>,
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let reviewer_id = extract_auth_context(&headers)
-        .map(|auth| auth.user_id)
-        .or(payload.reviewer_id)
-        .or(payload.reviewed_by)
-        .unwrap_or_else(default_reviewer_id);
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
+    let reviewer_id = auth.user_id;
 
     let comments = payload.comments.or(payload.reason);
 
@@ -280,6 +282,12 @@ pub async fn reject_proposal(
             "proposal_id": proposal_id,
             "message": "Proposal rejected transactionally in PostgreSQL"
         })));
+    }
+
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
     }
 
     let mut proposals = state.proposals.write().await;
@@ -367,11 +375,9 @@ pub async fn override_proposal(
     Path(proposal_id_raw): Path<String>,
     Json(payload): Json<DecisionPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let reviewer_id = extract_auth_context(&headers)
-        .map(|auth| auth.user_id)
-        .or(payload.reviewer_id)
-        .or(payload.reviewed_by)
-        .unwrap_or_else(default_reviewer_id);
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
+    let reviewer_id = auth.user_id;
 
     let comments = payload.comments.clone().or_else(|| payload.reason.clone());
 
@@ -407,6 +413,12 @@ pub async fn override_proposal(
             "selected_activity_id": selected_activity_id,
             "message": "Proposal target overridden transactionally in PostgreSQL"
         })));
+    }
+
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
     }
 
     let mut proposals = state.proposals.write().await;
@@ -553,11 +565,9 @@ pub async fn add_proposal_comment(
     Path(proposal_id_raw): Path<String>,
     Json(payload): Json<CommentPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let reviewer_id = extract_auth_context(&headers)
-        .map(|auth| auth.user_id)
-        .or(payload.reviewer_id)
-        .or(payload.reviewed_by)
-        .unwrap_or_else(default_reviewer_id);
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
+    let reviewer_id = auth.user_id;
 
     let proposal_id = parse_uuid_or_derive(&proposal_id_raw);
     let proposals = state.proposals.read().await;
@@ -598,11 +608,9 @@ pub async fn batch_approve_proposals(
     headers: HeaderMap,
     Json(payload): Json<BatchApprovePayload>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let reviewer_id = extract_auth_context(&headers)
-        .map(|auth| auth.user_id)
-        .or(payload.reviewer_id)
-        .or(payload.reviewed_by)
-        .unwrap_or_else(default_reviewer_id);
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
+    let reviewer_id = auth.user_id;
 
     if let Some(db) = &state.database {
         let mut approved_count = 0;
@@ -626,6 +634,12 @@ pub async fn batch_approve_proposals(
             "approved_count": approved_count,
             "errors": errors,
         })));
+    }
+
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
     }
 
     let mut proposals = state.proposals.write().await;

@@ -21,11 +21,24 @@ use crate::domain::validation::ValidationEngine;
 /// POST /api/v1/projects/:id/import/preview
 /// Validates incoming baseline schedule data without committing to database.
 pub async fn preview_schedule_import(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Path(project_id_raw): Path<String>,
     Json(payload): Json<ScheduleImportInput>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
+
     let project_id = parse_uuid_or_derive(&project_id_raw);
+
+    if let Some(ref db) = state.database {
+        let role = db.verify_project_membership(project_id, auth.user_id).await.map_err(|e| {
+            ApiError::internal(format!("Database error: {}", e))
+        })?;
+        if role.is_none() {
+            return Err(ApiError::not_found("Project not found"));
+        }
+    }
 
     let mut validation_errors = Vec::new();
     let mut validation_warnings = Vec::new();
@@ -146,18 +159,26 @@ pub async fn commit_schedule_import(
     headers: HeaderMap,
     Json(payload): Json<ScheduleImportInput>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let auth = extract_auth_context(&headers)
+        .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
     let project_id = parse_uuid_or_derive(&project_id_raw);
-    let auth = extract_auth_context(&headers);
-    let actor_id = auth.as_ref().map(|a| a.user_id);
-    let actor_role = auth.as_ref().map(|a| format!("{:?}", a.role));
 
     if payload.activities.is_empty() {
         return Err(ApiError::bad_request("Activities list cannot be empty"));
     }
 
     if let Some(ref db) = state.database {
+        let role = db.verify_project_membership(project_id, auth.user_id).await.map_err(|e| {
+            ApiError::internal(format!("Database error: {}", e))
+        })?;
+        match role {
+            Some(UserRole::Admin) | Some(UserRole::Planner) => {},
+            Some(_) => return Err(ApiError::forbidden("Only Planners and Admins can commit schedule baselines")),
+            None => return Err(ApiError::not_found("Project not found")),
+        }
+
         let (version_id, count) = db
-            .commit_schedule_version_tx(project_id, payload, actor_id, actor_role.as_deref())
+            .commit_schedule_version_tx(project_id, payload, Some(auth.user_id), Some(&format!("{:?}", auth.role)))
             .await
             .map_err(|e| ApiError::internal(format!("Failed to commit schedule version: {}", e)))?;
 
@@ -169,6 +190,12 @@ pub async fn commit_schedule_import(
                 "schedule_version_id": version_id,
                 "activities_imported": count,
             })),
+        ));
+    }
+
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
         ));
     }
 

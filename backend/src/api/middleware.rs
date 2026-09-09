@@ -126,7 +126,7 @@ pub fn get_jwt_secret() -> String {
 /// Helper to parse role enum from string
 pub fn parse_role_from_str(role_str: &str) -> Option<UserRole> {
     match role_str.to_uppercase().as_str() {
-        "ADMIN" => Some(UserRole::Admin),
+        "OWNER" | "ADMIN" => Some(UserRole::Admin),
         "PLANNER" => Some(UserRole::Planner),
         "ENGINEER" => Some(UserRole::Engineer),
         "SUPERVISOR" => Some(UserRole::Supervisor),
@@ -382,16 +382,11 @@ pub async fn require_project_permission(
             match db.verify_project_membership(project_id, auth.user_id).await {
                 Ok(Some(member_role)) => member_role,
                 Ok(None) => {
-                    // Global superadmin can access any project with Admin role
-                    if auth.role == UserRole::Admin {
-                        UserRole::Admin
-                    } else {
-                        let body = SecurityErrorResponse {
-                            error: "Project not found or access denied".to_string(),
-                            code: "NOT_FOUND".to_string(),
-                        };
-                        return (StatusCode::NOT_FOUND, Json(body)).into_response();
-                    }
+                    let body = SecurityErrorResponse {
+                        error: "Project not found or access denied".to_string(),
+                        code: "NOT_FOUND".to_string(),
+                    };
+                    return (StatusCode::NOT_FOUND, Json(body)).into_response();
                 }
                 Err(e) => {
                     tracing::error!("Failed to verify project membership: {}", e);
@@ -412,7 +407,7 @@ pub async fn require_project_permission(
                     if let Some(team_id) = p.team_id {
                         let members = state.team_members.read().await;
                         let is_member = members.iter().any(|m| m.team_id == team_id && m.user_id == auth.user_id && m.is_active);
-                        if !is_member && auth.role != UserRole::Admin {
+                        if !is_member {
                             let body = SecurityErrorResponse {
                                 error: "Project not found or access denied".to_string(),
                                 code: "NOT_FOUND".to_string(),

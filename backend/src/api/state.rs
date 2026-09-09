@@ -33,9 +33,27 @@ pub struct AppState {
     pub redis_cache: Option<Arc<RedisCache>>,
     pub database: Option<Arc<Database>>,
     pub cache_ttl: CacheTtl,
+    pub require_database: bool,
 }
 
 impl AppState {
+    fn is_production_configured() -> bool {
+        std::env::var("APP_ENV")
+            .or_else(|_| std::env::var("ENVIRONMENT"))
+            .map(|v| {
+                let s = v.to_lowercase();
+                s == "production" || s == "prod" || s == "beta"
+            })
+            .or_else(|_| std::env::var("REQUIRE_DATABASE").map(|v| v == "true" || v == "1"))
+            .unwrap_or(false)
+    }
+
+    /// Builder method to override require_database setting (useful for failure tests)
+    pub fn with_require_database(mut self, req: bool) -> Self {
+        self.require_database = req;
+        self
+    }
+
     /// Creates a new AppState populated with initial seed demo data.
     pub fn new(
         rabbit_publisher: Option<Arc<RabbitPublisher>>,
@@ -43,6 +61,7 @@ impl AppState {
         database: Option<Arc<Database>>,
     ) -> Self {
         let (projects, activities, states) = super::seed::get_seed_demo_data();
+        let require_database = Self::is_production_configured();
         Self {
             projects: Arc::new(RwLock::new(projects)),
             teams: Arc::new(RwLock::new(Vec::new())),
@@ -63,6 +82,7 @@ impl AppState {
             redis_cache,
             database,
             cache_ttl: CacheTtl::default(),
+            require_database,
         }
     }
 
@@ -92,6 +112,7 @@ impl AppState {
             redis_cache,
             database,
             cache_ttl: CacheTtl::default(),
+            require_database: Self::is_production_configured(),
         }
     }
 

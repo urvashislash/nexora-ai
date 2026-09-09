@@ -1,15 +1,21 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::HeaderMap,
     response::IntoResponse,
     Json,
 };
+use serde::Deserialize;
 use uuid::Uuid;
 
 use super::error::ApiError;
 use super::middleware::extract_auth_context;
 use super::state::AppState;
 use crate::domain::models::*;
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ProjectListParams {
+    pub team_id: Option<Uuid>,
+}
 
 /// POST /api/v1/projects - Transactionally creates a new project
 pub async fn create_project(
@@ -28,6 +34,17 @@ pub async fn create_project(
     }
 
     if let Some(ref db) = state.database {
+        // Enforce team affiliation and permissions in database mode
+        if let Some(team_id) = payload.team_id {
+            let team_role = db.verify_team_membership(team_id, auth.user_id).await.map_err(|e| {
+                ApiError::internal(format!("Failed to verify team membership: {}", e))
+            })?;
+            match team_role {
+                Some(TeamRole::Owner) | Some(TeamRole::Admin) | Some(TeamRole::Planner) => {},
+                _ => return Err(ApiError::not_found("Team not found or caller lacks project creation permissions")),
+            }
+        }
+
         match db
             .create_project_tx(
                 &payload,
@@ -54,13 +71,9 @@ pub async fn create_project(
         }
     }
 
-    let is_prod = std::env::var("APP_ENV")
-        .or_else(|_| std::env::var("ENVIRONMENT"))
-        .map(|v| v.to_lowercase() == "production")
-        .unwrap_or(false);
-    if is_prod {
-        return Err(ApiError::internal(
-            "PostgreSQL persistence is mandatory in production environment",
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
         ));
     }
 
@@ -91,14 +104,14 @@ pub async fn create_project(
 pub async fn list_projects(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(params): Query<ProjectListParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let auth = extract_auth_context(&headers)
         .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
 
     if let Some(ref db) = state.database {
-        let is_admin = auth.role == UserRole::Admin || auth.role == UserRole::Auditor;
         let projects = db
-            .load_user_projects(auth.user_id, is_admin)
+            .load_user_projects(auth.user_id, params.team_id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to load projects from PostgreSQL: {}", e);
@@ -107,18 +120,18 @@ pub async fn list_projects(
         return Ok(Json(projects));
     }
 
-    let is_prod = std::env::var("APP_ENV")
-        .or_else(|_| std::env::var("ENVIRONMENT"))
-        .map(|v| v.to_lowercase() == "production")
-        .unwrap_or(false);
-    if is_prod {
-        return Err(ApiError::internal(
-            "PostgreSQL persistence is mandatory in production environment",
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
         ));
     }
 
     let projects = state.projects.read().await;
-    Ok(Json(projects.clone()))
+    let filtered: Vec<Project> = match params.team_id {
+        Some(tid) => projects.iter().filter(|p| p.team_id == Some(tid)).cloned().collect(),
+        None => projects.clone(),
+    };
+    Ok(Json(filtered))
 }
 
 /// GET /api/v1/projects/:id - Gets a project by ID
@@ -131,18 +144,15 @@ pub async fn get_project(
         .ok_or_else(|| ApiError::unauthorized("Valid authentication token required"))?;
 
     if let Some(ref db) = state.database {
-        let is_admin = auth.role == UserRole::Admin || auth.role == UserRole::Auditor;
-        if !is_admin {
-            let membership = db
-                .verify_project_membership(project_id, auth.user_id)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to verify project membership: {}", e);
-                    ApiError::internal(format!("Database error: {}", e))
-                })?;
-            if membership.is_none() {
-                return Err(ApiError::not_found("Project not found"));
-            }
+        let membership = db
+            .verify_project_membership(project_id, auth.user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to verify project membership: {}", e);
+                ApiError::internal(format!("Database error: {}", e))
+            })?;
+        if membership.is_none() {
+            return Err(ApiError::not_found("Project not found"));
         }
 
         let project = db.get_project(project_id).await.map_err(|e| {
@@ -154,13 +164,9 @@ pub async fn get_project(
         return Ok(Json(project));
     }
 
-    let is_prod = std::env::var("APP_ENV")
-        .or_else(|_| std::env::var("ENVIRONMENT"))
-        .map(|v| v.to_lowercase() == "production")
-        .unwrap_or(false);
-    if is_prod {
-        return Err(ApiError::internal(
-            "PostgreSQL persistence is mandatory in production environment",
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
         ));
     }
 
@@ -177,7 +183,7 @@ pub async fn get_project(
         let is_member = team_members
             .iter()
             .any(|m| m.team_id == team_id && m.user_id == auth.user_id && m.is_active);
-        if !is_member && auth.role != UserRole::Admin {
+        if !is_member {
             return Err(ApiError::not_found("Project not found"));
         }
     }

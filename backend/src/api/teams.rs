@@ -66,6 +66,12 @@ pub async fn create_team(
         return Ok((StatusCode::CREATED, Json(team)));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     // In-memory fallback for offline test mode
     let team_id = Uuid::new_v4();
     let now = chrono::Utc::now();
@@ -127,6 +133,12 @@ pub async fn list_teams(
         return Ok(Json(teams));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     // In-memory fallback
     let members = state.team_members.read().await;
     let user_team_ids: Vec<Uuid> = members
@@ -160,7 +172,7 @@ pub async fn get_team(
             .await
             .map_err(|e| ApiError::internal(format!("Database error: {}", e)))?;
 
-        if membership.is_none() && auth.role != UserRole::Admin {
+        if membership.is_none() {
             return Err(ApiError::not_found("Team not found"));
         }
 
@@ -173,8 +185,14 @@ pub async fn get_team(
         return Ok(Json(team));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
-    if caller_role.is_none() && auth.role != UserRole::Admin {
+    if caller_role.is_none() {
         return Err(ApiError::not_found("Team not found"));
     }
 
@@ -212,11 +230,9 @@ pub async fn update_team(
         match role {
             Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
             _ => {
-                if auth.role != UserRole::Admin {
-                    return Err(ApiError::forbidden(
-                        "Only team Owner or Admin can update team settings",
-                    ));
-                }
+                return Err(ApiError::forbidden(
+                    "Only team Owner or Admin can update team settings",
+                ));
             }
         }
 
@@ -227,15 +243,19 @@ pub async fn update_team(
         return Ok(Json(team));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
     match caller_role {
         Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
         _ => {
-            if auth.role != UserRole::Admin {
-                return Err(ApiError::forbidden(
-                    "Only team Owner or Admin can update team settings",
-                ));
-            }
+            return Err(ApiError::forbidden(
+                "Only team Owner or Admin can update team settings",
+            ));
         }
     }
 
@@ -266,7 +286,7 @@ pub async fn delete_team(
             .await
             .map_err(|e| ApiError::internal(format!("Database error: {}", e)))?;
 
-        if role != Some(TeamRole::Owner) && auth.role != UserRole::Admin {
+        if role != Some(TeamRole::Owner) {
             return Err(ApiError::forbidden("Only the team Owner can delete a team"));
         }
 
@@ -280,8 +300,14 @@ pub async fn delete_team(
         }));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
-    if caller_role != Some(TeamRole::Owner) && auth.role != UserRole::Admin {
+    if caller_role != Some(TeamRole::Owner) {
         return Err(ApiError::forbidden("Only the team Owner can delete a team"));
     }
 
@@ -314,7 +340,7 @@ pub async fn list_team_members(
             .await
             .map_err(|e| ApiError::internal(format!("Database error: {}", e)))?;
 
-        if role.is_none() && auth.role != UserRole::Admin {
+        if role.is_none() {
             return Err(ApiError::not_found("Team not found"));
         }
 
@@ -325,8 +351,14 @@ pub async fn list_team_members(
         return Ok(Json(members));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
-    if caller_role.is_none() && auth.role != UserRole::Admin {
+    if caller_role.is_none() {
         return Err(ApiError::not_found("Team not found"));
     }
 
@@ -368,11 +400,9 @@ pub async fn update_team_member_role(
         match caller_role {
             Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
             _ => {
-                if auth.role != UserRole::Admin {
-                    return Err(ApiError::forbidden(
-                        "Only team Owner or Admin can update member roles",
-                    ));
-                }
+                return Err(ApiError::forbidden(
+                    "Only team Owner or Admin can update member roles",
+                ));
             }
         }
 
@@ -386,15 +416,19 @@ pub async fn update_team_member_role(
         }));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
     match caller_role {
         Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
         _ => {
-            if auth.role != UserRole::Admin {
-                return Err(ApiError::forbidden(
-                    "Only team Owner or Admin can update member roles",
-                ));
-            }
+            return Err(ApiError::forbidden(
+                "Only team Owner or Admin can update member roles",
+            ));
         }
     }
 
@@ -430,11 +464,9 @@ pub async fn remove_team_member(
         match caller_role {
             Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
             _ => {
-                if auth.role != UserRole::Admin {
-                    return Err(ApiError::forbidden(
-                        "Only team Owner or Admin can remove members",
-                    ));
-                }
+                return Err(ApiError::forbidden(
+                    "Only team Owner or Admin can remove members",
+                ));
             }
         }
 
@@ -459,15 +491,19 @@ pub async fn remove_team_member(
         }));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
     match caller_role {
         Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
         _ => {
-            if auth.role != UserRole::Admin {
-                return Err(ApiError::forbidden(
-                    "Only team Owner or Admin can remove members",
-                ));
-            }
+            return Err(ApiError::forbidden(
+                "Only team Owner or Admin can remove members",
+            ));
         }
     }
 
@@ -501,8 +537,14 @@ pub async fn transfer_team_ownership(
         }));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
-    if caller_role != Some(TeamRole::Owner) && auth.role != UserRole::Admin {
+    if caller_role != Some(TeamRole::Owner) {
         return Err(ApiError::forbidden("Only the current Owner can transfer team ownership"));
     }
 
@@ -551,6 +593,12 @@ pub async fn leave_team(
         }));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let mut members = state.team_members.write().await;
     members.retain(|m| !(m.team_id == team_id && m.user_id == auth.user_id));
 
@@ -575,7 +623,7 @@ pub async fn list_team_projects(
             .await
             .map_err(|e| ApiError::internal(format!("Database error: {}", e)))?;
 
-        if role.is_none() && auth.role != UserRole::Admin {
+        if role.is_none() {
             return Err(ApiError::not_found("Team not found"));
         }
 
@@ -586,8 +634,14 @@ pub async fn list_team_projects(
         return Ok(Json(projects));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
-    if caller_role.is_none() && auth.role != UserRole::Admin {
+    if caller_role.is_none() {
         return Err(ApiError::not_found("Team not found"));
     }
 
@@ -622,11 +676,9 @@ pub async fn create_team_project(
         match role {
             Some(TeamRole::Owner) | Some(TeamRole::Admin) | Some(TeamRole::Planner) => {}
             _ => {
-                if auth.role != UserRole::Admin {
-                    return Err(ApiError::forbidden(
-                        "Only team Owner, Admin, or Planner can create projects in this team",
-                    ));
-                }
+                return Err(ApiError::forbidden(
+                    "Only team Owner, Admin, or Planner can create projects in this team",
+                ));
             }
         }
 
@@ -643,15 +695,19 @@ pub async fn create_team_project(
         return Ok((StatusCode::CREATED, Json(project)));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
     match caller_role {
         Some(TeamRole::Owner) | Some(TeamRole::Admin) | Some(TeamRole::Planner) => {}
         _ => {
-            if auth.role != UserRole::Admin {
-                return Err(ApiError::forbidden(
-                    "Only team Owner, Admin, or Planner can create projects in this team",
-                ));
-            }
+            return Err(ApiError::forbidden(
+                "Only team Owner, Admin, or Planner can create projects in this team",
+            ));
         }
     }
 
@@ -714,11 +770,9 @@ pub async fn create_team_invitation(
         match caller_role {
             Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
             _ => {
-                if auth.role != UserRole::Admin {
-                    return Err(ApiError::forbidden(
-                        "Only team Owner or Admin can send invitations",
-                    ));
-                }
+                return Err(ApiError::forbidden(
+                    "Only team Owner or Admin can send invitations",
+                ));
             }
         }
 
@@ -730,15 +784,19 @@ pub async fn create_team_invitation(
         return Ok((StatusCode::CREATED, Json(inv)));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
     match caller_role {
         Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
         _ => {
-            if auth.role != UserRole::Admin {
-                return Err(ApiError::forbidden(
-                    "Only team Owner or Admin can send invitations",
-                ));
-            }
+            return Err(ApiError::forbidden(
+                "Only team Owner or Admin can send invitations",
+            ));
         }
     }
 
@@ -781,11 +839,9 @@ pub async fn list_team_invitations(
         match role {
             Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
             _ => {
-                if auth.role != UserRole::Admin {
-                    return Err(ApiError::forbidden(
-                        "Only team Owner or Admin can view invitations",
-                    ));
-                }
+                return Err(ApiError::forbidden(
+                    "Only team Owner or Admin can view invitations",
+                ));
             }
         }
 
@@ -796,15 +852,19 @@ pub async fn list_team_invitations(
         return Ok(Json(invs));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
     match caller_role {
         Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
         _ => {
-            if auth.role != UserRole::Admin {
-                return Err(ApiError::forbidden(
-                    "Only team Owner or Admin can view invitations",
-                ));
-            }
+            return Err(ApiError::forbidden(
+                "Only team Owner or Admin can view invitations",
+            ));
         }
     }
 
@@ -836,11 +896,9 @@ pub async fn revoke_team_invitation(
         match role {
             Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
             _ => {
-                if auth.role != UserRole::Admin {
-                    return Err(ApiError::forbidden(
-                        "Only team Owner or Admin can revoke invitations",
-                    ));
-                }
+                return Err(ApiError::forbidden(
+                    "Only team Owner or Admin can revoke invitations",
+                ));
             }
         }
 
@@ -854,15 +912,19 @@ pub async fn revoke_team_invitation(
         }));
     }
 
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
+    }
+
     let caller_role = check_in_memory_team_role(&state, team_id, auth.user_id).await;
     match caller_role {
         Some(TeamRole::Owner) | Some(TeamRole::Admin) => {}
         _ => {
-            if auth.role != UserRole::Admin {
-                return Err(ApiError::forbidden(
-                    "Only team Owner or Admin can revoke invitations",
-                ));
-            }
+            return Err(ApiError::forbidden(
+                "Only team Owner or Admin can revoke invitations",
+            ));
         }
     }
 
@@ -901,6 +963,12 @@ pub async fn accept_invitation(
             .map_err(|e| ApiError::bad_request(format!("Cannot accept invitation: {}", e)))?;
 
         return Ok(Json(member));
+    }
+
+    if state.require_database {
+        return Err(ApiError::service_unavailable(
+            "PostgreSQL persistence is required. In-memory fallback is disabled in beta/production.",
+        ));
     }
 
     let mut invs = state.team_invitations.write().await;
