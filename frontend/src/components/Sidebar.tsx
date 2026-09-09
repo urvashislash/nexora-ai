@@ -48,11 +48,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'schedule', label: 'Schedule', icon: Calendar, category: 'OPERATIONS' },
     { id: 'graph', label: 'Dependencies', icon: Network, category: 'OPERATIONS' },
     { id: 'audit', label: 'Audit Ledger', icon: FileText, category: 'OPERATIONS' },
+    { id: 'team-settings', label: 'Team Settings', icon: User, category: 'ORGANIZATION' },
     { id: 'health', label: 'System Health', icon: Activity, category: 'SYSTEM' },
     { id: 'export', label: 'Exports', icon: Download, category: 'SYSTEM' },
   ];
 
   const operationsItems = navItems.filter(i => i.category === 'OPERATIONS');
+  const orgItems = navItems.filter(i => i.category === 'ORGANIZATION');
   const systemItems = navItems.filter(i => i.category === 'SYSTEM');
 
   return (
@@ -129,6 +131,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         {item.count}
                       </span>
                     )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Organization Group */}
+          <div>
+            <span className="px-3 text-[10px] font-sans font-semibold uppercase tracking-wider text-slate-600 block mb-1.5">
+              Organization
+            </span>
+            <nav className="space-y-0.5" aria-label="Organization pages">
+              {orgItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-sans tracking-tight transition-all duration-150 cursor-pointer ${
+                      isActive
+                        ? 'bg-[#18181B] text-white shadow-2xs font-medium'
+                        : 'text-slate-700 hover:bg-slate-100/80 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      <Icon className={`h-4 w-4 ${isActive ? 'text-[#C38B4B]' : 'text-slate-500'}`} aria-hidden="true" />
+                      <span>{item.label}</span>
+                    </div>
                   </button>
                 );
               })}

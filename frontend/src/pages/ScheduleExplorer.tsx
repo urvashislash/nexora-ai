@@ -5,10 +5,13 @@ import {
   Eye, 
   Calendar, 
   List, 
-  Flame
+  Flame,
+  Upload
 } from 'lucide-react';
 import type { ActivityWithState } from '../types';
 import { Activity360Drawer } from '../components/Activity360Drawer';
+import { ScheduleImportModal } from '../components/ScheduleImportModal';
+import { useProject } from '../contexts/ProjectContext';
 import { animateStaggerEntrance } from '../lib/animations';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -22,6 +25,8 @@ interface ScheduleExplorerProps {
 }
 
 export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }) => {
+  const { activeProject } = useProject();
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'gantt' | 'table'>('gantt');
   const [selectedDiscipline, setSelectedDiscipline] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -94,22 +99,80 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
     }
   };
 
-  // Helper to map dates to Gantt timeline percentage (August 1 to September 30 = 60 days)
+  // Dynamically derive timeline boundaries from the imported schedule
+  const timelineBounds = useMemo(() => {
+    if (activities.length === 0) {
+      const now = new Date();
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      return {
+        minTime: start.getTime(),
+        maxTime: end.getTime(),
+        totalSpan: end.getTime() - start.getTime(),
+      };
+    }
+
+    let min = Infinity;
+    let max = -Infinity;
+
+    activities.forEach((item) => {
+      const s = new Date(item.activity.planned_start_date).getTime();
+      const f = new Date(item.activity.planned_finish_date).getTime();
+      if (!isNaN(s) && s < min) min = s;
+      if (!isNaN(f) && f > max) max = f;
+    });
+
+    if (min === Infinity || max === -Infinity) {
+      const now = Date.now();
+      min = now - 7 * 24 * 60 * 60 * 1000;
+      max = now + 30 * 24 * 60 * 60 * 1000;
+    }
+
+    // Add a 5% buffer on left and right for visual breathing room
+    const span = Math.max(24 * 60 * 60 * 1000, max - min);
+    const padding = Math.max(24 * 60 * 60 * 1000, Math.round(span * 0.05));
+    const minTime = min - padding;
+    const maxTime = max + padding;
+    const totalSpan = maxTime - minTime;
+
+    return { minTime, maxTime, totalSpan };
+  }, [activities]);
+
   const getTimelineLeftPercent = (dateStr: string) => {
-    const baseDate = new Date('2026-08-01').getTime();
     const targetDate = new Date(dateStr).getTime();
-    const totalSpan = 60 * 24 * 60 * 60 * 1000; // 60 days
-    const offset = Math.max(0, targetDate - baseDate);
-    return Math.min(100, Math.max(0, (offset / totalSpan) * 100));
+    if (isNaN(targetDate)) return 0;
+    const offset = Math.max(0, targetDate - timelineBounds.minTime);
+    return Math.min(100, Math.max(0, (offset / timelineBounds.totalSpan) * 100));
   };
 
   const getTimelineWidthPercent = (startStr: string, finishStr: string) => {
     const start = new Date(startStr).getTime();
     const finish = new Date(finishStr).getTime();
-    const totalSpan = 60 * 24 * 60 * 60 * 1000;
+    if (isNaN(start) || isNaN(finish)) return 5;
     const duration = Math.max(24 * 60 * 60 * 1000, finish - start);
-    return Math.min(100, (duration / totalSpan) * 100);
+    return Math.min(100, Math.max(1, (duration / timelineBounds.totalSpan) * 100));
   };
+
+  const timelineTicks = useMemo(() => {
+    const ticks: { label: string; percent: number }[] = [];
+    const count = 5;
+    const step = timelineBounds.totalSpan / (count - 1);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    for (let i = 0; i < count; i++) {
+      const time = timelineBounds.minTime + i * step;
+      const d = new Date(time);
+      const label = `${String(d.getDate()).padStart(2, '0')}-${months[d.getMonth()]}`;
+      ticks.push({ label, percent: (i / (count - 1)) * 100 });
+    }
+    return ticks;
+  }, [timelineBounds]);
+
+  const todayPercent = useMemo(() => {
+    const now = Date.now();
+    if (now < timelineBounds.minTime || now > timelineBounds.maxTime) return null;
+    return Math.min(100, Math.max(0, ((now - timelineBounds.minTime) / timelineBounds.totalSpan) * 100));
+  }, [timelineBounds]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -128,34 +191,46 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
           </p>
         </div>
 
-        {/* View Mode Switcher */}
-        <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200/60 text-xs font-sans">
-          <button
+        <div className="flex items-center gap-2">
+          <Button
             type="button"
-            onClick={() => setViewMode('gantt')}
-            aria-pressed={viewMode === 'gantt'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
-              viewMode === 'gantt' 
-                ? 'bg-white shadow-2xs text-slate-900 font-semibold' 
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
+            size="sm"
+            onClick={() => setIsImportModalOpen(true)}
+            className="bg-[#C38B4B] hover:bg-[#b07b3e] text-white flex items-center gap-1.5 font-sans"
           >
-            <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Gantt Chart</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('table')}
-            aria-pressed={viewMode === 'table'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
-              viewMode === 'table' 
-                ? 'bg-white shadow-2xs text-slate-900 font-semibold' 
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            <List className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Table Ledger</span>
-          </button>
+            <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Import Schedule</span>
+          </Button>
+
+          {/* View Mode Switcher */}
+          <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200/60 text-xs font-sans">
+            <button
+              type="button"
+              onClick={() => setViewMode('gantt')}
+              aria-pressed={viewMode === 'gantt'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                viewMode === 'gantt' 
+                  ? 'bg-white shadow-2xs text-slate-900 font-semibold' 
+                  : 'text-slate-700 hover:text-slate-900'
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Gantt Chart</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              aria-pressed={viewMode === 'table'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                viewMode === 'table' 
+                  ? 'bg-white shadow-2xs text-slate-900 font-semibold' 
+                  : 'text-slate-700 hover:text-slate-900'
+              }`}
+            >
+              <List className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Table Ledger</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -247,18 +322,36 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
         </div>
       </Card>
 
-      {/* MAIN VIEW: GANTT CHART OR TABLE */}
-      {viewMode === 'gantt' ? (
+      {/* MAIN VIEW: EMPTY STATE OR GANTT CHART OR TABLE */}
+      {activities.length === 0 ? (
+        <Card className="p-12 text-center border-dashed border-2 border-slate-200 shadow-2xs space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mx-auto">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <div className="space-y-1 max-w-md mx-auto">
+            <h3 className="text-base font-bold text-slate-900 font-sans">No schedule baseline imported</h3>
+            <p className="text-xs text-slate-500 font-sans">
+              Import your planned construction schedule from CSV, Excel (.xlsx), or Primavera P6 (.xer) to establish WBS activities, planned dates, and critical paths.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            className="bg-[#C38B4B] hover:bg-[#b07b3e] text-white"
+          >
+            <Upload className="w-4 h-4 mr-1.5" />
+            <span>Import Schedule Baseline</span>
+          </Button>
+        </Card>
+      ) : viewMode === 'gantt' ? (
         <Card className="shadow-2xs overflow-hidden">
           {/* Gantt Header Timeline Bar */}
           <div className="bg-slate-50/70 border-b border-slate-200/80 p-3 flex items-center justify-between text-[11px] font-sans">
             <span className="w-72 font-semibold text-slate-700 uppercase tracking-wider pl-2">Activity & WBS Code</span>
             <div className="flex-1 flex justify-between px-4 text-slate-600 font-mono text-[10px] font-medium">
-              <span>01-Aug</span>
-              <span>15-Aug</span>
-              <span className="text-emerald-800 font-bold">01-Sep (Today)</span>
-              <span>15-Sep</span>
-              <span>30-Sep</span>
+              {timelineTicks.map((tick, idx) => (
+                <span key={idx}>{tick.label}</span>
+              ))}
             </div>
           </div>
 
@@ -304,10 +397,13 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
                   {/* Right Timeline Canvas with Gantt Bars */}
                   <div className="flex-1 relative h-8 bg-slate-50/50 rounded-lg overflow-hidden border border-slate-100">
                     {/* Today Vertical Reference Line */}
-                    <div 
-                      className="absolute top-0 bottom-0 w-px bg-[#34C759] border-r border-dashed border-[#34C759]/60 z-10"
-                      style={{ left: `${getTimelineLeftPercent('2026-09-01')}%` }}
-                    />
+                    {todayPercent !== null && (
+                      <div 
+                        className="absolute top-0 bottom-0 w-px bg-[#34C759] border-r border-dashed border-[#34C759]/60 z-10"
+                        style={{ left: `${todayPercent}%` }}
+                        title="Today"
+                      />
+                    )}
 
                     {/* Planned Schedule Bar (Subtle outline) */}
                     <div
@@ -439,6 +535,13 @@ export const ScheduleExplorer: React.FC<ScheduleExplorerProps> = ({ activities }
         isOpen={Boolean(selectedActivity)}
         onClose={() => setSelectedActivity(null)}
         allActivities={activities}
+      />
+
+      {/* Schedule Import Modal */}
+      <ScheduleImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        projectId={activeProject?.id || ''}
       />
     </div>
   );

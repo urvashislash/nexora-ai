@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { createProjectInDB } from '../lib/supabase';
+import { useTeam } from '../contexts/TeamContext';
 import type { Project, ProjectCreateInput, BaselineActivityInput, Discipline } from '../types';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -114,6 +115,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   onProjectCreated,
   userId,
 }) => {
+  const { activeTeam } = useTeam();
   const [step, setStep] = useState<1 | 2>(1);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -197,6 +199,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       description: description.trim() || undefined,
       currency,
       timezone,
+      team_id: activeTeam?.id,
       baselineActivities: parsedActivities,
     };
 
@@ -223,6 +226,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           description: projectInput.description,
           currency: projectInput.currency || 'INR',
           timezone: projectInput.timezone || 'Asia/Kolkata',
+          team_id: activeTeam?.id,
         };
         onProjectCreated(localFallback);
         onClose();

@@ -29,6 +29,7 @@ import { animateStaggerEntrance } from '../lib/animations';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../components/ui/table';
+import { useProject } from '../contexts/ProjectContext';
 
 interface DocumentUploadProps {
   observations: WorkObservation[];
@@ -45,14 +46,18 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   observations, 
   onAddObservations, 
   onNavigateTab,
-  projectId = 'a0000000-0000-0000-0000-000000000001'
+  projectId = ''
 }) => {
+  const { activeProject } = useProject();
+  const effectiveProjectId = projectId || activeProject?.id || '';
+  const isDemoEnabled = import.meta.env.VITE_ENABLE_DEMO_DATA === 'true';
+
   const [inputText, setInputText] = useState('');
   const [sourceType, setSourceType] = useState<'DAILY_REPORT' | 'DISCIPLINE_SPREADSHEET' | 'VOICE'>('DAILY_REPORT');
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(0);
   const [selectedPipelineStep, setSelectedPipelineStep] = useState<number | null>(null);
-  const [showDemoScenarios, setShowDemoScenarios] = useState<boolean>(true);
+  const [showDemoScenarios, setShowDemoScenarios] = useState<boolean>(isDemoEnabled);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedObsForDrawer, setSelectedObsForDrawer] = useState<WorkObservation | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -319,11 +324,55 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     },
   ];
 
+  // File validation constants
+  const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+  const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.xlsx', '.csv', '.webm', '.mp3', '.wav', '.m4a', '.mp4'];
+
+  const validateAndSanitizeFile = (file: File): { valid: boolean; error?: string; file?: File } => {
+    // 1. Check size limit
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return {
+        valid: false,
+        error: `File size exceeds the 50MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB provided). Please compress or choose a smaller file.`,
+      };
+    }
+
+    // 2. Sanitize filename (strip directory traversal, special characters, leading/trailing whitespace)
+    const rawName = file.name || 'uploaded_document';
+    const sanitizedName = rawName
+      .replace(/[/\\]/g, '_') // prevent path traversal
+      .replace(/[<>:"|?*\x00-\x1F]/g, '') // remove illegal characters
+      .trim();
+
+    // 3. Extension check
+    const lowerName = sanitizedName.toLowerCase();
+    const hasValidExt = ALLOWED_EXTENSIONS.some(ext => lowerName.endsWith(ext));
+    if (!hasValidExt && !file.type.startsWith('audio/') && !file.type.startsWith('image/')) {
+      return {
+        valid: false,
+        error: `Unsupported file format. Please upload a PDF, PNG, JPG, XLSX, CSV, or supported Audio file.`,
+      };
+    }
+
+    const sanitizedFile = new File([file], sanitizedName, { type: file.type });
+    return { valid: true, file: sanitizedFile };
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
+      const rawFile = e.dataTransfer.files[0];
+      const result = validateAndSanitizeFile(rawFile);
+      if (!result.valid || !result.file) {
+        setFeedbackMessage({
+          type: 'error',
+          text: result.error || 'Invalid file uploaded.',
+        });
+        return;
+      }
+
+      const file = result.file;
       setSelectedFile(file);
       if (file.type.startsWith('audio/')) {
         setSourceType('VOICE');
@@ -339,7 +388,18 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
+      const rawFile = e.target.files[0];
+      const result = validateAndSanitizeFile(rawFile);
+      if (!result.valid || !result.file) {
+        setFeedbackMessage({
+          type: 'error',
+          text: result.error || 'Invalid file selected.',
+        });
+        if (e.target) e.target.value = '';
+        return;
+      }
+
+      const file = result.file;
       setSelectedFile(file);
       if (file.type.startsWith('audio/')) {
         setSourceType('VOICE');
@@ -354,6 +414,14 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   };
 
   const handleProcess = async (presetText?: string, presetObj?: typeof demoPresets[0]) => {
+    if (!effectiveProjectId) {
+      setFeedbackMessage({
+        type: 'error',
+        text: 'Please create or select an active project before ingesting field evidence.',
+      });
+      return;
+    }
+
     const rawText = (presetText || inputText).trim();
     if (!rawText && !selectedFile && !audioBlob) {
       setFeedbackMessage({
@@ -372,11 +440,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       let storagePath: string | null = null;
       if (selectedFile) {
         setActiveStep(1);
-        storagePath = await uploadEvidenceFile(projectId, selectedFile, 'reports');
+        storagePath = await uploadEvidenceFile(effectiveProjectId, selectedFile, 'reports');
       } else if (audioBlob) {
         setActiveStep(1);
         const audioFile = new File([audioBlob], 'voice_memo_recording.webm', { type: audioBlob.type || 'audio/webm' });
-        storagePath = await uploadEvidenceFile(projectId, audioFile, 'voice');
+        storagePath = await uploadEvidenceFile(effectiveProjectId, audioFile, 'voice');
       }
 
       // Step 2: Extraction & Normalization
@@ -389,7 +457,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
       const newObs: WorkObservation = {
         id: generateObsId(),
-        project_id: projectId,
+        project_id: effectiveProjectId,
         raw_text: rawText,
         normalized_text: rawText.includes('P-101') ? rawText.replace('P-101', 'Line P-101') : rawText,
         discipline: resolvedDiscipline,
@@ -415,7 +483,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
       // Step 4: Rust Trust Plane Policy Validation & Ingestion
       setActiveStep(4);
-      const createdObs = await api.createObservation(projectId, newObs);
+      const createdObs = await api.createObservation(effectiveProjectId, newObs);
 
       // Step 5: Ledger Commitment
       setActiveStep(5);
@@ -437,7 +505,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       console.error('Ingestion error:', err);
       setFeedbackMessage({
         type: 'error',
-        text: `Processing completed with warning: ${err?.message || 'Check connection to backend'}`,
+        text: `Processing failure: ${err?.message || 'Check connection to backend'}. Click below to retry.`,
       });
     } finally {
       setIsProcessing(false);

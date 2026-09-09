@@ -1,10 +1,12 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react';
-import { Menu, Moon, Sun } from 'lucide-react';
+import { Menu, Moon, Sun, MessageSquare } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { ProjectSelector } from './ProjectSelector';
+import { TeamSelector } from './TeamSelector';
 import { Toaster } from './ui/sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useProject } from '../contexts/ProjectContext';
+import { useTeam } from '../contexts/TeamContext';
 import type { UserRole } from '../types';
 
 const CommandPalette = lazy(() =>
@@ -18,6 +20,15 @@ const JwtInspectorModal = lazy(() =>
 );
 const CreateProjectModal = lazy(() =>
   import('./CreateProjectModal').then(({ CreateProjectModal }) => ({ default: CreateProjectModal }))
+);
+const CreateTeamModal = lazy(() =>
+  import('./CreateTeamModal').then(({ CreateTeamModal }) => ({ default: CreateTeamModal }))
+);
+const FeedbackModal = lazy(() =>
+  import('./FeedbackModal').then(({ FeedbackModal }) => ({ default: FeedbackModal }))
+);
+const LegalModal = lazy(() =>
+  import('./LegalModal').then(({ LegalModal }) => ({ default: LegalModal }))
 );
 
 interface AppLayoutProps {
@@ -65,8 +76,12 @@ export function AppLayout({
     supabaseConnected,
   } = useProject();
 
+  const { isCreateTeamModalOpen, closeCreateTeamModal } = useTeam();
+
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
 
   return (
     <div
@@ -105,6 +120,21 @@ export function AppLayout({
 
       {/* Main Operating Surface */}
       <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 lg:pl-64">
+        {/* In-product Beta Disclaimer Banner */}
+        <div className="bg-amber-50 border-b border-amber-200/80 px-4 py-2 text-xs font-sans text-amber-950 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-200/80 text-amber-950 tracking-wider uppercase font-mono">
+              Beta
+            </span>
+            <span className="text-[11px] sm:text-xs">
+              <strong>NEXORA Beta:</strong> AI-generated matches are suggestions and require human verification before being committed to project records.
+            </span>
+          </div>
+          <span className="text-[10px] text-amber-800/80 font-mono hidden md:inline">
+            v0.1.0-beta.1
+          </span>
+        </div>
+
         {/* Top Header Bar */}
         <header className="h-14 border-b border-slate-200/80 bg-white px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
           <div className="flex min-w-0 items-center space-x-2.5 text-xs font-sans">
@@ -117,6 +147,9 @@ export function AppLayout({
             >
               <Menu className="h-5 w-5" />
             </button>
+
+            {/* Global Team Switcher Dropdown */}
+            <TeamSelector onOpenSettings={() => setActiveTab('team-settings')} />
 
             {/* Global Project Switcher Dropdown */}
             <ProjectSelector
@@ -140,6 +173,8 @@ export function AppLayout({
                 ? 'Schedule'
                 : activeTab === 'audit'
                 ? 'Audit Ledger'
+                : activeTab === 'team-settings'
+                ? 'Team Settings'
                 : activeTab === 'health'
                 ? 'System Health'
                 : activeTab === 'export'
@@ -149,6 +184,17 @@ export function AppLayout({
           </div>
 
           <div className="flex shrink-0 items-center space-x-2 sm:space-x-3 text-xs font-sans">
+            {/* Feedback Button */}
+            <button
+              type="button"
+              onClick={() => setIsFeedbackModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100/80 text-amber-900 border border-amber-200/80 rounded-lg text-xs transition-all duration-150 cursor-pointer active:scale-[0.98] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500 font-sans font-medium"
+              title="Give Beta Feedback or Report an Issue"
+            >
+              <MessageSquare className="h-3.5 w-3.5 text-amber-700" aria-hidden="true" />
+              <span className="hidden sm:inline">Feedback</span>
+            </button>
+
             {/* Quick Command Palette Button */}
             <button
               type="button"
@@ -216,6 +262,34 @@ export function AppLayout({
           {children}
         </div>
 
+        {/* Footer with Compliance & Support Links */}
+        <footer className="mt-auto border-t border-slate-200/70 py-4 px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-sans bg-white/50">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-slate-700">NEXORA Beta</span>
+            <span>&bull;</span>
+            <button
+              type="button"
+              onClick={() => setIsLegalModalOpen(true)}
+              className="hover:text-slate-800 underline transition cursor-pointer"
+            >
+              Privacy &amp; Terms
+            </button>
+            <span>&bull;</span>
+            <button
+              type="button"
+              onClick={() => setIsFeedbackModalOpen(true)}
+              className="hover:text-slate-800 underline transition cursor-pointer"
+            >
+              Support &amp; Feedback
+            </button>
+          </div>
+          <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
+            <span>Zero-Retention AI</span>
+            <span>&bull;</span>
+            <span>SHA-256 Ledger</span>
+          </div>
+        </footer>
+
         {/* Modals */}
         <Suspense fallback={null}>
           {isCommandPaletteOpen && (
@@ -256,6 +330,28 @@ export function AppLayout({
               onClose={closeCreateProjectModal}
               onProjectCreated={handleProjectCreated}
               userId={user?.id}
+            />
+          )}
+
+          {isCreateTeamModalOpen && (
+            <CreateTeamModal
+              isOpen={isCreateTeamModalOpen}
+              onClose={closeCreateTeamModal}
+            />
+          )}
+
+          {isFeedbackModalOpen && (
+            <FeedbackModal
+              isOpen={isFeedbackModalOpen}
+              onClose={() => setIsFeedbackModalOpen(false)}
+              activeTab={activeTab}
+            />
+          )}
+
+          {isLegalModalOpen && (
+            <LegalModal
+              isOpen={isLegalModalOpen}
+              onClose={() => setIsLegalModalOpen(false)}
             />
           )}
         </Suspense>

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { TeamProvider, useTeam } from './contexts/TeamContext';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
 import { AppLayout } from './components/AppLayout';
 import { DashboardSkeleton } from './components/SkeletonLoader';
@@ -28,6 +29,12 @@ const ScheduleExport = lazy(() =>
 const SystemHealth = lazy(() =>
   import('./pages/SystemHealth').then(({ SystemHealth }) => ({ default: SystemHealth }))
 );
+const TeamSettings = lazy(() =>
+  import('./pages/TeamSettings').then(({ TeamSettings }) => ({ default: TeamSettings }))
+);
+const Onboarding = lazy(() =>
+  import('./components/Onboarding').then(({ Onboarding }) => ({ default: Onboarding }))
+);
 const ThankYou = lazy(() =>
   import('./pages/ThankYou').then(({ ThankYou }) => ({ default: ThankYou }))
 );
@@ -36,6 +43,7 @@ const NotFound = lazy(() =>
 );
 
 type Theme = 'light' | 'dark';
+const isDemoMode = import.meta.env.VITE_ENABLE_DEMO_DATA === 'true';
 
 function AppRoutes({
   activeTab,
@@ -44,6 +52,8 @@ function AppRoutes({
   activeTab: string;
   setActiveTab: (tab: string) => void;
 }) {
+  const { user } = useAuth();
+  const { teamsList, isLoading: isTeamLoading } = useTeam();
   const {
     activities,
     observations,
@@ -59,6 +69,17 @@ function AppRoutes({
     handleRejectProposal,
     handleOverrideProposal,
   } = useProject();
+
+  if (user && !isDemoMode && !isTeamLoading && teamsList.length === 0) {
+    return (
+      <Suspense fallback={<DashboardSkeleton />}>
+        <Onboarding
+          onComplete={() => setActiveTab('dashboard')}
+          onNavigateTab={setActiveTab}
+        />
+      </Suspense>
+    );
+  }
 
   if (isLoading && (!activeProject || activities.length === 0)) {
     return <DashboardSkeleton />;
@@ -88,7 +109,14 @@ function AppRoutes({
   return (
     <Suspense fallback={<DashboardSkeleton />}>
       {activeTab === 'dashboard' && (
-        <Dashboard kpis={kpis} activities={activities} onNavigateTab={setActiveTab} />
+        <Dashboard 
+          kpis={kpis} 
+          activities={activities} 
+          project={activeProject}
+          reviewQueue={reviewQueue}
+          observations={observations}
+          onNavigateTab={setActiveTab} 
+        />
       )}
       {activeTab === 'graph' && (
         <ProjectGraph
@@ -116,6 +144,7 @@ function AppRoutes({
       )}
       {activeTab === 'schedule' && <ScheduleExplorer activities={activities} />}
       {activeTab === 'audit' && <AuditTrail events={auditEvents} />}
+      {activeTab === 'team-settings' && <TeamSettings />}
       {activeTab === 'health' && <SystemHealth />}
       {activeTab === 'export' && (
         <ScheduleExport
@@ -130,7 +159,7 @@ function AppRoutes({
         />
       )}
       {activeTab === 'thank-you' && <ThankYou onNavigateTab={setActiveTab as any} />}
-      {!['dashboard', 'graph', 'upload', 'review', 'schedule', 'audit', 'health', 'export', 'thank-you'].includes(
+      {!['dashboard', 'graph', 'upload', 'review', 'schedule', 'audit', 'team-settings', 'health', 'export', 'thank-you'].includes(
         activeTab
       ) && <NotFound onNavigateHome={() => setActiveTab('dashboard')} />}
     </Suspense>
@@ -157,16 +186,18 @@ export function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ProjectProvider>
-          <AppLayout
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            theme={theme}
-            setTheme={setTheme}
-          >
-            <AppRoutes activeTab={activeTab} setActiveTab={setActiveTab} />
-          </AppLayout>
-        </ProjectProvider>
+        <TeamProvider>
+          <ProjectProvider>
+            <AppLayout
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              theme={theme}
+              setTheme={setTheme}
+            >
+              <AppRoutes activeTab={activeTab} setActiveTab={setActiveTab} />
+            </AppLayout>
+          </ProjectProvider>
+        </TeamProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
