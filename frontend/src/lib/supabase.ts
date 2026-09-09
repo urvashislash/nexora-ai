@@ -299,7 +299,59 @@ export async function signUpWithEmail(
 }
 
 /**
- * Signs out the currently authenticated user.
+ * Sends a password reset email via Supabase Auth.
+ */
+export async function resetPasswordForEmail(email: string) {
+  if (!supabaseInstance) {
+    throw new Error('Supabase is not configured.');
+  }
+  const { data, error } = await supabaseInstance.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth/reset-password`,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Updates the user's password once authenticated (e.g. after following a reset link).
+ */
+export async function updateUserPassword(newPassword: string) {
+  if (!supabaseInstance) {
+    throw new Error('Supabase is not configured.');
+  }
+  const { data, error } = await supabaseInstance.auth.updateUser({
+    password: newPassword,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Resends the signup confirmation email for an unverified account.
+ */
+export async function resendVerificationEmail(email: string) {
+  if (!supabaseInstance) {
+    throw new Error('Supabase is not configured.');
+  }
+  const { data, error } = await supabaseInstance.auth.resend({
+    type: 'signup',
+    email,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Gets the current active session directly from Supabase Auth.
+ */
+export async function getAuthSession() {
+  if (!supabaseInstance) return null;
+  const { data } = await supabaseInstance.auth.getSession();
+  return data.session;
+}
+
+/**
+ * Signs out the currently authenticated user across this client.
  */
 export async function signOut() {
   if (!supabaseInstance) return;

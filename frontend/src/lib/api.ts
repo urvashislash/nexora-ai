@@ -348,5 +348,177 @@ export const api = {
       body: JSON.stringify(input),
     });
     return data;
+  },
+
+  // =========================================================================
+  // Team / Multi-Tenancy Endpoints
+  // =========================================================================
+
+  /**
+   * List caller's teams
+   */
+  async listTeams(): Promise<import('../types').Team[]> {
+    const { data } = await request<import('../types').Team[]>('/api/v1/teams');
+    return data || [];
+  },
+
+  /**
+   * Create a new team
+   */
+  async createTeam(name: string, slug?: string): Promise<import('../types').Team | null> {
+    const { data, error } = await request<import('../types').Team>('/api/v1/teams', {
+      method: 'POST',
+      body: JSON.stringify({ name, slug }),
+    });
+    if (error) {
+      console.error('[NEXORA] Error creating team:', error);
+      throw new Error(error);
+    }
+    return data;
+  },
+
+  /**
+   * Get team details by ID
+   */
+  async getTeam(teamId: string): Promise<import('../types').Team | null> {
+    const { data } = await request<import('../types').Team>(`/api/v1/teams/${teamId}`);
+    return data || null;
+  },
+
+  /**
+   * Update team name
+   */
+  async updateTeam(teamId: string, name: string): Promise<import('../types').Team | null> {
+    const { data, error } = await request<import('../types').Team>(`/api/v1/teams/${teamId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+    if (error) throw new Error(error);
+    return data;
+  },
+
+  /**
+   * Delete team (requires confirmName matching team name)
+   */
+  async deleteTeam(teamId: string, confirmName: string): Promise<void> {
+    const { error } = await request<void>(`/api/v1/teams/${teamId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm_name: confirmName }),
+    });
+    if (error) throw new Error(error);
+  },
+
+  /**
+   * List members of a team
+   */
+  async listTeamMembers(teamId: string): Promise<import('../types').TeamMember[]> {
+    const { data } = await request<import('../types').TeamMember[]>(`/api/v1/teams/${teamId}/members`);
+    return data || [];
+  },
+
+  /**
+   * Update team member's role
+   */
+  async updateTeamMemberRole(teamId: string, userId: string, role: import('../types').TeamRole): Promise<void> {
+    const { error } = await request<void>(`/api/v1/teams/${teamId}/members/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
+    if (error) throw new Error(error);
+  },
+
+  /**
+   * Remove member from team
+   */
+  async removeTeamMember(teamId: string, userId: string): Promise<void> {
+    const { error } = await request<void>(`/api/v1/teams/${teamId}/members/${userId}`, {
+      method: 'DELETE',
+    });
+    if (error) throw new Error(error);
+  },
+
+  /**
+   * Transfer team ownership
+   */
+  async transferTeamOwnership(teamId: string, newOwnerId: string): Promise<void> {
+    const { error } = await request<void>(`/api/v1/teams/${teamId}/transfer-ownership`, {
+      method: 'POST',
+      body: JSON.stringify({ new_owner_id: newOwnerId }),
+    });
+    if (error) throw new Error(error);
+  },
+
+  /**
+   * Leave team
+   */
+  async leaveTeam(teamId: string): Promise<void> {
+    const { error } = await request<void>(`/api/v1/teams/${teamId}/leave`, {
+      method: 'POST',
+    });
+    if (error) throw new Error(error);
+  },
+
+  /**
+   * List projects belonging to a team
+   */
+  async listTeamProjects(teamId: string): Promise<Project[]> {
+    const { data } = await request<Project[]>(`/api/v1/teams/${teamId}/projects`);
+    return data || [];
+  },
+
+  /**
+   * Create a project inside a team
+   */
+  async createTeamProject(teamId: string, input: ProjectCreateInput): Promise<Project | null> {
+    const { data, error } = await request<Project>(`/api/v1/teams/${teamId}/projects`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    if (error) {
+      console.error('[NEXORA] Error creating team project:', error);
+      throw new Error(error);
+    }
+    return data;
+  },
+
+  /**
+   * Create invitation to join team
+   */
+  async createTeamInvitation(teamId: string, email: string, role: string): Promise<import('../types').TeamInvitation> {
+    const { data, error } = await request<import('../types').TeamInvitation>(`/api/v1/teams/${teamId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    });
+    if (error) throw new Error(error);
+    return data!;
+  },
+
+  /**
+   * List pending invitations for a team
+   */
+  async listTeamInvitations(teamId: string): Promise<import('../types').TeamInvitation[]> {
+    const { data } = await request<import('../types').TeamInvitation[]>(`/api/v1/teams/${teamId}/invitations`);
+    return data || [];
+  },
+
+  /**
+   * Revoke an invitation
+   */
+  async revokeTeamInvitation(teamId: string, invitationId: string): Promise<void> {
+    const { error } = await request<void>(`/api/v1/teams/${teamId}/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+    if (error) throw new Error(error);
+  },
+
+  /**
+   * Accept an invitation token
+   */
+  async acceptTeamInvitation(token: string): Promise<import('../types').TeamMember> {
+    const { data, error } = await request<import('../types').TeamMember>(`/api/v1/invitations/${token}/accept`, {
+      method: 'POST',
+    });
+    if (error) throw new Error(error);
+    return data!;
   }
 };

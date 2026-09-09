@@ -84,33 +84,26 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.getSession();
       setSupabaseConnected(!error);
 
-      // 2. Fetch Projects via Trust Plane API, fallback to DB
+      // 2. Fetch Projects via Trust Plane API, fallback to Supabase DB query
       const apiProjects = await api.getProjects();
-      let currentProjects = projectsList;
+      let currentProjects: Project[] = [];
       if (apiProjects && apiProjects.length > 0) {
         setProjectsList(apiProjects);
         currentProjects = apiProjects;
       } else {
         const dbProjects = await fetchProjects();
         if (dbProjects && dbProjects.length > 0) {
-          const combined = isDemoMode
-            ? (() => {
-                const list = [...dbProjects];
-                DEFAULT_PROJECTS.forEach((dp) => {
-                  if (!list.some((p) => p.id === dp.id || p.code === dp.code)) {
-                    list.push(dp);
-                  }
-                });
-                return list;
-              })()
-            : dbProjects;
-          setProjectsList(combined);
-          currentProjects = combined;
+          setProjectsList(dbProjects);
+          currentProjects = dbProjects;
+        } else {
+          setProjectsList([]);
+          currentProjects = [];
         }
       }
 
-      const targetId = projectId || activeProject?.id || (currentProjects.length > 0 ? currentProjects[0].id : null);
+      const targetId = projectId || (currentProjects.find(p => p.id === activeProject?.id)?.id) || (currentProjects.length > 0 ? currentProjects[0].id : null);
       if (!targetId) {
+        setActiveProject(null);
         setActivities([]);
         setObservations([]);
         setReviewQueue([]);

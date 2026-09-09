@@ -69,6 +69,7 @@ export interface Project {
   description?: string;
   timezone: string;
   currency: string;
+  team_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -79,7 +80,51 @@ export interface ProjectCreateInput {
   description?: string;
   timezone?: string;
   currency?: string;
+  team_id?: string;
   baselineActivities?: BaselineActivityInput[];
+}
+
+export type TeamRole =
+  | 'OWNER'
+  | 'ADMIN'
+  | 'PLANNER'
+  | 'ENGINEER'
+  | 'SUPERVISOR'
+  | 'AUDITOR'
+  | 'VIEWER';
+
+export interface Team {
+  id: string;
+  name: string;
+  slug: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMember {
+  id: string;
+  team_id: string;
+  user_id: string;
+  email?: string;
+  full_name?: string;
+  role: TeamRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamInvitation {
+  id: string;
+  team_id: string;
+  email: string;
+  role: TeamRole;
+  token: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED' | 'EXPIRED';
+  invited_by: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BaselineActivityInput {
