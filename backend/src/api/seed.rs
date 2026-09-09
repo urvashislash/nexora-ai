@@ -19,6 +19,7 @@ pub fn get_seed_demo_data() -> (Vec<Project>, Vec<Activity>, Vec<ActivityCurrent
         ),
         timezone: "Asia/Kolkata".to_string(),
         currency: "INR".to_string(),
+        team_id: None,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };

@@ -14,6 +14,9 @@ use crate::messaging::publisher::RabbitPublisher;
 #[derive(Clone)]
 pub struct AppState {
     pub projects: Arc<RwLock<Vec<Project>>>,
+    pub teams: Arc<RwLock<Vec<Team>>>,
+    pub team_members: Arc<RwLock<Vec<TeamMember>>>,
+    pub team_invitations: Arc<RwLock<Vec<TeamInvitation>>>,
     pub activities: Arc<RwLock<Vec<Activity>>>,
     pub activity_states: Arc<RwLock<Vec<ActivityCurrentState>>>,
     pub observations: Arc<RwLock<Vec<WorkObservation>>>,
@@ -42,6 +45,9 @@ impl AppState {
         let (projects, activities, states) = super::seed::get_seed_demo_data();
         Self {
             projects: Arc::new(RwLock::new(projects)),
+            teams: Arc::new(RwLock::new(Vec::new())),
+            team_members: Arc::new(RwLock::new(Vec::new())),
+            team_invitations: Arc::new(RwLock::new(Vec::new())),
             activities: Arc::new(RwLock::new(activities)),
             activity_states: Arc::new(RwLock::new(states)),
             observations: Arc::new(RwLock::new(Vec::new())),
@@ -68,6 +74,9 @@ impl AppState {
     ) -> Self {
         Self {
             projects: Arc::new(RwLock::new(Vec::new())),
+            teams: Arc::new(RwLock::new(Vec::new())),
+            team_members: Arc::new(RwLock::new(Vec::new())),
+            team_invitations: Arc::new(RwLock::new(Vec::new())),
             activities: Arc::new(RwLock::new(Vec::new())),
             activity_states: Arc::new(RwLock::new(Vec::new())),
             observations: Arc::new(RwLock::new(Vec::new())),

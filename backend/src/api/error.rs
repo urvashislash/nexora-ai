@@ -21,6 +21,7 @@ impl IntoResponse for ApiError {
             "VALIDATION_ERROR" | "BAD_REQUEST" => StatusCode::BAD_REQUEST,
             "FORBIDDEN" => StatusCode::FORBIDDEN,
             "UNAUTHORIZED" => StatusCode::UNAUTHORIZED,
+            "SERVICE_UNAVAILABLE" => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         (status, Json(self)).into_response()
@@ -80,6 +81,14 @@ impl ApiError {
         Self {
             error: msg.into(),
             code: "INTERNAL_ERROR".to_string(),
+            details: None,
+        }
+    }
+
+    pub fn service_unavailable(msg: impl Into<String>) -> Self {
+        Self {
+            error: msg.into(),
+            code: "SERVICE_UNAVAILABLE".to_string(),
             details: None,
         }
     }

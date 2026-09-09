@@ -19,3 +19,4 @@ pub mod review;
 pub mod routes;
 pub mod seed;
 pub mod state;
+pub mod teams;

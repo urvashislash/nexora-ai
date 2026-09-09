@@ -76,6 +76,7 @@ pub async fn create_project(
             .timezone
             .unwrap_or_else(|| "Asia/Kolkata".to_string()),
         currency: payload.currency.unwrap_or_else(|| "INR".to_string()),
+        team_id: payload.team_id,
         created_at: now,
         updated_at: now,
     };
@@ -140,9 +141,7 @@ pub async fn get_project(
                     ApiError::internal(format!("Database error: {}", e))
                 })?;
             if membership.is_none() {
-                return Err(ApiError::forbidden(
-                    "User is not an active member of this project",
-                ));
+                return Err(ApiError::not_found("Project not found"));
             }
         }
 
@@ -171,6 +170,17 @@ pub async fn get_project(
         .find(|p| p.id == project_id)
         .cloned()
         .ok_or_else(|| ApiError::not_found("Project not found"))?;
+
+    // In-memory tenant isolation check
+    if let Some(team_id) = project.team_id {
+        let team_members = state.team_members.read().await;
+        let is_member = team_members
+            .iter()
+            .any(|m| m.team_id == team_id && m.user_id == auth.user_id && m.is_active);
+        if !is_member && auth.role != UserRole::Admin {
+            return Err(ApiError::not_found("Project not found"));
+        }
+    }
 
     Ok(Json(project))
 }

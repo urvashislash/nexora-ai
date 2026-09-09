@@ -66,6 +66,104 @@ pub enum UserRole {
     Viewer,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TeamRole {
+    Owner,
+    Admin,
+    Planner,
+    Engineer,
+    Supervisor,
+    Auditor,
+    Viewer,
+}
+
+impl TeamRole {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_uppercase().as_str() {
+            "OWNER" => Some(TeamRole::Owner),
+            "ADMIN" => Some(TeamRole::Admin),
+            "PLANNER" => Some(TeamRole::Planner),
+            "ENGINEER" => Some(TeamRole::Engineer),
+            "SUPERVISOR" => Some(TeamRole::Supervisor),
+            "AUDITOR" => Some(TeamRole::Auditor),
+            "VIEWER" => Some(TeamRole::Viewer),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TeamRole::Owner => "OWNER",
+            TeamRole::Admin => "ADMIN",
+            TeamRole::Planner => "PLANNER",
+            TeamRole::Engineer => "ENGINEER",
+            TeamRole::Supervisor => "SUPERVISOR",
+            TeamRole::Auditor => "AUDITOR",
+            TeamRole::Viewer => "VIEWER",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Team {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamMember {
+    pub id: Uuid,
+    pub team_id: Uuid,
+    pub user_id: Uuid,
+    pub email: Option<String>,
+    pub full_name: Option<String>,
+    pub role: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamInvitation {
+    pub id: Uuid,
+    pub team_id: Uuid,
+    pub email: String,
+    pub role: String,
+    pub token: String,
+    pub status: String,
+    pub invited_by: Uuid,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamCreateInput {
+    pub name: String,
+    pub slug: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamUpdateInput {
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamInviteInput {
+    pub email: String,
+    pub role: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamMemberRoleUpdateInput {
+    pub role: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ExecutionStatus {
@@ -93,6 +191,7 @@ pub struct Project {
     pub description: Option<String>,
     pub timezone: String,
     pub currency: String,
+    pub team_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -271,6 +370,7 @@ pub struct ProjectCreateInput {
     pub description: Option<String>,
     pub timezone: Option<String>,
     pub currency: Option<String>,
+    pub team_id: Option<Uuid>,
     pub baseline_activities: Option<Vec<BaselineActivityInput>>,
 }
 

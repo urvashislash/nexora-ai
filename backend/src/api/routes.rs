@@ -227,10 +227,57 @@ pub fn create_router(state: AppState) -> Router {
             require_project_permission(st.clone(), req, next, Permission::ViewProject)
         }));
 
+    // --- Team management routes (authenticated and tenant-isolated) ---
+    let team_routes = Router::new()
+        .route(
+            "/api/v1/teams",
+            get(super::teams::list_teams).post(super::teams::create_team),
+        )
+        .route(
+            "/api/v1/teams/:id",
+            get(super::teams::get_team)
+                .put(super::teams::update_team)
+                .delete(super::teams::delete_team),
+        )
+        .route(
+            "/api/v1/teams/:id/members",
+            get(super::teams::list_team_members),
+        )
+        .route(
+            "/api/v1/teams/:id/members/:user_id",
+            axum::routing::put(super::teams::update_team_member_role)
+                .delete(super::teams::remove_team_member),
+        )
+        .route(
+            "/api/v1/teams/:id/transfer-ownership",
+            post(super::teams::transfer_team_ownership),
+        )
+        .route(
+            "/api/v1/teams/:id/leave",
+            post(super::teams::leave_team),
+        )
+        .route(
+            "/api/v1/teams/:id/projects",
+            get(super::teams::list_team_projects).post(super::teams::create_team_project),
+        )
+        .route(
+            "/api/v1/teams/:id/invitations",
+            get(super::teams::list_team_invitations).post(super::teams::create_team_invitation),
+        )
+        .route(
+            "/api/v1/teams/:id/invitations/:inv_id",
+            axum::routing::delete(super::teams::revoke_team_invitation),
+        )
+        .route(
+            "/api/v1/invitations/:token/accept",
+            post(super::teams::accept_invitation),
+        );
+
     // Merge all route groups and apply global security middlewares
     Router::new()
         .merge(public_routes)
         .merge(auth_routes)
+        .merge(team_routes)
         .merge(project_routes)
         .merge(project_admin_routes)
         .merge(schedule_planner_routes)

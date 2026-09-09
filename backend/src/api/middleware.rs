@@ -193,15 +193,65 @@ pub async fn verify_project_membership(
     project_id: Uuid,
     user_id: Uuid,
 ) -> Result<Option<UserRole>, sqlx::Error> {
-    let row = sqlx::query_scalar::<_, String>(
-        "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1"
+    use sqlx::Row;
+    let row = sqlx::query(
+        r#"
+        SELECT 
+            p.team_id,
+            tm.role as team_role,
+            pm.role as project_role
+        FROM projects p
+        LEFT JOIN team_members tm 
+            ON tm.team_id = p.team_id 
+           AND tm.user_id = $2 
+           AND tm.is_active = true
+        LEFT JOIN project_members pm 
+            ON pm.project_id = p.id 
+           AND pm.user_id = $2 
+           AND pm.is_active = true
+        WHERE p.id = $1
+        LIMIT 1
+        "#,
     )
     .bind(project_id)
     .bind(user_id)
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.and_then(|r| parse_role_from_str(&r)))
+    let r = match row {
+        Some(row) => row,
+        None => return Ok(None),
+    };
+
+    let team_id: Option<Uuid> = r.try_get("team_id").ok().flatten();
+    let team_role: Option<String> = r.try_get("team_role").ok().flatten();
+    let project_role: Option<String> = r.try_get("project_role").ok().flatten();
+
+    if team_id.is_some() && team_role.is_none() {
+        return Ok(None);
+    }
+
+    if let Some(ref tr) = team_role {
+        match tr.to_uppercase().as_str() {
+            "OWNER" | "ADMIN" => return Ok(Some(UserRole::Admin)),
+            "AUDITOR" => return Ok(Some(UserRole::Auditor)),
+            _ => {}
+        }
+    }
+
+    if let Some(ref pr) = project_role {
+        if let Some(role) = parse_role_from_str(pr) {
+            return Ok(Some(role));
+        }
+    }
+
+    if let Some(ref tr) = team_role {
+        if let Some(role) = parse_role_from_str(tr) {
+            return Ok(Some(role));
+        }
+    }
+
+    Ok(None)
 }
 
 /// Extracts authentication context strictly from a verified Authorization: Bearer <jwt> header.
@@ -337,13 +387,10 @@ pub async fn require_project_permission(
                         UserRole::Admin
                     } else {
                         let body = SecurityErrorResponse {
-                            error: format!(
-                                "User is not an active member of project {}",
-                                project_id
-                            ),
-                            code: "PROJECT_MEMBERSHIP_REQUIRED".to_string(),
+                            error: "Project not found or access denied".to_string(),
+                            code: "NOT_FOUND".to_string(),
                         };
-                        return (StatusCode::FORBIDDEN, Json(body)).into_response();
+                        return (StatusCode::NOT_FOUND, Json(body)).into_response();
                     }
                 }
                 Err(e) => {
@@ -357,7 +404,47 @@ pub async fn require_project_permission(
             }
         } else {
             // In-memory / test mode without PostgreSQL
-            auth.role
+            let projects = state.projects.read().await;
+            let project = projects.iter().find(|p| p.id == project_id);
+
+            match project {
+                Some(p) => {
+                    if let Some(team_id) = p.team_id {
+                        let members = state.team_members.read().await;
+                        let is_member = members.iter().any(|m| m.team_id == team_id && m.user_id == auth.user_id && m.is_active);
+                        if !is_member && auth.role != UserRole::Admin {
+                            let body = SecurityErrorResponse {
+                                error: "Project not found or access denied".to_string(),
+                                code: "NOT_FOUND".to_string(),
+                            };
+                            return (StatusCode::NOT_FOUND, Json(body)).into_response();
+                        }
+                    }
+                    auth.role
+                }
+                None => {
+                    let perms = role_permissions(&auth.role);
+                    if !perms.contains(&required) {
+                        let body = SecurityErrorResponse {
+                            error: format!(
+                                "Role {:?} does not have {:?} permission for this project",
+                                auth.role, required
+                            ),
+                            code: "FORBIDDEN".to_string(),
+                        };
+                        return (StatusCode::FORBIDDEN, Json(body)).into_response();
+                    }
+
+                    if auth.role != UserRole::Admin {
+                        let body = SecurityErrorResponse {
+                            error: "Project not found or access denied".to_string(),
+                            code: "NOT_FOUND".to_string(),
+                        };
+                        return (StatusCode::NOT_FOUND, Json(body)).into_response();
+                    }
+                    auth.role
+                }
+            }
         }
     } else {
         // Non-project-scoped route (uses global JWT role)

@@ -45,6 +45,15 @@ pub async fn create_observation(
     Path(project_id): Path<Uuid>,
     Json(payload): Json<CreateObservationPayload>,
 ) -> Result<impl IntoResponse, ApiError> {
+    if std::env::var("DOCUMENT_INGESTION_ENABLED")
+        .map(|v| v == "false" || v == "0")
+        .unwrap_or(false)
+    {
+        return Err(ApiError::service_unavailable(
+            "Evidence ingestion is temporarily paused via operational kill switch",
+        ));
+    }
+
     // Validate progress and quantity if supplied
     ValidationEngine::validate_progress(payload.reported_progress)
         .map_err(|e| ApiError::validation(e.to_string()))?;

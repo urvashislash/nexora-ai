@@ -3,7 +3,7 @@
 // =============================================================================
 
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::Row;
 use std::sync::Arc;
@@ -81,7 +81,7 @@ impl Database {
     /// Loads all active projects from PostgreSQL
     pub async fn load_projects(&self) -> Result<Vec<Project>> {
         let rows = sqlx::query(
-            "SELECT id, code, name, description, timezone, currency, created_at, updated_at FROM projects ORDER BY created_at DESC",
+            "SELECT id, code, name, description, timezone, currency, team_id, created_at, updated_at FROM projects ORDER BY created_at DESC",
         )
         .fetch_all(&*self.pool)
         .await?;
@@ -95,6 +95,7 @@ impl Database {
                 description: r.try_get("description")?,
                 timezone: r.try_get("timezone")?,
                 currency: r.try_get("currency")?,
+                team_id: r.try_get("team_id").ok(),
                 created_at: r.try_get("created_at")?,
                 updated_at: r.try_get("updated_at")?,
             });
@@ -105,21 +106,23 @@ impl Database {
 
     /// Loads tenant-isolated projects for an authenticated user:
     /// - If is_admin: loads all active projects
-    /// - Otherwise: loads only projects where user is an active member in project_members
+    /// - Otherwise: loads projects where user is an active member in project_members OR team OWNER/ADMIN
     pub async fn load_user_projects(&self, user_id: Uuid, is_admin: bool) -> Result<Vec<Project>> {
         let rows = if is_admin {
             sqlx::query(
-                "SELECT id, code, name, description, timezone, currency, created_at, updated_at FROM projects ORDER BY created_at DESC",
+                "SELECT id, code, name, description, timezone, currency, team_id, created_at, updated_at FROM projects ORDER BY created_at DESC",
             )
             .fetch_all(&*self.pool)
             .await?
         } else {
             sqlx::query(
                 r#"
-                SELECT p.id, p.code, p.name, p.description, p.timezone, p.currency, p.created_at, p.updated_at
+                SELECT DISTINCT p.id, p.code, p.name, p.description, p.timezone, p.currency, p.team_id, p.created_at, p.updated_at
                 FROM projects p
-                INNER JOIN project_members pm ON pm.project_id = p.id
-                WHERE pm.user_id = $1 AND pm.is_active = true
+                LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1 AND pm.is_active = true
+                LEFT JOIN team_members tm ON tm.team_id = p.team_id AND tm.user_id = $1 AND tm.is_active = true
+                WHERE (p.team_id IS NULL AND pm.id IS NOT NULL)
+                   OR (p.team_id IS NOT NULL AND tm.id IS NOT NULL AND (pm.id IS NOT NULL OR tm.role IN ('OWNER', 'ADMIN', 'AUDITOR', 'PLANNER')))
                 ORDER BY p.created_at DESC
                 "#,
             )
@@ -137,6 +140,7 @@ impl Database {
                 description: r.try_get("description")?,
                 timezone: r.try_get("timezone")?,
                 currency: r.try_get("currency")?,
+                team_id: r.try_get("team_id").ok(),
                 created_at: r.try_get("created_at")?,
                 updated_at: r.try_get("updated_at")?,
             });
@@ -145,35 +149,121 @@ impl Database {
         Ok(projects)
     }
 
-    /// Verifies whether a user has active membership in a project, returning their project-specific role
+    /// Loads all projects belonging to a specific team
+    pub async fn load_team_projects(&self, team_id: Uuid) -> Result<Vec<Project>> {
+        let rows = sqlx::query(
+            "SELECT id, code, name, description, timezone, currency, team_id, created_at, updated_at FROM projects WHERE team_id = $1 ORDER BY created_at DESC",
+        )
+        .bind(team_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut projects = Vec::new();
+        for r in rows {
+            projects.push(Project {
+                id: r.try_get("id")?,
+                code: r.try_get("code")?,
+                name: r.try_get("name")?,
+                description: r.try_get("description")?,
+                timezone: r.try_get("timezone")?,
+                currency: r.try_get("currency")?,
+                team_id: r.try_get("team_id").ok(),
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
+            });
+        }
+
+        Ok(projects)
+    }
+
+    /// Verifies whether a user has active membership in a project or inherits authority from parent team
     pub async fn verify_project_membership(
         &self,
         project_id: Uuid,
         user_id: Uuid,
     ) -> Result<Option<UserRole>> {
-        let row = sqlx::query_scalar::<_, String>(
-            "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 AND is_active = true LIMIT 1"
+        let row = sqlx::query(
+            r#"
+            SELECT 
+                p.team_id,
+                tm.role as team_role,
+                pm.role as project_role
+            FROM projects p
+            LEFT JOIN team_members tm 
+                ON tm.team_id = p.team_id 
+               AND tm.user_id = $2 
+               AND tm.is_active = true
+            LEFT JOIN project_members pm 
+                ON pm.project_id = p.id 
+               AND pm.user_id = $2 
+               AND pm.is_active = true
+            WHERE p.id = $1
+            LIMIT 1
+            "#,
         )
         .bind(project_id)
         .bind(user_id)
         .fetch_optional(&*self.pool)
         .await?;
 
-        Ok(row.and_then(|r| match r.to_uppercase().as_str() {
-            "ADMIN" => Some(UserRole::Admin),
-            "PLANNER" => Some(UserRole::Planner),
-            "FIELD_ENGINEER" | "FIELDENGINEER" | "ENGINEER" => Some(UserRole::Engineer),
-            "SUPERVISOR" => Some(UserRole::Supervisor),
-            "AUDITOR" => Some(UserRole::Auditor),
-            "VIEWER" => Some(UserRole::Viewer),
-            _ => None,
-        }))
+        let r = match row {
+            Some(row) => row,
+            None => return Ok(None),
+        };
+
+        let team_id: Option<Uuid> = r.try_get("team_id").ok().flatten();
+        let team_role: Option<String> = r.try_get("team_role").ok().flatten();
+        let project_role: Option<String> = r.try_get("project_role").ok().flatten();
+
+        // If the project belongs to a team, the caller MUST be an active member of that team
+        if team_id.is_some() && team_role.is_none() {
+            return Ok(None);
+        }
+
+        // Team Owner/Admin automatically inherits Admin on every project in that team
+        if let Some(ref tr) = team_role {
+            match tr.to_uppercase().as_str() {
+                "OWNER" | "ADMIN" => return Ok(Some(UserRole::Admin)),
+                "AUDITOR" => return Ok(Some(UserRole::Auditor)),
+                _ => {}
+            }
+        }
+
+        // Project-level role takes precedence for operational roles
+        if let Some(ref pr) = project_role {
+            if let Some(role) = match pr.to_uppercase().as_str() {
+                "ADMIN" => Some(UserRole::Admin),
+                "PLANNER" => Some(UserRole::Planner),
+                "FIELD_ENGINEER" | "FIELDENGINEER" | "ENGINEER" => Some(UserRole::Engineer),
+                "SUPERVISOR" => Some(UserRole::Supervisor),
+                "AUDITOR" => Some(UserRole::Auditor),
+                "VIEWER" => Some(UserRole::Viewer),
+                _ => None,
+            } {
+                return Ok(Some(role));
+            }
+        }
+
+        // If no explicit project_member row, fallback to team role
+        if let Some(ref tr) = team_role {
+            if let Some(role) = match tr.to_uppercase().as_str() {
+                "PLANNER" => Some(UserRole::Planner),
+                "ENGINEER" => Some(UserRole::Engineer),
+                "SUPERVISOR" => Some(UserRole::Supervisor),
+                "VIEWER" => Some(UserRole::Viewer),
+                _ => None,
+            } {
+                return Ok(Some(role));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Fetches a single project by ID
     pub async fn get_project(&self, id: Uuid) -> Result<Option<Project>> {
         let row = sqlx::query(
-            "SELECT id, code, name, description, timezone, currency, created_at, updated_at FROM projects WHERE id = $1",
+            "SELECT id, code, name, description, timezone, currency, team_id, created_at, updated_at FROM projects WHERE id = $1",
         )
         .bind(id)
         .fetch_optional(&*self.pool)
@@ -187,12 +277,470 @@ impl Database {
                 description: r.try_get("description")?,
                 timezone: r.try_get("timezone")?,
                 currency: r.try_get("currency")?,
+                team_id: r.try_get("team_id").ok(),
                 created_at: r.try_get("created_at")?,
                 updated_at: r.try_get("updated_at")?,
             }))
         } else {
             Ok(None)
         }
+    }
+
+    // =========================================================================
+    // Team Multi-Tenancy Methods
+    // =========================================================================
+
+    /// Transactionally creates a team and registers the creator as OWNER
+    pub async fn create_team_tx(
+        &self,
+        input: &TeamCreateInput,
+        creator_id: Uuid,
+        creator_email: Option<&str>,
+        creator_name: Option<&str>,
+    ) -> Result<Team> {
+        let mut tx = self.pool.begin().await?;
+        let team_id = Uuid::new_v4();
+        let now = Utc::now();
+        let slug = input.slug.clone().unwrap_or_else(|| {
+            let s: String = input
+                .name
+                .to_lowercase()
+                .chars()
+                .map(|c| if c.is_alphanumeric() { c } else { '-' })
+                .collect();
+            let trimmed = s.trim_matches('-').to_string();
+            if trimmed.is_empty() {
+                format!("team-{}", &team_id.to_string()[..8])
+            } else {
+                trimmed
+            }
+        });
+
+        // 1. Insert team
+        sqlx::query(
+            "INSERT INTO teams (id, name, slug, created_by, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(team_id)
+        .bind(&input.name)
+        .bind(&slug)
+        .bind(creator_id)
+        .bind(now)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        // 2. Insert creator as OWNER in team_members
+        let member_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO team_members (id, team_id, user_id, email, full_name, role, is_active, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, 'OWNER', true, $6, $7)",
+        )
+        .bind(member_id)
+        .bind(team_id)
+        .bind(creator_id)
+        .bind(creator_email)
+        .bind(creator_name)
+        .bind(now)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(Team {
+            id: team_id,
+            name: input.name.clone(),
+            slug,
+            created_by: creator_id,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    /// Loads all teams where the user is an active member
+    pub async fn load_user_teams(&self, user_id: Uuid) -> Result<Vec<Team>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT t.id, t.name, t.slug, t.created_by, t.created_at, t.updated_at
+            FROM teams t
+            INNER JOIN team_members tm ON tm.team_id = t.id
+            WHERE tm.user_id = $1 AND tm.is_active = true
+            ORDER BY t.created_at ASC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut teams = Vec::new();
+        for r in rows {
+            teams.push(Team {
+                id: r.try_get("id")?,
+                name: r.try_get("name")?,
+                slug: r.try_get("slug")?,
+                created_by: r.try_get("created_by")?,
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
+            });
+        }
+        Ok(teams)
+    }
+
+    /// Fetches a single team by ID
+    pub async fn get_team(&self, team_id: Uuid) -> Result<Option<Team>> {
+        let row = sqlx::query(
+            "SELECT id, name, slug, created_by, created_at, updated_at FROM teams WHERE id = $1",
+        )
+        .bind(team_id)
+        .fetch_optional(&*self.pool)
+        .await?;
+
+        if let Some(r) = row {
+            Ok(Some(Team {
+                id: r.try_get("id")?,
+                name: r.try_get("name")?,
+                slug: r.try_get("slug")?,
+                created_by: r.try_get("created_by")?,
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Verifies whether a user has active membership in a team, returning their team role
+    pub async fn verify_team_membership(
+        &self,
+        team_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<TeamRole>> {
+        let row = sqlx::query_scalar::<_, String>(
+            "SELECT role FROM team_members WHERE team_id = $1 AND user_id = $2 AND is_active = true LIMIT 1",
+        )
+        .bind(team_id)
+        .bind(user_id)
+        .fetch_optional(&*self.pool)
+        .await?;
+
+        Ok(row.and_then(|r| TeamRole::from_str(&r)))
+    }
+
+    /// Updates team name
+    pub async fn update_team(&self, team_id: Uuid, name: &str) -> Result<Team> {
+        let now = Utc::now();
+        sqlx::query("UPDATE teams SET name = $1, updated_at = $2 WHERE id = $3")
+            .bind(name)
+            .bind(now)
+            .bind(team_id)
+            .execute(&*self.pool)
+            .await?;
+
+        let team = self
+            .get_team(team_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Team not found"))?;
+        Ok(team)
+    }
+
+    /// Deletes a team with confirmed name verification
+    pub async fn delete_team_tx(&self, team_id: Uuid, confirmed_name: &str) -> Result<()> {
+        let team = self
+            .get_team(team_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Team not found"))?;
+        if team.name.trim() != confirmed_name.trim() {
+            return Err(anyhow::anyhow!("Team name confirmation mismatch"));
+        }
+        sqlx::query("DELETE FROM teams WHERE id = $1")
+            .bind(team_id)
+            .execute(&*self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Lists active members of a team
+    pub async fn list_team_members(&self, team_id: Uuid) -> Result<Vec<TeamMember>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, team_id, user_id, email, full_name, role, is_active, created_at, updated_at
+            FROM team_members
+            WHERE team_id = $1 AND is_active = true
+            ORDER BY created_at ASC
+            "#,
+        )
+        .bind(team_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut members = Vec::new();
+        for r in rows {
+            members.push(TeamMember {
+                id: r.try_get("id")?,
+                team_id: r.try_get("team_id")?,
+                user_id: r.try_get("user_id")?,
+                email: r.try_get("email").ok(),
+                full_name: r.try_get("full_name").ok(),
+                role: r.try_get("role")?,
+                is_active: r.try_get("is_active")?,
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
+            });
+        }
+        Ok(members)
+    }
+
+    /// Updates a team member's role
+    pub async fn update_team_member_role(
+        &self,
+        team_id: Uuid,
+        user_id: Uuid,
+        new_role: &str,
+    ) -> Result<()> {
+        let now = Utc::now();
+        sqlx::query(
+            "UPDATE team_members SET role = $1, updated_at = $2 WHERE team_id = $3 AND user_id = $4",
+        )
+        .bind(new_role)
+        .bind(now)
+        .bind(team_id)
+        .bind(user_id)
+        .execute(&*self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Removes a member from a team
+    pub async fn remove_team_member(&self, team_id: Uuid, user_id: Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM team_members WHERE team_id = $1 AND user_id = $2")
+            .bind(team_id)
+            .bind(user_id)
+            .execute(&*self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Transfers team ownership to another member
+    pub async fn transfer_team_ownership_tx(
+        &self,
+        team_id: Uuid,
+        current_owner_id: Uuid,
+        new_owner_id: Uuid,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now();
+
+        // 1. Verify current owner
+        let owner_check = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2 AND role = 'OWNER')",
+        )
+        .bind(team_id)
+        .bind(current_owner_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if !owner_check {
+            return Err(anyhow::anyhow!("Caller is not the team owner"));
+        }
+
+        // 2. Set current owner to ADMIN
+        sqlx::query(
+            "UPDATE team_members SET role = 'ADMIN', updated_at = $1 WHERE team_id = $2 AND user_id = $3",
+        )
+        .bind(now)
+        .bind(team_id)
+        .bind(current_owner_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // 3. Set new owner to OWNER
+        sqlx::query(
+            "UPDATE team_members SET role = 'OWNER', updated_at = $1 WHERE team_id = $2 AND user_id = $3",
+        )
+        .bind(now)
+        .bind(team_id)
+        .bind(new_owner_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // 4. Update team created_by
+        sqlx::query("UPDATE teams SET created_by = $1, updated_at = $2 WHERE id = $3")
+            .bind(new_owner_id)
+            .bind(now)
+            .bind(team_id)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Creates a team invitation with a secure token and 7-day expiration
+    pub async fn create_team_invitation(
+        &self,
+        team_id: Uuid,
+        email: &str,
+        role: &str,
+        invited_by: Uuid,
+    ) -> Result<TeamInvitation> {
+        let inv_id = Uuid::new_v4();
+        let token = format!(
+            "{}-{}",
+            Uuid::new_v4(),
+            Uuid::new_v4().to_string().replace('-', "")
+        );
+        let now = Utc::now();
+        let expires_at = now + chrono::Duration::days(7);
+
+        sqlx::query(
+            r#"
+            INSERT INTO team_invitations (id, team_id, email, role, token, status, invited_by, expires_at, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9)
+            "#,
+        )
+        .bind(inv_id)
+        .bind(team_id)
+        .bind(email)
+        .bind(role)
+        .bind(&token)
+        .bind(invited_by)
+        .bind(expires_at)
+        .bind(now)
+        .bind(now)
+        .execute(&*self.pool)
+        .await?;
+
+        Ok(TeamInvitation {
+            id: inv_id,
+            team_id,
+            email: email.to_string(),
+            role: role.to_string(),
+            token,
+            status: "PENDING".to_string(),
+            invited_by,
+            expires_at,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    /// Lists active pending invitations for a team
+    pub async fn list_team_invitations(&self, team_id: Uuid) -> Result<Vec<TeamInvitation>> {
+        let rows = sqlx::query(
+            "SELECT id, team_id, email, role, token, status, invited_by, expires_at, created_at, updated_at FROM team_invitations WHERE team_id = $1 AND status = 'PENDING' AND expires_at > now() ORDER BY created_at DESC",
+        )
+        .bind(team_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let mut invs = Vec::new();
+        for r in rows {
+            invs.push(TeamInvitation {
+                id: r.try_get("id")?,
+                team_id: r.try_get("team_id")?,
+                email: r.try_get("email")?,
+                role: r.try_get("role")?,
+                token: r.try_get("token")?,
+                status: r.try_get("status")?,
+                invited_by: r.try_get("invited_by")?,
+                expires_at: r.try_get("expires_at")?,
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
+            });
+        }
+        Ok(invs)
+    }
+
+    /// Revokes a pending team invitation
+    pub async fn revoke_team_invitation(&self, team_id: Uuid, invitation_id: Uuid) -> Result<()> {
+        sqlx::query(
+            "UPDATE team_invitations SET status = 'REVOKED', updated_at = now() WHERE team_id = $1 AND id = $2",
+        )
+        .bind(team_id)
+        .bind(invitation_id)
+        .execute(&*self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Accepts an invitation by token and adds the user to team_members
+    pub async fn accept_team_invitation(
+        &self,
+        token: &str,
+        user_id: Uuid,
+        user_email: Option<&str>,
+        user_name: Option<&str>,
+    ) -> Result<TeamMember> {
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now();
+
+        let inv_row = sqlx::query(
+            "SELECT id, team_id, email, role, status, expires_at FROM team_invitations WHERE token = $1 FOR UPDATE",
+        )
+        .bind(token)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Invitation not found"))?;
+
+        let status: String = inv_row.try_get("status")?;
+        let expires_at: DateTime<Utc> = inv_row.try_get("expires_at")?;
+        if status != "PENDING" {
+            return Err(anyhow::anyhow!(
+                "Invitation is no longer valid (status: {})",
+                status
+            ));
+        }
+        if expires_at < now {
+            return Err(anyhow::anyhow!("Invitation has expired"));
+        }
+
+        let team_id: Uuid = inv_row.try_get("team_id")?;
+        let role: String = inv_row.try_get("role")?;
+        let inv_id: Uuid = inv_row.try_get("id")?;
+
+        // Add to team_members
+        let member_id = Uuid::new_v4();
+        sqlx::query(
+            r#"
+            INSERT INTO team_members (id, team_id, user_id, email, full_name, role, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)
+            ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role, is_active = true, updated_at = EXCLUDED.updated_at
+            "#,
+        )
+        .bind(member_id)
+        .bind(team_id)
+        .bind(user_id)
+        .bind(user_email)
+        .bind(user_name)
+        .bind(&role)
+        .bind(now)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+        // Update invitation status
+        sqlx::query(
+            "UPDATE team_invitations SET status = 'ACCEPTED', updated_at = $1 WHERE id = $2",
+        )
+        .bind(now)
+        .bind(inv_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(TeamMember {
+            id: member_id,
+            team_id,
+            user_id,
+            email: user_email.map(String::from),
+            full_name: user_name.map(String::from),
+            role,
+            is_active: true,
+            created_at: now,
+            updated_at: now,
+        })
     }
 
     /// Fetches the user role in a project from project_members table
@@ -234,7 +782,7 @@ impl Database {
 
         // 1. Insert into projects
         sqlx::query(
-            "INSERT INTO projects (id, code, name, description, timezone, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+            "INSERT INTO projects (id, code, name, description, timezone, currency, team_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
         )
         .bind(project_id)
         .bind(&code)
@@ -242,6 +790,7 @@ impl Database {
         .bind(&input.description)
         .bind(&timezone)
         .bind(&currency)
+        .bind(input.team_id)
         .bind(now)
         .bind(now)
         .execute(&mut *tx)
@@ -389,6 +938,7 @@ impl Database {
             description: input.description.clone(),
             timezone,
             currency,
+            team_id: input.team_id,
             created_at: now,
             updated_at: now,
         })

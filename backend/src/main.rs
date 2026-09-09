@@ -68,7 +68,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let is_prod = std::env::var("APP_ENV")
         .or_else(|_| std::env::var("ENVIRONMENT"))
-        .map(|v| v.to_lowercase() == "production" || v.to_lowercase() == "prod")
+        .map(|v| {
+            let s = v.to_lowercase();
+            s == "production" || s == "prod" || s == "beta"
+        })
         .unwrap_or(false);
 
     if is_prod && database.is_none() {
@@ -117,10 +120,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|v| v == "true" || v == "1")
         .unwrap_or(false);
 
-    let state = if seed_demo {
+    let state = if seed_demo && !is_prod {
         tracing::warn!("Starting with demo seed entities (NEXORA_SEED_DEMO=true)");
         AppState::new(publisher.clone(), redis_cache.clone(), database.clone())
     } else {
+        if seed_demo && is_prod {
+            tracing::warn!("NEXORA_SEED_DEMO ignored in beta/production environment — starting clean");
+        }
         tracing::info!("Starting with clean empty state (no synthetic entities in runtime)");
         AppState::empty(publisher.clone(), redis_cache.clone(), database.clone())
     };

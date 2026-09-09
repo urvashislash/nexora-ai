@@ -360,7 +360,14 @@ impl ResultConsumer {
 
                     let prop_id = Uuid::new_v4();
 
-                    if let (true, Some(act)) = (auto_link_eligible, act_opt) {
+                    let auto_link_allowed = std::env::var("AI_AUTO_LINK_ENABLED")
+                        .map(|v| v != "false" && v != "0")
+                        .unwrap_or(true)
+                        && std::env::var("FEATURE_AUTO_LINK")
+                            .map(|v| v != "false" && v != "0")
+                            .unwrap_or(true);
+
+                    if let (true, true, Some(act)) = (auto_link_eligible, auto_link_allowed, act_opt) {
                         let actual_date = Utc::now().date_naive();
                         let progress = obs_data
                             .and_then(|o| o.get("reported_progress"))
