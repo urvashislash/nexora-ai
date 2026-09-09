@@ -33,6 +33,7 @@ async fn test_concurrent_proposal_approval_double_spend_prevention() {
             description: None,
             timezone: "UTC".into(),
             currency: "USD".into(),
+            team_id: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         });
@@ -166,6 +167,20 @@ async fn test_high_throughput_concurrent_observations_chain_continuity() {
     let app = create_router(state.clone());
 
     let project_id = Uuid::new_v4();
+    {
+        let mut projects = state.projects.write().await;
+        projects.push(Project {
+            id: project_id,
+            code: "CONC-PROJ".into(),
+            name: "Concurrency Project".into(),
+            description: None,
+            timezone: "UTC".into(),
+            currency: "USD".into(),
+            team_id: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        });
+    }
     let supervisor_id = Uuid::new_v4();
     let token = generate_signed_jwt(supervisor_id, "SUPERVISOR", 3600).unwrap();
 
@@ -275,6 +290,7 @@ async fn test_real_postgresql_concurrent_proposal_approvals_with_row_locking() {
         description: Some("Testing real row-level locks under 10 concurrent transactions".into()),
         timezone: Some("UTC".into()),
         currency: Some("USD".into()),
+        team_id: None,
         baseline_activities: None,
     };
 

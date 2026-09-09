@@ -36,6 +36,7 @@ async fn test_cross_tenant_activity_override_isolation() {
             description: None,
             timezone: "UTC".into(),
             currency: "USD".into(),
+            team_id: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         });
@@ -46,6 +47,7 @@ async fn test_cross_tenant_activity_override_isolation() {
             description: None,
             timezone: "UTC".into(),
             currency: "USD".into(),
+            team_id: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         });
@@ -201,8 +203,8 @@ async fn test_cross_tenant_document_and_observation_endpoints_require_membership
         .unwrap();
 
     let obs_res = app.clone().oneshot(obs_req).await.unwrap();
-    // In-memory test without DB allows global role; with DB will verify membership
-    assert!(obs_res.status() == StatusCode::CREATED || obs_res.status() == StatusCode::FORBIDDEN);
+    // In-memory test without DB allows global role; with DB will verify membership (403 or 404 uninformative)
+    assert!(obs_res.status() == StatusCode::CREATED || obs_res.status() == StatusCode::FORBIDDEN || obs_res.status() == StatusCode::NOT_FOUND);
 
     // 2. POST /api/v1/projects/:id/documents
     let doc_req = Request::builder()
@@ -220,7 +222,7 @@ async fn test_cross_tenant_document_and_observation_endpoints_require_membership
         .unwrap();
 
     let doc_res = app.oneshot(doc_req).await.unwrap();
-    assert!(doc_res.status() == StatusCode::CREATED || doc_res.status() == StatusCode::FORBIDDEN);
+    assert!(doc_res.status() == StatusCode::CREATED || doc_res.status() == StatusCode::FORBIDDEN || doc_res.status() == StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

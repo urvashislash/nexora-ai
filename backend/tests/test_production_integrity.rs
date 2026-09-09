@@ -243,6 +243,22 @@ async fn test_ingest_observations_disallows_client_supplied_auto_link() {
     }
 
     let planner_id = Uuid::new_v4();
+
+    {
+        let mut projects = state.projects.write().await;
+        projects.push(Project {
+            id: project_id,
+            team_id: None,
+            name: "Test Project".into(),
+            code: "TP-01".into(),
+            description: None,
+            timezone: "UTC".into(),
+            currency: "USD".into(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        });
+    }
+
     let token = generate_signed_jwt(planner_id, "PLANNER", 3600).unwrap();
 
     let app = create_router(state.clone());
@@ -354,10 +370,25 @@ async fn test_production_environment_fails_fast_on_missing_jwt_secret() {
 async fn test_actor_identity_enforced_from_jwt_in_observation_creation() {
     let _guard = TEST_ENV_LOCK.lock().await;
     let state = AppState::empty(None, None, None);
-    let app = create_router(state.clone());
     let project_id = Uuid::new_v4();
-
     let legitimate_user_id = Uuid::new_v4();
+
+    {
+        let mut projects = state.projects.write().await;
+        projects.push(Project {
+            id: project_id,
+            team_id: None,
+            name: "Test Project 2".into(),
+            code: "TP-02".into(),
+            description: None,
+            timezone: "UTC".into(),
+            currency: "USD".into(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        });
+    }
+
+    let app = create_router(state.clone());
     let token = generate_signed_jwt(legitimate_user_id, "ENGINEER", 3600).unwrap();
 
     let deceptive_reported_by = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();

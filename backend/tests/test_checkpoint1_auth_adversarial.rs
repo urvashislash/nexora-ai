@@ -140,6 +140,20 @@ async fn test_spoofed_reported_by_in_observation_is_overridden_by_jwt() {
     let state = AppState::empty(None, None, None);
     let app = create_router(state.clone());
     let project_id = Uuid::new_v4();
+    {
+        let mut projects = state.projects.write().await;
+        projects.push(Project {
+            id: project_id,
+            code: "OBS-PROJ".into(),
+            name: "Observation Test Project".into(),
+            description: None,
+            timezone: "UTC".into(),
+            currency: "USD".into(),
+            team_id: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        });
+    }
 
     let legitimate_user_id = Uuid::new_v4();
     let token = generate_signed_jwt(legitimate_user_id, "ENGINEER", 3600).unwrap();

@@ -11,6 +11,7 @@ use uuid::Uuid;
 use backend::api::handlers::AppState;
 use backend::api::middleware::generate_signed_jwt;
 use backend::api::routes::create_router;
+use backend::domain::models::Project;
 use backend::domain::validation::ValidationEngine;
 
 static TEST_ENV_LOCK: Mutex<()> = Mutex::const_new(());
@@ -69,9 +70,23 @@ async fn test_failure_injection_rabbitmq_outage_does_not_block_document_ingestio
     let _guard = TEST_ENV_LOCK.lock().await;
     // AppState with rabbit_publisher = None (simulating RabbitMQ outage or unconfigured)
     let state = AppState::empty(None, None, None);
-    let app = create_router(state);
+    let app = create_router(state.clone());
 
     let project_id = Uuid::new_v4();
+    {
+        let mut projects = state.projects.write().await;
+        projects.push(Project {
+            id: project_id,
+            code: "RABBIT-PROJ".into(),
+            name: "Rabbit Outage Project".into(),
+            description: None,
+            timezone: "UTC".into(),
+            currency: "USD".into(),
+            team_id: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        });
+    }
     let user_id = Uuid::new_v4();
     let engineer_token = generate_signed_jwt(user_id, "ENGINEER", 3600).unwrap();
 
