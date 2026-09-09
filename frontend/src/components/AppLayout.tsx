@@ -30,6 +30,9 @@ const FeedbackModal = lazy(() =>
 const LegalModal = lazy(() =>
   import('./LegalModal').then(({ LegalModal }) => ({ default: LegalModal }))
 );
+const AccountModal = lazy(() =>
+  import('./AccountModal').then(({ AccountModal }) => ({ default: AccountModal }))
+);
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -82,6 +85,7 @@ export function AppLayout({
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
   return (
     <div
@@ -115,6 +119,7 @@ export function AppLayout({
         onCloseMobile={() => setIsMobileNavOpen(false)}
         onOpenAuth={openAuthModal}
         onOpenJwt={openJwtModal}
+        onOpenAccount={() => setIsAccountModalOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -352,6 +357,13 @@ export function AppLayout({
             <LegalModal
               isOpen={isLegalModalOpen}
               onClose={() => setIsLegalModalOpen(false)}
+            />
+          )}
+
+          {isAccountModalOpen && (
+            <AccountModal
+              isOpen={isAccountModalOpen}
+              onClose={() => setIsAccountModalOpen(false)}
             />
           )}
         </Suspense>

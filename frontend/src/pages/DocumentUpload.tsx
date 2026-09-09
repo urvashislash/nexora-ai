@@ -436,15 +436,37 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     setActiveStep(1);
 
     try {
-      // Step 1: Upload to Supabase Storage if file exists
+      // Step 1: Upload to Supabase Storage if file exists & register durable document job in Trust Plane
       let storagePath: string | null = null;
       if (selectedFile) {
         setActiveStep(1);
         storagePath = await uploadEvidenceFile(effectiveProjectId, selectedFile, 'reports');
+        if (storagePath) {
+          await api.createDocument(effectiveProjectId, {
+            filename: selectedFile.name,
+            mime_type: selectedFile.type,
+            size_bytes: selectedFile.size,
+            storage_key: storagePath,
+            storage_bucket: 'evidence-documents',
+            source_type: sourceType,
+            text_content: rawText || undefined,
+          });
+        }
       } else if (audioBlob) {
         setActiveStep(1);
         const audioFile = new File([audioBlob], 'voice_memo_recording.webm', { type: audioBlob.type || 'audio/webm' });
         storagePath = await uploadEvidenceFile(effectiveProjectId, audioFile, 'voice');
+        if (storagePath) {
+          await api.createDocument(effectiveProjectId, {
+            filename: 'voice_memo_recording.webm',
+            mime_type: audioBlob.type || 'audio/webm',
+            size_bytes: audioBlob.size,
+            storage_key: storagePath,
+            storage_bucket: 'evidence-documents',
+            source_type: 'VOICE',
+            text_content: rawText || undefined,
+          });
+        }
       }
 
       // Step 2: Extraction & Normalization

@@ -520,5 +520,42 @@ export const api = {
     });
     if (error) throw new Error(error);
     return data!;
+  },
+
+  /**
+   * Register uploaded document and enqueue background AI processing job
+   */
+  async createDocument(projectId: string, input: {
+    filename: string;
+    mime_type?: string;
+    size_bytes?: number;
+    storage_key?: string;
+    storage_bucket?: string;
+    source_type?: string;
+    checksum_sha256?: string;
+    text_content?: string;
+    content_base64?: string;
+  }): Promise<{ document: any; job: any; status: string; message: string } | null> {
+    const { data, error } = await request<any>(`/api/v1/projects/${projectId}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    if (error) {
+      console.error('[NEXORA] Error creating document via API:', error);
+      return null;
+    }
+    return data;
+  },
+
+  /**
+   * Retrieve status of a background document processing job
+   */
+  async getJob(jobId: string): Promise<{ job: { id: string; status: string; attempt_count?: number; max_attempts?: number; error_message?: string } } | null> {
+    const { data, error } = await request<any>(`/api/v1/jobs/${jobId}`);
+    if (error) {
+      console.error('[NEXORA] Error fetching job status:', error);
+      return null;
+    }
+    return data;
   }
 };

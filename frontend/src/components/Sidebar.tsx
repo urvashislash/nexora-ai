@@ -24,6 +24,7 @@ interface SidebarProps {
   user?: AuthUser | null;
   onOpenAuth?: () => void;
   onOpenJwt?: () => void;
+  onOpenAccount?: () => void;
   onLogout?: () => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
@@ -37,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   user,
   onOpenAuth,
   onOpenJwt,
+  onOpenAccount,
   onLogout,
   isMobileOpen = false,
   onCloseMobile,
@@ -214,10 +216,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
           <button
             type="button"
-            onClick={onOpenJwt}
-            className="flex min-w-0 flex-1 items-center space-x-2.5 truncate text-left transition hover:opacity-80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500"
-            aria-label={`View token claims for ${user?.full_name?.split(' (')[0] || 'Vikram Singh'}`}
-            title="View token claims"
+            onClick={onOpenAccount || onOpenJwt}
+            className="flex min-w-0 flex-1 items-center space-x-2.5 truncate text-left transition hover:opacity-80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 cursor-pointer"
+            aria-label={`View account settings for ${user?.full_name?.split(' (')[0] || 'User'}`}
+            title="Account Settings"
           >
             <div className="h-7 w-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
               <User className="h-3.5 w-3.5 text-slate-700" aria-hidden="true" />
